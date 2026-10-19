@@ -397,18 +397,22 @@ body.is-logged-in .link-dashboard {
   display: block;
 }
 
+/* The burger menu: attached to the top edge of the screen (it slides behind the header,
+   whichever offset the active theme gives it), its links padded below the header. */
 .mobile-menu {
   position: fixed;
-  inset: 92px 14px auto;
+  inset: 0 14px auto;
   z-index: 49;
   display: none;
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  border-radius: 20px;
+  padding-top: calc(var(--header-offset, 18px) + 90px);
+  border-radius: 0 0 20px 20px;
   background: var(--mobile-bg);
   backdrop-filter: blur(24px);
   border: 1px solid var(--line);
+  border-top-width: 0;
 }
 
 .mobile-menu.open {
@@ -2179,12 +2183,12 @@ body.is-logged-in .mobile-menu [data-open-settings] {
   }
 
   .mobile-menu {
-    inset: 84px 14px auto auto;
+    inset: 0 14px auto auto;
     width: min(360px, calc(100% - 28px));
   }
 
   html[dir="rtl"] .mobile-menu {
-    inset: 84px auto auto 14px;
+    inset: 0 auto auto 14px;
   }
 }
 
