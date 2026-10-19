@@ -239,6 +239,9 @@
   // tier all of it gives. Added from the member's available points, back the same way.
   M.balanceCardHtml = (me) => {
     const s = me?.store || {};
+    // balance/held/capital come with the new sql/market.sql; before it the card hides
+    // its form instead of offering a deposit that the database cannot honour yet
+    if (s.balance === undefined || s.balance === null) return "";
     const bal = Number(s.balance || 0);
     const held = Number(s.held || 0);
     const capital = Number(s.capital ?? Math.max(0, bal - held));
