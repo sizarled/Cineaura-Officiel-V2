@@ -4241,4 +4241,21 @@
  "Women": "Frauen",
  "Exclusive product — its seller chose who may see it.": "Exklusives Produkt — sein Verkäufer hat gewählt, wer es sehen darf.",
  "Type countries as two letters each, separated by commas (MA, FR, US…).": "Länder jeweils mit zwei Buchstaben, durch Kommas getrennt (MA, FR, US…)."
+,
+ "Episode {n}": "Folge {n}",
+ "Way to publish": "Art der Veröffentlichung",
+ "One link": "Ein Link",
+ "Bulk (up to 10)": "Sammel (bis 10)",
+ "Import TXT": "TXT importieren",
+ "Type any season and episode — a number the catalog does not list yet appears in the episode picker once your link is up.": "Gib eine beliebige Staffel und Folge ein — eine Nummer, die der Katalog noch nicht kennt, erscheint nach dem Veröffentlichen deines Links in der Folgenauswahl.",
+ "First episode": "Erste Folge",
+ "Season and episode must be whole numbers (season 1–99, episode 1–999).": "Staffel und Folge müssen ganze Zahlen sein (Staffel 1–99, Folge 1–999).",
+ "One URL per line (up to {n}): the first line is the episode typed above and every next line fills the episode right after it, in this season. Repeated URLs publish once.": "Eine URL pro Zeile (bis zu {n}): die erste Zeile ist die oben eingegebene Folge und jede weitere Zeile füllt die Folge direkt danach, in dieser Staffel. Wiederholte URLs werden nur einmal veröffentlicht.",
+ "The links (one per line)": "Die Links (einer pro Zeile)",
+ "Add at least one valid link.": "Füge mindestens einen gültigen Link hinzu.",
+ "At most {n} links at once.": "Höchstens {n} Links auf einmal.",
+ "Every link under its comment line, <!-- Name - S1 - Ep1 [HD] --> then the URL on the next line, with a blank line between pairs.": "Jeder Link unter seiner Kommentarzeile, <!-- Name - S1 - Ep1 [HD] --> dann die URL in der nächsten Zeile, mit einer Leerzeile zwischen den Paaren.",
+ "Paste the file content": "Dateiinhalt einfügen",
+ "No usable pair (comment line + URL) was found.": "Es wurde kein brauchbares Paar (Kommentarzeile + URL) gefunden.",
+ "Added {added} · already present {dup} · skipped {bad}": "Hinzugefügt {added} · bereits vorhanden {dup} · übersprungen {bad}"
 };

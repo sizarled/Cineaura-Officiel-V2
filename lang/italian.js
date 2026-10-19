@@ -4242,4 +4242,21 @@
  "Women": "Donne",
  "Exclusive product — its seller chose who may see it.": "Prodotto esclusivo — il suo venditore ha scelto chi può vederlo.",
  "Type countries as two letters each, separated by commas (MA, FR, US…).": "Scrivi i paesi con due lettere ciascuno, separati da virgole (MA, FR, US…)."
+,
+ "Episode {n}": "Episodio {n}",
+ "Way to publish": "Modo di pubblicazione",
+ "One link": "Un link",
+ "Bulk (up to 10)": "In blocco (fino a 10)",
+ "Import TXT": "Importa TXT",
+ "Type any season and episode — a number the catalog does not list yet appears in the episode picker once your link is up.": "Digita qualsiasi stagione ed episodio — un numero che il catalogo non elenca ancora appare nel selettore degli episodi una volta pubblicato il tuo link.",
+ "First episode": "Primo episodio",
+ "Season and episode must be whole numbers (season 1–99, episode 1–999).": "Stagione ed episodio devono essere numeri interi (stagione 1–99, episodio 1–999).",
+ "One URL per line (up to {n}): the first line is the episode typed above and every next line fills the episode right after it, in this season. Repeated URLs publish once.": "Un URL per riga (fino a {n}): la prima riga è l’episodio digitato sopra e ogni riga successiva riempie l’episodio subito dopo, in questa stagione. Gli URL ripetuti vengono pubblicati una sola volta.",
+ "The links (one per line)": "I link (uno per riga)",
+ "Add at least one valid link.": "Aggiungi almeno un link valido.",
+ "At most {n} links at once.": "Al massimo {n} link alla volta.",
+ "Every link under its comment line, <!-- Name - S1 - Ep1 [HD] --> then the URL on the next line, with a blank line between pairs.": "Ogni link sotto la sua riga di commento, <!-- Name - S1 - Ep1 [HD] --> poi l'URL nella riga successiva, con una riga vuota tra le coppie.",
+ "Paste the file content": "Incolla il contenuto del file",
+ "No usable pair (comment line + URL) was found.": "Nessuna coppia utilizzabile (riga di commento + URL) è stata trovata.",
+ "Added {added} · already present {dup} · skipped {bad}": "Aggiunti {added} · già presenti {dup} · saltati {bad}"
 };

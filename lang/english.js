@@ -4250,4 +4250,21 @@
  "Women": "Women",
  "Exclusive product — its seller chose who may see it.": "Exclusive product — its seller chose who may see it.",
  "Type countries as two letters each, separated by commas (MA, FR, US…).": "Type countries as two letters each, separated by commas (MA, FR, US…)."
+,
+ "Episode {n}": "Episode {n}",
+ "Way to publish": "Way to publish",
+ "One link": "One link",
+ "Bulk (up to 10)": "Bulk (up to 10)",
+ "Import TXT": "Import TXT",
+ "Type any season and episode — a number the catalog does not list yet appears in the episode picker once your link is up.": "Type any season and episode — a number the catalog does not list yet appears in the episode picker once your link is up.",
+ "First episode": "First episode",
+ "Season and episode must be whole numbers (season 1–99, episode 1–999).": "Season and episode must be whole numbers (season 1–99, episode 1–999).",
+ "One URL per line (up to {n}): the first line is the episode typed above and every next line fills the episode right after it, in this season. Repeated URLs publish once.": "One URL per line (up to {n}): the first line is the episode typed above and every next line fills the episode right after it, in this season. Repeated URLs publish once.",
+ "The links (one per line)": "The links (one per line)",
+ "Add at least one valid link.": "Add at least one valid link.",
+ "At most {n} links at once.": "At most {n} links at once.",
+ "Every link under its comment line, <!-- Name - S1 - Ep1 [HD] --> then the URL on the next line, with a blank line between pairs.": "Every link under its comment line, <!-- Name - S1 - Ep1 [HD] --> then the URL on the next line, with a blank line between pairs.",
+ "Paste the file content": "Paste the file content",
+ "No usable pair (comment line + URL) was found.": "No usable pair (comment line + URL) was found.",
+ "Added {added} · already present {dup} · skipped {bad}": "Added {added} · already present {dup} · skipped {bad}"
 };

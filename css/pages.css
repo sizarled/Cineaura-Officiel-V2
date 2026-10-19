@@ -1153,6 +1153,31 @@ html[data-theme="day"] .vis-chip.vis-private { color: #c62f35; }
   font-size: 14.5px;
 }
 
+.addlink-field textarea {
+  width: 100%;
+  min-height: 132px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.addlink-field textarea.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  direction: ltr;
+}
+
+.addlink-field textarea:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.25);
+}
+
 .addlink-field input:focus,
 .addlink-field select:focus {
   outline: none;

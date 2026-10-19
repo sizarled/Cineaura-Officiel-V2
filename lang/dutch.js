@@ -4240,4 +4240,21 @@
  "Women": "Vrouwen",
  "Exclusive product — its seller chose who may see it.": "Exclusief product — de verkoper koos wie het mag zien.",
  "Type countries as two letters each, separated by commas (MA, FR, US…).": "Schrijf landen met elk twee letters, gescheiden door komma's (MA, FR, US…)."
+,
+ "Episode {n}": "Aflevering {n}",
+ "Way to publish": "Manier van publiceren",
+ "One link": "Eén link",
+ "Bulk (up to 10)": "Bulk (tot 10)",
+ "Import TXT": "TXT importeren",
+ "Type any season and episode — a number the catalog does not list yet appears in the episode picker once your link is up.": "Typ een willekeurig seizoen en aflevering — een nummer dat de catalogus nog niet kent verschijnt in de afleveringskiezer zodra je link online is.",
+ "First episode": "Eerste aflevering",
+ "Season and episode must be whole numbers (season 1–99, episode 1–999).": "Seizoen en aflevering moeten hele getallen zijn (seizoen 1–99, aflevering 1–999).",
+ "One URL per line (up to {n}): the first line is the episode typed above and every next line fills the episode right after it, in this season. Repeated URLs publish once.": "Eén URL per regel (maximaal {n}): de eerste regel is de hierboven getypte aflevering en elke volgende regel vult de aflevering er direct na, in dit seizoen. Herhaalde URL's worden één keer gepubliceerd.",
+ "The links (one per line)": "De links (één per regel)",
+ "Add at least one valid link.": "Voeg minstens één geldige link toe.",
+ "At most {n} links at once.": "Maximaal {n} links tegelijk.",
+ "Every link under its comment line, <!-- Name - S1 - Ep1 [HD] --> then the URL on the next line, with a blank line between pairs.": "Elke link onder zijn commentaarregel, <!-- Name - S1 - Ep1 [HD] --> dan de URL op de volgende regel, met een lege regel tussen de paren.",
+ "Paste the file content": "Plak de bestandsinhoud",
+ "No usable pair (comment line + URL) was found.": "Er is geen bruikbaar paar (commentaarregel + URL) gevonden.",
+ "Added {added} · already present {dup} · skipped {bad}": "Toegevoegd {added} · al aanwezig {dup} · overgeslagen {bad}"
 };

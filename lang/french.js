@@ -4239,4 +4239,21 @@
  "Women": "Femmes",
  "Exclusive product — its seller chose who may see it.": "Produit exclusif — son vendeur a choisi qui peut le voir.",
  "Type countries as two letters each, separated by commas (MA, FR, US…).": "Écrivez les pays en deux lettres chacun, séparés par des virgules (MA, FR, US…)."
+,
+ "Episode {n}": "Épisode {n}",
+ "Way to publish": "Mode de publication",
+ "One link": "Un lien",
+ "Bulk (up to 10)": "En lot (jusqu’à 10)",
+ "Import TXT": "Importer TXT",
+ "Type any season and episode — a number the catalog does not list yet appears in the episode picker once your link is up.": "Entrez n’importe quelle saison et épisode — un numéro que le catalogue ne liste pas encore apparaît dans le sélecteur d’épisodes dès que votre lien est publié.",
+ "First episode": "Premier épisode",
+ "Season and episode must be whole numbers (season 1–99, episode 1–999).": "La saison et l’épisode doivent être des nombres entiers (saison 1–99, épisode 1–999).",
+ "One URL per line (up to {n}): the first line is the episode typed above and every next line fills the episode right after it, in this season. Repeated URLs publish once.": "Une URL par ligne (jusqu’à {n}) : la première ligne est l’épisode saisi ci-dessus et chaque ligne suivante remplit l’épisode juste après, dans cette saison. Les URL répétées ne sont publiées qu’une fois.",
+ "The links (one per line)": "Les liens (un par ligne)",
+ "Add at least one valid link.": "Ajoutez au moins un lien valide.",
+ "At most {n} links at once.": "Au plus {n} liens à la fois.",
+ "Every link under its comment line, <!-- Name - S1 - Ep1 [HD] --> then the URL on the next line, with a blank line between pairs.": "Chaque lien sous sa ligne de commentaire, <!-- Name - S1 - Ep1 [HD] --> puis l’URL à la ligne suivante, avec une ligne vide entre les paires.",
+ "Paste the file content": "Collez le contenu du fichier",
+ "No usable pair (comment line + URL) was found.": "Aucune paire utilisable (ligne de commentaire + URL) n’a été trouvée.",
+ "Added {added} · already present {dup} · skipped {bad}": "Ajoutés {added} · déjà présents {dup} · ignorés {bad}"
 };

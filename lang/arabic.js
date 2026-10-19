@@ -4307,4 +4307,21 @@
  "Women": "النساء",
  "Exclusive product — its seller chose who may see it.": "منتج حصري — اختار بائعُه من يمكنه رؤيته.",
  "Type countries as two letters each, separated by commas (MA, FR, US…).": "اكتب البلدان بحرفين لكل بلدٍ تفصلها فواصل (MA, FR, US…)."
+,
+ "Episode {n}": "الحلقة {n}",
+ "Way to publish": "طريقة النشر",
+ "One link": "رابط واحد",
+ "Bulk (up to 10)": "دفعة (حتى 10)",
+ "Import TXT": "استيراد TXT",
+ "Type any season and episode — a number the catalog does not list yet appears in the episode picker once your link is up.": "اكتب أي موسم وحلقة — الرقم غير الموجود في الكتالوج يظهر في قائمة الحلقات فور نشر رابطك.",
+ "First episode": "أول حلقة",
+ "Season and episode must be whole numbers (season 1–99, episode 1–999).": "يجب أن يكون الموسم والحلقة أرقامًا صحيحة (الموسم 1–99، الحلقة 1–999).",
+ "One URL per line (up to {n}): the first line is the episode typed above and every next line fills the episode right after it, in this season. Repeated URLs publish once.": "رابط واحد في كل سطر (حتى {n}): السطر الأول هو الحلقة المكتوبة أعلاه وكل سطر تالٍ يملأ الحلقة التي تليها مباشرةً، في هذا الموسم. الروابط المكرّرة تُنشر مرة واحدة.",
+ "The links (one per line)": "الروابط (رابط في كل سطر)",
+ "Add at least one valid link.": "أضف رابطًا صالحًا واحدًا على الأقل.",
+ "At most {n} links at once.": "{n} روابط في المرة الواحدة كحدٍّ أقصى.",
+ "Every link under its comment line, <!-- Name - S1 - Ep1 [HD] --> then the URL on the next line, with a blank line between pairs.": "كل رابط تحت سطر التعليق الخاص به، ‎<!-- Name - S1 - Ep1 [HD] -->‎ ثم الرابط في السطر التالي، مع سطر فارغ بين كل زوج.",
+ "Paste the file content": "الصق محتوى الملف",
+ "No usable pair (comment line + URL) was found.": "لم يُعثر على زوجٍ صالح (سطر تعليق + رابط).",
+ "Added {added} · already present {dup} · skipped {bad}": "أُضيف {added} · موجود مسبقًا {dup} · تم تجاوزه {bad}"
 };
