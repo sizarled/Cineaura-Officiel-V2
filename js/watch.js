@@ -37,6 +37,12 @@
     selectedLangs,
     bindLangPicker,
     publishWatchLink,
+    publishLinkRows,
+    parseLinkDump,
+    resolveLinkDumpTitles,
+    publishQuota,
+    membership,
+    membershipBatchCap,
     getLocale,
     linkHostName,
     hostIconUrl,
@@ -1737,27 +1743,32 @@
         <p class="addlink-sub">${addLinkContext()}</p>
         <p class="addlink-lead">${t("watch.al.lead")}</p>
         <div class="addlink-form">
-          <!-- A series form adds its link to one episode, to a run of episodes
-               (bulk), or imports a whole text of pairs — the season and the
-               episode are typed, a number the catalog does not know yet is
-               allowed and shows in the episode picker with the link. -->
-          ${
-            mediaType === "tv"
-              ? `
+          <!-- A form adds its link to one spot, to a run of episodes (bulk,
+               series), or imports a whole text of pairs — imported pairs may
+               name any film or series, by TMDB id or by title. The season and
+               the episode are typed; a number the catalog does not know yet
+               is allowed and shows in the episode picker with the link. -->
           <div class="addlink-kinds" role="radiogroup" aria-label="${escapeHtml(t("watch.al.mode"))}">
             <label class="kind-pick">
               <input type="radio" name="al-mode" value="single" checked />
               <span>${t("watch.al.modeSingle")}</span>
             </label>
-            <label class="kind-pick">
+            ${
+              mediaType === "tv"
+                ? `<label class="kind-pick">
               <input type="radio" name="al-mode" value="bulk" />
               <span>${t("watch.al.modeBulk")}</span>
-            </label>
+            </label>`
+                : ""
+            }
             <label class="kind-pick">
               <input type="radio" name="al-mode" value="import" />
               <span>${t("watch.al.modeImport")}</span>
             </label>
           </div>
+          ${
+            mediaType === "tv"
+              ? `
           <div class="addlink-row" id="al-se-row">
             <label class="addlink-field">
               <span>${t("common.season")}</span>
@@ -1771,6 +1782,7 @@
           <p class="muted addlink-hint" id="al-se-hint">${t("watch.al.seHint")}</p>`
               : ""
           }
+          <p class="muted addlink-hint" id="al-quota" hidden></p>
           <!-- One form publishes both kinds: a source to watch in the player, or
                a file to download. The kind is what puts the row in its rail. -->
           <div class="addlink-kinds" role="radiogroup" aria-label="${escapeHtml(t("watch.al.kind"))}">
@@ -1906,6 +1918,25 @@
       return submitNewLink();
     };
     $("#al-url").focus();
+    fillAddQuotaHint();
+  }
+
+  /* Today's share and one paste's size, in the publish dialog: level × 10
+     links a day; the membership packs one paste (Free 5 · Silver 10 ·
+     Gold 15 · Diamond 20). */
+  async function fillAddQuotaHint() {
+    const el = $("#al-quota");
+    if (!el) return;
+    const session = getSession();
+    if (!session?.member_id) return;
+    const [q, plan] = await Promise.all([publishQuota(session.member_id, "links"), membership()]);
+    if (q.cap == null || !$("#al-quota")) return;
+    const batch = membershipBatchCap(plan);
+    el.textContent =
+      t("watch.al.quota", { left: q.left, cap: q.cap, lv: q.level }) +
+      " · " +
+      t("watch.al.batchCap", { n: batch, plan: plan.premium ? plan.type || "Free" : "Free" });
+    el.hidden = false;
   }
 
   /* Everything a published row carries except the URL and the S/E — shared by
@@ -1994,6 +2025,7 @@
     const button = $("#al-save");
     if (!(await C.guardFeature("links"))) { button.disabled = false; return; }
     if (!(await C.guardLevel("publish_links"))) { button.disabled = false; return; }
+    if (!(await linkQuotaLeft(session))) { button.disabled = false; return; }
     button.disabled = true;
     // One row per chosen kind: watch (opens in the player), download (opens on
     // its own site) or both at once. A kind this URL already has is skipped.
@@ -2014,24 +2046,24 @@
     afterLinksSaved([{ season: row.season, episode: row.episode }]);
   }
 
-  /* Rows go in one by one: a URL the title already has (with its kind) is
-     skipped as a duplicate, the rest are added. The counters tell it apart. */
-  async function publishLinkRows(entries) {
-    let added = 0;
-    let dup = 0;
-    let bad = 0;
-    for (const entry of entries) {
-      const result = await publishWatchLink(entry.table, entry.row, [entry.row.link_kind]);
-      if (result.ok) added += result.added.length;
-      else if (!result.error || /duplicate|23505/i.test(JSON.stringify(result.error?.data || {}))) dup += 1;
-      else bad += 1;
-    }
-    return { added, dup, bad };
+  /* The membership decides the batch of one paste: Free 5 · Silver 10 ·
+     Gold 15 · Diamond 20. The level decides the whole day: LV × 10 links. */
+  async function linkBatchCap() {
+    return membershipBatchCap(await membership());
   }
 
-  /* Bulk: one URL per line (10 at most). The first line is the episode typed in
-     the form and every next line fills the episode right after it — same
-     season, same details. Repeated URLs inside the text never publish twice. */
+  async function linkQuotaLeft(session) {
+    const q = await publishQuota(session.member_id, "links");
+    if (q.cap != null && q.left <= 0) {
+      toast(t("watch.al.dayFull", { cap: q.cap, lv: q.level }));
+      return null;
+    }
+    return q;
+  }
+
+  /* Bulk: one URL per line. The first line is the episode typed in the form
+     and every next line fills the episode right after it — same season, same
+     details. Inside the paste and against the catalog, no link goes twice. */
   async function submitBulkLinks() {
     const session = getSession();
     if (!session?.member_id || mediaType !== "tv") {
@@ -2048,7 +2080,12 @@
       .map((x) => x.trim())
       .filter(Boolean);
     if (!lines.length) return toast(t("watch.al.urlsEmpty"));
-    if (lines.length > 10) return toast(t("watch.al.tooMany", { n: 10 }));
+    const batchCap = await linkBatchCap();
+    if (lines.length > batchCap) return toast(t("watch.al.tooMany", { n: batchCap }));
+    if (!(await C.guardFeature("links"))) return;
+    if (!(await C.guardLevel("publish_links"))) return;
+    const quota = await linkQuotaLeft(session);
+    if (!quota) return;
     const seen = new Set();
     const entries = [];
     let bad = 0;
@@ -2065,96 +2102,82 @@
     });
     if (!entries.length) return toast(t("watch.al.urlsEmpty"));
     if (se.episode + entries.length - 1 > 999) return toast(t("watch.al.seBad"));
-    if (!(await C.guardFeature("links"))) return;
-    if (!(await C.guardLevel("publish_links"))) return;
+    const left = quota.left ?? entries.length;
+    const toSave = entries.slice(0, left);
+    const over = entries.length - toSave.length;
     const button = $("#al-save");
     button.disabled = true;
-    const res = await publishLinkRows(entries);
+    const res = await publishLinkRows(toSave);
     button.disabled = false;
     if (res.bad && !res.added && !res.dup) return toast(t("dash.linkFail"));
     closeAddLinkModal();
-    toast(t("watch.al.bulkRes", { added: res.added, dup: res.dup + dup, bad: res.bad + bad }));
-    afterLinksSaved(entries.map((e) => ({ season: e.row.season, episode: e.row.episode })));
+    toast(t("watch.al.result", { added: res.added, dup: res.dup + dup, bad: res.bad + bad, over }));
+    afterLinksSaved(toSave.map((e) => ({ season: e.row.season, episode: e.row.episode })));
   }
 
-  /* The import format: `<!-- One Piece - S1 - Ep355 [SD] -->` on one line and
-     the URL on the next; pairs follow each other, a blank line between them is
-     optional. The quality in the brackets wins over the picker when known. */
-  const IMPORT_HEAD = /^(.*?)\s+-\s+[Ss]\s*(\d{1,2})\s+-\s*[Ee]p\s*(\d{1,4})(?:\s*\[([^\]]{1,8})\])?\s*$/;
+  /* The import accepts films and series, by TMDB id or by title, from any
+     page — every comment line names its own target:
 
-  function parseLinkImport(text) {
-    const pairs = [];
-    let bad = 0;
-    let head = null;
-    String(text || "")
-      .split(/\r?\n/)
-      .forEach((raw) => {
-        const line = raw.trim();
-        if (!line) return;
-        const h = line.match(/^<!--\s*(.*?)\s*-->$/);
-        if (h) { head = h[1]; return; }
-        if (validWatchUrl(line)) {
-          if (head) pairs.push({ head, url: line });
-          else bad += 1; // a URL without its comment line
-          head = null;
-          return;
-        }
-        bad += 1;
-      });
-    return { pairs, bad };
-  }
+       <!--  1396 - S1 - Ep353 [SD] -->   series episode by id
+       <!--  One Piece - S1 - Ep356 -->   series episode by title
+       <!--  872585 [HD] -->              film by id
 
-  function parseImportHead(head) {
-    const m = String(head || "").trim().match(IMPORT_HEAD);
-    if (!m) return null;
-    const season = Number(m[2]);
-    const episode = Number(m[3]);
-    if (!(season >= 1 && season <= 99 && episode >= 1 && episode <= 999)) return null;
-    const q = String(m[4] || "").trim().toUpperCase();
-    return { season, episode, quality: LINK_QUALITIES.includes(q) ? q : "" };
-  }
-
+     The URL goes on the next line; the pairs land on their own titles. */
   async function submitImportLinks() {
     const session = getSession();
-    if (!session?.member_id || mediaType !== "tv") {
+    if (!session?.member_id) {
       toast(t("watch.al.sign"));
       return;
     }
-    const parsed = parseLinkImport($("#al-import")?.value || "");
+    const parsed = parseLinkDump($("#al-import")?.value || "");
     if (!parsed.pairs.length) return toast(t("watch.al.importEmpty"));
-    if (parsed.pairs.length > 90) return toast(t("watch.al.tooMany", { n: 90 }));
+    const batchCap = await linkBatchCap();
+    if (parsed.pairs.length > batchCap) return toast(t("watch.al.tooMany", { n: batchCap }));
     const meta = linkMetaFromForm();
-    // The quality may come from every header, so the picker is checked per pair.
     const metaToast = linkMetaToast(meta, true);
     if (metaToast) return toast(metaToast);
+    if (!(await C.guardFeature("links"))) return;
+    if (!(await C.guardLevel("publish_links"))) return;
+    const quota = await linkQuotaLeft(session);
+    if (!quota) return;
+    const button = $("#al-save");
+    button.disabled = true;
+    toast(t("watch.al.resolving"));
+    const resolved = await resolveLinkDumpTitles(parsed.pairs, tmdb);
     const seen = new Set();
     const entries = [];
     let dup = 0;
     let bad = parsed.bad;
-    parsed.pairs.forEach((pair) => {
-      const h = parseImportHead(pair.head);
-      const key = pair.url.toLowerCase();
-      if (!h) { bad += 1; return; }
+    resolved.forEach((p) => {
+      if (p.error || !p.tmdb || !p.parsed) { bad += 1; return; }
+      const key = p.url.toLowerCase();
       if (seen.has(key)) { dup += 1; return; }
       seen.add(key);
-      const quality = h.quality || meta.quality;
-      entries.push({
-        table: "tvlink",
-        row: { ...linkBaseRow(meta), watch_url: pair.url, season: h.season, episode: h.episode, quality },
-      });
+      const quality = p.parsed.quality || meta.quality;
+      if (!quality) { bad += 1; return; }
+      const row = {
+        ...linkBaseRow(meta),
+        watch_url: p.url,
+        title: p.title || `TMDB ${p.tmdb}`,
+        tmdb_id: p.tmdb,
+        quality,
+      };
+      if (p.parsed.kind === "tv") {
+        row.season = p.parsed.season;
+        row.episode = p.parsed.episode;
+      }
+      entries.push({ table: p.parsed.kind === "tv" ? "tvlink" : "movielink", row });
     });
-    if (!entries.length) return toast(t("watch.al.importEmpty"));
-    if (entries.some((e) => !e.row.quality)) return toast(t("dash.needQuality"));
-    if (!(await C.guardFeature("links"))) return;
-    if (!(await C.guardLevel("publish_links"))) return;
-    const button = $("#al-save");
-    button.disabled = true;
-    const res = await publishLinkRows(entries);
+    if (!entries.length && !bad) bad = 1;
+    const left = quota.left ?? entries.length;
+    const toSave = entries.slice(0, left);
+    const over = entries.length - toSave.length;
+    const res = await publishLinkRows(toSave);
     button.disabled = false;
-    if (res.bad && !res.added && !res.dup) return toast(t("dash.linkFail"));
+    if (res.bad && !res.added && !res.dup && !bad) return toast(t("dash.linkFail"));
     closeAddLinkModal();
-    toast(t("watch.al.bulkRes", { added: res.added, dup: res.dup + dup, bad: res.bad + bad }));
-    afterLinksSaved(entries.map((e) => ({ season: e.row.season, episode: e.row.episode })));
+    toast(t("watch.al.result", { added: res.added, dup: res.dup + dup, bad: res.bad + bad, over }));
+    afterLinksSaved(toSave.map((e) => ({ season: e.row.season, episode: e.row.episode })));
   }
 
   /* --- Where to watch: the platforms TMDB lists for this title -------------
@@ -3289,21 +3312,22 @@
       return !ownerBlocks("links", row.member_id, row.username);
     });
     state.linkRows = rows;
-    /* An episode with member watch links: the play button starts the most
-       viewed one, and the site's default player (the official link) is not
-       used for that episode — it leaves the choices entirely. */
-    const memberWatches =
-      mediaType === "tv" ? rows.filter((row) => linkKindOf(row) === "watch") : [];
-    if (memberWatches.length) {
+    /* The official player leaves only where the panel hid it — publishing or
+       importing member links never hides it by itself. Where it is hidden,
+       the play button arms the most-viewed member watch link instead. */
+    if (officialHidden(Number(state.season) || 0, Number(state.episode) || 0)) {
       state.mainRow = null;
-      const topWatch = [...memberWatches].sort(
-        (a, b) =>
-          (Number(b.clicks) || 0) - (Number(a.clicks) || 0) ||
-          (Date.parse(b.added_at || "") || 0) - (Date.parse(a.added_at || "") || 0)
-      )[0];
-      if (!state.playLink || state.playLinkAuto) {
-        state.playLink = topWatch;
-        state.playLinkAuto = true;
+      const memberWatches = rows.filter((row) => linkKindOf(row) === "watch");
+      if (memberWatches.length) {
+        const topWatch = [...memberWatches].sort(
+          (a, b) =>
+            (Number(b.clicks) || 0) - (Number(a.clicks) || 0) ||
+            (Date.parse(b.added_at || "") || 0) - (Date.parse(a.added_at || "") || 0)
+        )[0];
+        if (!state.playLink || state.playLinkAuto) {
+          state.playLink = topWatch;
+          state.playLinkAuto = true;
+        }
       }
     }
     mountSourceFilters();
@@ -3787,6 +3811,36 @@
     el.innerHTML = shareRowHtml(`${location.pathname}${canonicalUrl().search}`, text);
   }
 
+  /* Panel rule: the site's official player can be hidden on a scope of this
+     title. A rule is (season?, episode?): both empty hides the whole title,
+     season only hides that season, episode only hides that episode number in
+     every season, and both hides exactly that one. */
+  async function loadOfficialHides() {
+    state.officialHides = [];
+    const res = await supabaseRequest(
+      `/rest/v1/official_link_hides?tmdb_id=eq.${Number(mediaId)}&media_type=eq.${mediaType}&select=season,episode&limit=100`
+    );
+    // PGRST205 (the table is not there yet) keeps the list empty: official stays.
+    if (res.ok && Array.isArray(res.data)) {
+      state.officialHides = res.data.map((r) => ({
+        season: r.season == null ? null : Number(r.season),
+        episode: r.episode == null ? null : Number(r.episode),
+      }));
+    }
+  }
+
+  function officialHidden(season, episode) {
+    const rules = state.officialHides || [];
+    if (mediaType === "movie") return rules.length > 0;
+    if (!rules.length) return false;
+    return rules.some((r) => {
+      if (r.season == null && r.episode == null) return true;
+      if (r.season != null && r.episode == null) return r.season === season;
+      if (r.season == null && r.episode != null) return r.episode === episode;
+      return r.season === season && r.episode === episode;
+    });
+  }
+
   /* Seasons and episodes the members published a link for, beyond what TMDB
      lists: the page shows them in the pickers like the catalog's own. */
   async function loadSeriesExtras() {
@@ -3989,12 +4043,14 @@
         if (!state.seasons.length) state.seasons = [{ season_number: 1, name: "Season 1" }];
         // Seasons a member published a link for join the TMDB list.
         await loadSeriesExtras();
+        await loadOfficialHides();
         const hasSeason = state.seasons.some((s) => Number(s.season_number) === Number(state.season));
         if (!hasSeason) state.season = state.seasons[0].season_number;
         $("#episode-bar").classList.add("show");
         await loadSeason(state.season, state.episode);
       } else {
         setIdleArt();
+        await loadOfficialHides();
         await loadWatchMinutes();
         renderInfo();
         await renderWatchExtras();

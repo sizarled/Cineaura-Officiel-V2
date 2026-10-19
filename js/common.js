@@ -4723,6 +4723,191 @@
     };
   }
 
+  /* ── Round-34: daily publish quotas + ID/title dump parser ──────────────── */
+
+  /* Every member has a daily cap of LEVEL × 10 watch/download links (and the
+     same cap on profile posts). The level is the points level — the same one
+     the LV permission gates use. The membership decides the batch size of one
+     paste: Free 5 · Silver 10 · Gold 15 · Diamond 20. */
+  const MEMBERSHIP_BATCH_CAP = { Free: 5, Silver: 10, Gold: 15, Diamond: 20 };
+  const dailyCapForLevel = (lv) => Math.max(0, Math.floor(Number(lv) || 0)) * 10;
+
+  function membershipBatchCap(info) {
+    if (!info || info.guest || info.unknown) return MEMBERSHIP_BATCH_CAP.Free;
+    const type = info.premium ? info.type || "Free" : "Free";
+    return MEMBERSHIP_BATCH_CAP[type] ?? MEMBERSHIP_BATCH_CAP.Free;
+  }
+
+  const dayStartUtcIso = () => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  };
+
+  // Links the member published since today's UTC midnight.
+  async function linksPublishedToday(memberId) {
+    if (!memberId) return 0;
+    const from = dayStartUtcIso();
+    const [m, t] = await Promise.all([
+      countRows(`/rest/v1/movielink?member_id=eq.${restValue(memberId)}&added_at=gte.${encodeURIComponent(from)}&select=id`),
+      countRows(`/rest/v1/tvlink?member_id=eq.${restValue(memberId)}&added_at=gte.${encodeURIComponent(from)}&select=id`),
+    ]);
+    return m + t;
+  }
+
+  // Posts the member wrote since today's UTC midnight (the profile quota).
+  async function postsPublishedToday(memberId) {
+    if (!memberId) return 0;
+    return countRows(
+      `/rest/v1/posts?owner_id=eq.${restValue(memberId)}&created_at=gte.${encodeURIComponent(dayStartUtcIso())}&select=post_id`
+    );
+  }
+
+  /* One call, one answer: the member's level, their daily cap and how much of
+     it is still open. `what` is "links" (watch/download rows) or "posts"
+     (profile publishing). Level 0 has a cap of 0 — publishing stays shut. */
+  async function publishQuota(memberId, what = "links") {
+    const out = { level: null, cap: null, used: 0, left: null };
+    if (!memberId) return out;
+    try {
+      const mp = await memberPoints(memberId).catch(() => null);
+      out.level = pointLevel(Number(mp?.earned || 0));
+      out.cap = dailyCapForLevel(out.level);
+      out.used = what === "posts" ? await postsPublishedToday(memberId) : await linksPublishedToday(memberId);
+      out.left = Math.max(0, out.cap - out.used);
+    } catch {
+      // offline: the caller lets the server decide
+    }
+    return out;
+  }
+
+  /* The import grammar, one pair = comment line + URL line:
+
+       <!--  IDTMDB - S1 - Ep353 [SD] -->     series by TMDB id
+       <!--  One Piece - S1 - Ep351 [HD] -->  series by title
+       <!--  IDTMDB [SD] -->                  movie by TMDB id
+       <!--  Title [SD] -->                   movie by title
+
+     The [quality] is optional; the season/episode flags a series. */
+  const LINK_DUMP_HEAD = /^<!--\s*(.*?)\s*-->$/;
+  const LINK_DUMP_TV = /^(.*?)\s+-\s+[Ss]\s*(\d{1,2})\s+-\s*[Ee]p\s*(\d{1,4})(?:\s*\[([^\]]{1,8})\])?\s*$/;
+  const LINK_DUMP_MOVIE = /^(.*?)(?:\s*\[([^\]]{1,8})\])?\s*$/;
+
+  function parseLinkDump(text) {
+    const pairs = [];
+    let bad = 0;
+    let head = null;
+    String(text || "")
+      .split(/\r?\n/)
+      .forEach((raw) => {
+        const line = raw.trim();
+        if (!line) return;
+        const h = line.match(LINK_DUMP_HEAD);
+        if (h) { head = h[1]; return; }
+        if (validWatchUrl(line)) {
+          if (head) pairs.push({ head, url: line });
+          else bad += 1; // a URL without its comment line
+          head = null;
+          return;
+        }
+        bad += 1;
+      });
+    return { pairs, bad };
+  }
+
+  function parseLinkDumpHead(head) {
+    const clean = String(head || "").trim();
+    const idOrName = (part) => {
+      const v = String(part || "").trim().replace(/^-+|[-–—]+$/g, "").trim();
+      return /^\d{1,10}$/.test(v) ? { tmdb: Number(v), name: null } : { tmdb: null, name: v || null };
+    };
+    const qualOf = (q) => {
+      const v = String(q || "").trim().toUpperCase();
+      return LINK_QUALITIES.includes(v) ? v : "";
+    };
+    const tv = clean.match(LINK_DUMP_TV);
+    if (tv && tv[1].trim()) {
+      const idName = idOrName(tv[1]);
+      if (!idName.tmdb && !idName.name) return null;
+      const season = Number(tv[2]);
+      const episode = Number(tv[3]);
+      if (!(season >= 1 && season <= 99 && episode >= 1 && episode <= 999)) return null;
+      return { kind: "tv", ...idName, season, episode, quality: qualOf(tv[4]) };
+    }
+    if (clean.includes(" - ")) {
+      // A dash pair that is not the S/E form — try the movie form anyway.
+    }
+    const mv = clean.match(LINK_DUMP_MOVIE);
+    if (!mv || !mv[1].trim()) return null;
+    const idName = idOrName(mv[1]);
+    if (!idName.tmdb && !idName.name) return null;
+    return { kind: "movie", ...idName, season: null, episode: null, quality: qualOf(mv[2]) };
+  }
+
+  // Every pair gets its full target: id pairs are confirmed against TMDB, name
+  // pairs are searched (best hit), so a dump may mix films and series, even
+  // ones other than the page it is pasted on.
+  async function resolveLinkDumpTitles(pairs, tmdbFn) {
+    const searchCache = {};
+    const detailCache = {};
+    const searchTitle = async (kind, name) => {
+      const key = `${kind}:${name.toLowerCase()}`;
+      if (!(key in searchCache)) {
+        searchCache[key] = null;
+        try {
+          const q = encodeURIComponent(name);
+          const first = await tmdbFn(`/search/${kind}?query=${q}&page=1`);
+          let hit = Array.isArray(first?.results) ? first.results[0] : null;
+          if (!hit && name.includes(" ")) {
+            const second = await tmdbFn(`/search/${kind}?query=${encodeURIComponent(name.split(" - ")[0].split(" ").slice(0, 3).join(" "))}&page=1`);
+            hit = Array.isArray(second?.results) ? second.results[0] : null;
+          }
+          if (hit) searchCache[key] = { tmdb: Number(hit.id), title: hit.title || hit.name || "" };
+        } catch {
+          searchCache[key] = null;
+        }
+      }
+      return searchCache[key];
+    };
+    const fetchTitle = async (kind, id) => {
+      const key = `${kind}:${id}`;
+      if (!(key in detailCache)) {
+        try {
+          const info = await tmdbFn(`/${kind}/${id}`);
+          detailCache[key] = { tmdb: id, title: info?.title || info?.name || "" };
+        } catch {
+          detailCache[key] = null;
+        }
+      }
+      return detailCache[key];
+    };
+    const out = [];
+    for (const pair of pairs) {
+      const h = parseLinkDumpHead(pair.head);
+      if (!h) { out.push({ ...pair, error: "head" }); continue; }
+      let target;
+      if (h.tmdb) target = await fetchTitle(h.kind, h.tmdb);
+      else target = await searchTitle(h.kind, h.name);
+      if (!target || !target.tmdb) { out.push({ ...pair, error: h.name ? "notfound" : "id" }); continue; }
+      out.push({ ...pair, parsed: h, ...target });
+    }
+    return out;
+  }
+
+  // Rows published one by one; a URL the title already has (with its kind) is
+  // skipped as a duplicate. Shared by the watch page and the dashboard.
+  async function publishLinkRows(entries) {
+    let added = 0;
+    let dup = 0;
+    let bad = 0;
+    for (const entry of entries) {
+      const result = await publishWatchLink(entry.table, entry.row, [entry.row.link_kind]);
+      if (result.ok) added += result.added.length;
+      else if (!result.error || /duplicate|23505/i.test(JSON.stringify(result.error?.data || {}))) dup += 1;
+      else bad += 1;
+    }
+    return { added, dup, bad };
+  }
+
   /* ── Who hosts a watch link, and what it looks like ──────────────────────
      A member link is only a URL, so the platform name, its icon and the video
      thumbnail are read from that URL: the name from the domain (with a map for
@@ -5106,6 +5291,16 @@
     publishWatchLink,
     LINK_KIND_CHOICES,
     linkKindsFor,
+    MEMBERSHIP_BATCH_CAP,
+    dailyCapForLevel,
+    membershipBatchCap,
+    linksPublishedToday,
+    postsPublishedToday,
+    publishQuota,
+    parseLinkDump,
+    parseLinkDumpHead,
+    resolveLinkDumpTitles,
+    publishLinkRows,
     urlHost,
     linkHostName,
     hostIconUrl,

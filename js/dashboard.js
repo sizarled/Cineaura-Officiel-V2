@@ -36,6 +36,11 @@
     bindLangPicker,
     publishWatchLink,
     linkKindOf,
+    parseLinkDump,
+    resolveLinkDumpTitles,
+    publishLinkRows,
+    publishQuota,
+    membershipBatchCap,
     AGE_TIERS,
     ageTier,
   } = C;
@@ -1286,6 +1291,16 @@
           <div class="lang-picker">${langPickerHtml("lk-sub")}</div>
         </div>
         <button class="btn btn-sm btn-primary" id="lk-save" type="button">${t("dash.saveLink")}</button>
+        <!-- TXT import: many links at once, any titles, films and series. Each
+             comment line names its target and the URL follows on the next
+             line. The details above (language, subtitles, ads…) apply unless
+             a header carries its own [quality]. -->
+        <div class="sub-fields" id="lk-import-wrap">
+          <p class="muted"><strong>${t("watch.al.modeImport")}</strong> — ${t("watch.al.importHint")}</p>
+          <p class="muted" id="lk-quota"></p>
+          <textarea id="lk-import" rows="9" dir="ltr" spellcheck="false" placeholder="&lt;!--  1396 -  S1 -  Ep353 [SD] --&gt;&#10;https://example.com/ep-353&#10;&#10;&lt;!--  872585 [HD] --&gt;&#10;https://example.com/film"></textarea>
+          <button class="btn btn-sm btn-primary" id="lk-import-save" type="button">${t("watch.al.importBtn")}</button>
+        </div>
       </div>
       <h2 style="margin:22px 0 10px">${t("dash.yourMovieLinks")}</h2>
       <div id="lk-movies"></div>
@@ -1353,6 +1368,97 @@
     };
     drawRows("#lk-movies", movieRows, "movie");
     drawRows("#lk-series", tvRows, "tv");
+    /* One shared gate for every publish path on this page: the level gives
+       the daily cap (LV × 10 links), the membership gives one paste's size. */
+    const linkQuotaGate = async () => {
+      const q = await publishQuota(state.member.member_id, "links");
+      if (q.cap != null && q.left <= 0) {
+        toast(t("watch.al.dayFull", { cap: q.cap, lv: q.level }));
+        return null;
+      }
+      return q;
+    };
+    const fillLinksQuotaHint = async () => {
+      const el = $("#lk-quota");
+      if (!el) return;
+      const [q, plan] = await Promise.all([publishQuota(state.member.member_id, "links"), C.membership()]);
+      if (q.cap == null) return;
+      el.textContent =
+        t("watch.al.quota", { left: q.left, cap: q.cap, lv: q.level }) +
+        " · " +
+        t("watch.al.batchCap", { n: membershipBatchCap(plan), plan: plan.premium ? plan.type || "Free" : "Free" });
+    };
+    fillLinksQuotaHint();
+
+    /* TXT import: pairs of comment + URL for any films and series, each pair
+       landing on its own title. Importing never hides the official link. */
+    $("#lk-import-save").onclick = async () => {
+      const parsed = parseLinkDump($("#lk-import")?.value || "");
+      if (!parsed.pairs.length) return toast(t("watch.al.importEmpty"));
+      const batchCap = membershipBatchCap(await C.membership());
+      if (parsed.pairs.length > batchCap) return toast(t("watch.al.tooMany", { n: batchCap }));
+      const kind = $('input[name="lk-kind"]:checked')?.value || "watch";
+      const quality = selectedQualities("lk-q");
+      const urlHidden = $("#lk-urlvis")?.value === "hide";
+      const originalLanguage = $("#lk-lang").value.trim();
+      const hasSubtitles = $("#lk-subs").value === "yes";
+      const hasAds = $("#lk-ads").value === "yes";
+      if (!originalLanguage) return toast(t("dash.needLang"));
+      let subtitleLanguages = "";
+      if (hasSubtitles) {
+        subtitleLanguages = selectedLangs("lk-sub");
+        if (!subtitleLanguages) return toast(t("dash.needSubs"));
+      }
+      if (!(await C.guardFeature("links"))) return;
+      if (!(await C.guardLevel("publish_links"))) return;
+      const quota = await linkQuotaGate();
+      if (!quota) return;
+      const button = $("#lk-import-save");
+      button.disabled = true;
+      toast(t("watch.al.resolving"));
+      const resolved = await resolveLinkDumpTitles(parsed.pairs, tmdb);
+      const seen = new Set();
+      const entries = [];
+      let dup = 0;
+      let bad = parsed.bad;
+      resolved.forEach((p) => {
+        if (p.error || !p.tmdb || !p.parsed) { bad += 1; return; }
+        const key = p.url.toLowerCase();
+        if (seen.has(key)) { dup += 1; return; }
+        seen.add(key);
+        const q = p.parsed.quality || quality;
+        if (!q) { bad += 1; return; }
+        const row = {
+          tmdb_id: p.tmdb,
+          member_id: state.member.member_id,
+          username: state.member.username,
+          watch_url: p.url,
+          title: p.title || `TMDB ${p.tmdb}`,
+          quality: q,
+          original_language: originalLanguage,
+          has_subtitles: hasSubtitles,
+          subtitle_languages: subtitleLanguages,
+          has_ads: hasAds,
+          url_hidden: urlHidden,
+          link_kind: kind,
+        };
+        if (p.parsed.kind === "tv") {
+          row.season = p.parsed.season;
+          row.episode = p.parsed.episode;
+        }
+        entries.push({ table: p.parsed.kind === "tv" ? "tvlink" : "movielink", row });
+      });
+      if (!entries.length && !bad) bad = 1;
+      const left = quota.left ?? entries.length;
+      const toSave = entries.slice(0, left);
+      const over = entries.length - toSave.length;
+      const res = await publishLinkRows(toSave);
+      button.disabled = false;
+      if (res.bad && !res.added && !res.dup && !bad) return toast(t("dash.linkFail"));
+      toast(t("watch.al.result", { added: res.added, dup: res.dup + dup, bad: res.bad + bad, over }));
+      viewLinks(main);
+    };
+
     $("#lk-save").onclick = async () => {
       if (!(await C.guardFeature("links"))) return;
       if (!(await C.guardLevel("publish_links"))) return;
@@ -1408,6 +1514,7 @@
         row.season = season;
         row.episode = episode;
       }
+      if (!(await linkQuotaGate())) return;
       // One row per chosen kind: watch, download, or both at once. A kind this
       // URL already has is skipped, so publishing "both" twice never doubles it.
       const result = await publishWatchLink(table, row, [kind]);

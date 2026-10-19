@@ -2686,6 +2686,12 @@
   }
 
   async function insertPost(kind, title, body, vis, playlistId, items, extras = {}) {
+    // Profile publishing shares the links rule: the level gives the daily cap
+    // (LV × 10 posts a day), and level 0 cannot publish at all.
+    const quota = await window.CineAura.publishQuota(state.me.member.member_id, "posts");
+    if (quota.cap != null && quota.left <= 0) {
+      return toast(t("prof.postDayFull", { cap: quota.cap, lv: quota.level }));
+    }
     const postId = uid("P");
     const row = {
       post_id: postId,

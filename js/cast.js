@@ -187,6 +187,12 @@
     const session = getSession();
     if (!(await window.CineAura.guardFeature("posts"))) return false;
     if (!(await window.CineAura.guardLevel("create_content"))) return false;
+    // The profile quota counts this recommendation as a post (LV × 10 a day).
+    const quota = await window.CineAura.publishQuota(session.member_id, "posts");
+    if (quota.cap != null && quota.left <= 0) {
+      toast(t("prof.postDayFull", { cap: quota.cap, lv: quota.level }));
+      return false;
+    }
     const info = await window.CineAuraRich.details("person", Number(personId));
     const postId = newPostId();
     const saved = await supabaseRequest("/rest/v1/posts", {

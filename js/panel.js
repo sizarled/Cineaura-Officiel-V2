@@ -668,8 +668,105 @@
         <input id="lk-tmdb" placeholder="${t("panel.tmdbId")}" />
       </div>
       <button class="btn btn-sm btn-primary" id="lk-load" type="button">${t("panel.loadLinks")}</button>
-      <div id="lk-out" style="margin-top:16px"></div>`;
+      <div id="lk-out" style="margin-top:16px"></div>
+      <h2 style="margin:30px 0 6px">${t("panel.hide.title")}</h2>
+      <p class="muted">${t("panel.hide.lead")}</p>
+      <div class="form-row">
+        <select id="hm-type" aria-label="${escapeHtml(t("common.type"))}">
+          <option value="movie">${t("common.movie")}</option>
+          <option value="tv">${t("common.series")}</option>
+        </select>
+        <input id="hm-tmdb" type="number" min="1" placeholder="${t("panel.tmdbId")}" />
+      </div>
+      <div class="form-row">
+        <input id="hm-season" type="number" min="1" placeholder="${t("panel.hide.seasonPh")}" />
+        <input id="hm-episode" type="number" min="1" placeholder="${t("panel.hide.episodePh")}" />
+      </div>
+      <button class="btn btn-sm btn-primary" id="hm-add" type="button">${t("panel.hide.add")}</button>
+      <div id="hm-list" style="margin-top:14px"></div>`;
     $("#lk-load").onclick = () => loadTitleLinks();
+    $("#hm-add").onclick = () => addHide();
+    loadHides();
+  }
+
+  /* One hide rule is (type, TMDB id, season?, episode?). Type and id are
+     required; season and episode are optional and widen the scope: both empty
+     hides the whole title, season only hides that season, episode only hides
+     that episode number in every season, both hides exactly that episode. */
+  function hideScopeText(r) {
+    if (r.media_type === "movie") return t("panel.hide.scopeAll", { type: t("common.movie") });
+    if (r.season == null && r.episode == null) return t("panel.hide.scopeAll", { type: t("common.series") });
+    if (r.season != null && r.episode == null) return t("panel.hide.scopeSeason", { s: r.season });
+    if (r.season == null) return t("panel.hide.scopeEpisode", { e: r.episode });
+    return t("panel.hide.scopeExact", { s: r.season, e: r.episode });
+  }
+
+  async function loadHides() {
+    const list = $("#hm-list");
+    if (!list) return;
+    const res = await supabaseRequest(`/rest/v1/official_link_hides?select=*&order=created_at.desc&limit=100`);
+    if (res?.data?.code === "PGRST205") {
+      list.innerHTML = `<p class="empty">${t("panel.hide.needSql")}</p>`;
+      return;
+    }
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    list.innerHTML = rows
+      .map(
+        (r) => `
+      <div class="link-admin">
+        <strong>TMDB ${r.tmdb_id} · ${r.media_type === "tv" ? t("common.series") : t("common.movie")}</strong>
+        <div class="muted">${hideScopeText(r)} · ${t("panel.tmdbId")} ${r.tmdb_id} · @${escapeHtml(r.added_by || "—")}</div>
+        <div class="acc-actions">
+          <button class="btn btn-sm btn-danger" data-hm-del="${r.id}" type="button">${t("common.remove")}</button>
+        </div>
+      </div>`
+      )
+      .join("") || `<p class="empty">${t("panel.hide.empty")}</p>`;
+    list.onclick = async (e) => {
+      const del = e.target.closest("[data-hm-del]");
+      if (!del) return;
+      await supabaseRequest(`/rest/v1/official_link_hides?id=eq.${del.dataset.hmDel}`, { method: "DELETE" });
+      toast(t("panel.hide.removed"));
+      loadHides();
+    };
+  }
+
+  async function addHide() {
+    const type = $("#hm-type").value;
+    const id = Number($("#hm-tmdb").value);
+    if (!id) return toast(t("panel.needTmdb"));
+    let season = Number($("#hm-season").value) || null;
+    let episode = Number($("#hm-episode").value) || null;
+    if (type === "movie") { season = null; episode = null; }
+    if (season != null && (season < 1 || season > 99)) return toast(t("watch.al.seBad"));
+    if (episode != null && (episode < 1 || episode > 999)) return toast(t("watch.al.seBad"));
+    const existing = await supabaseRequest(
+      `/rest/v1/official_link_hides?media_type=eq.${type}&tmdb_id=eq.${id}&select=id,season,episode`
+    );
+    const rows = existing.ok && Array.isArray(existing.data) ? existing.data : [];
+    if (rows.some((r) => (r.season ?? null) === season && (r.episode ?? null) === episode)) {
+      return toast(t("panel.hide.dup"));
+    }
+    const res = await supabaseRequest(`/rest/v1/official_link_hides`, {
+      method: "POST",
+      body: JSON.stringify({
+        media_type: type,
+        tmdb_id: id,
+        season,
+        episode,
+        added_by: getSession()?.username || "",
+      }),
+    });
+    if (!res.ok) {
+      if (res?.data?.code === "PGRST205" || /official_link_hides/i.test(JSON.stringify(res.data || {}))) {
+        return toast(t("panel.hide.needSql"));
+      }
+      return toast(t("panel.hide.fail"));
+    }
+    toast(t("panel.hide.added"));
+    $("#hm-season").value = "";
+    $("#hm-episode").value = "";
+    loadHides();
   }
 
   async function loadTitleLinks() {
