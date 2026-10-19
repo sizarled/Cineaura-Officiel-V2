@@ -3962,6 +3962,56 @@
   const POINT_LEVELS = [0, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10];
   const LEVEL_MAX = POINT_LEVELS.length - 1;
 
+  // The unified balance tier, shared by the stores (their balance: the capital placed in the
+  // store plus the points of the orders on their way) and the members (their available
+  // points). sql/market.sql balance_tier() holds the same table; the total earned keeps its
+  // own measure, the level (POINT_LEVELS above).
+  const BALANCE_TIERS = [
+    { code: "N1", min: 0 },
+    { code: "N2", min: 10 },
+    { code: "N3", min: 100 },
+    { code: "K1", min: 1e3 },
+    { code: "K2", min: 1e4 },
+    { code: "K3", min: 1e5 },
+    { code: "M1", min: 1e6 },
+    { code: "M2", min: 1e7 },
+    { code: "M3", min: 1e8 },
+    { code: "B1", min: 1e9 },
+    { code: "B2", min: 1e10 },
+    { code: "B3", min: 1e11 },
+  ];
+  const BALANCE_TIER_TOP = 1e12; // from 1 trillion on the tier stays B3
+  // Where a balance puts a store / a member: { code, letter, index, points, from, top, next, pct }.
+  function balanceTier(balance) {
+    const pts = Math.max(0, Math.floor(Number(balance) || 0));
+    let i = 0;
+    for (let k = 1; k < BALANCE_TIERS.length; k += 1) if (pts >= BALANCE_TIERS[k].min) i = k;
+    const code = BALANCE_TIERS[i].code;
+    const top = i + 1 < BALANCE_TIERS.length ? BALANCE_TIERS[i + 1].min : BALANCE_TIER_TOP;
+    return {
+      code,
+      letter: code.slice(0, 1),
+      index: i,
+      points: pts,
+      from: BALANCE_TIERS[i].min,
+      top,
+      next: i + 1 < BALANCE_TIERS.length ? BALANCE_TIERS[i + 1].code : null,
+      pct: Math.min(100, Math.floor(((pts * 100) / top) * 10) / 10),
+    };
+  }
+
+  // The badge of the unified balance tier: the code and the progress to the next one, in the
+  // four letter colours (.mkt-tier, css/market.css). Accepts a tier (balanceTier result / the
+  // server's balance_tier) or a plain balance. Title via i18n points.balanceTier.
+  function balanceTierHtml(tierOrBalance, { big = false } = {}) {
+    const tier =
+      tierOrBalance && typeof tierOrBalance === "object" && tierOrBalance.code ? tierOrBalance : balanceTier(tierOrBalance);
+    if (!tier?.code) return "";
+    const pct = tier.pct >= 10 ? String(Math.floor(tier.pct)) : String(Math.floor(tier.pct * 10) / 10);
+    const title = t("points.balanceTier", { code: tier.code, pct, points: compactPoints(Number(tier.points ?? tierOrBalance) || 0) });
+    return `<span class="mkt-tier t-${escapeHtml(String(tier.code).slice(0, 1))}${big ? " big" : ""}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" dir="ltr"><b>${escapeHtml(tier.code)}</b><span>${escapeHtml(pct)}%</span></span>`;
+  }
+
   function watchTier(cc) {
     const code = String(cc || "").trim().toUpperCase();
     return WATCH_TIERS.find((x) => x.countries.includes(code)) || WATCH_TIERS[WATCH_TIERS.length - 1];
@@ -4294,6 +4344,9 @@
       earned,
       spent,
       available: Math.max(0, earned - spent),
+      // the unified balance tier (BALANCE_TIERS / sql/market.sql balance_tier): the available
+      // points of the member; public in the profile, exactly like a store's in its page
+      balanceTier: balanceTier(Math.max(0, earned - spent)),
       levels,
       level,
       country,
@@ -5107,6 +5160,9 @@
     pointsEarned,
     WATCH_TIERS,
     POINT_LEVELS,
+    BALANCE_TIERS,
+    balanceTier,
+    balanceTierHtml,
     LEVEL_PERMS,
     FEATURE_MIN_LEVEL,
     featureMinLevel,

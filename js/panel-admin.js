@@ -71,9 +71,10 @@
     const v = Math.max(0, Math.min(100, Number(pct) || 0));
     return v >= 10 ? String(Math.floor(v)) : String(Math.floor(v * 10) / 10);
   };
+  // the badge of the unified balance tier (N1 … B3): the colour follows the letter
   const tierHtml = (tier) =>
     tier && tier.code
-      ? `<span class="mkt-tier t-${esc(tier.code)}" dir="ltr" title="${esc(t("mkt.tier.badge", { code: tier.code, pct: tierPct(tier.pct), points: num(tier.points) }))}"><b>${esc(tier.code)}</b><span>${esc(tierPct(tier.pct))}%</span></span>`
+      ? `<span class="mkt-tier t-${esc(String(tier.code).slice(0, 1))}" dir="ltr" title="${esc(t("mkt.tier.badge", { code: tier.code, pct: tierPct(tier.pct), points: num(tier.points) }))}"><b>${esc(tier.code)}</b><span>${esc(tierPct(tier.pct))}%</span></span>`
       : "";
   const suspLine = (s) =>
     s ? `<p class="mkr-why pa-why">${t("pa.suspendedBy", { by: esc(s.by || "—"), date: esc(when(s.at)) })} <q>${esc(s.reason || "")}</q></p>` : "";
@@ -548,7 +549,7 @@
     stores: () => ({
       key: "mk-stores",
       filters: [["all", t("pa.f.all")], ["open", t("pa.mk.open")], ["closed", t("pa.mk.closed")], ["suspended", t("pa.f.suspended")]],
-      sorts: [["new", t("pa.s.new")], ["old", t("pa.s.old")], ["sales", t("pa.s.salesPoints")], ["products", t("pa.s.products")]],
+      sorts: [["new", t("pa.s.new")], ["old", t("pa.s.old")], ["balance", t("pa.s.balance")], ["sales", t("pa.s.salesPoints")], ["products", t("pa.s.products")]],
       placeholder: t("pa.mk.searchStores"),
       fetch: (st, off) => rpc("market_admin_stores", { p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (s, i) => {
@@ -561,6 +562,7 @@
                 <h3><a href="${href}" target="_blank" rel="noopener">${esc(s.name)}</a> ${tierHtml(s.tier)}</h3>
                 <p>${who(s.owner)} · <span dir="ltr">${esc(s.id)}</span> · ${esc([s.city, s.country].filter(Boolean).join(", "))} · ${esc(day(s.created_at))}</p>
                 <p class="pa-stats">${t("pa.mk.storeStats", { products: num(s.products), sales: num(s.sales), points: pt(s.sales_points), orders: num(s.open_orders) })}</p>
+                ${s.balance !== undefined ? `<p class="pa-stats">${t("pa.mk.storeBalance", { balance: pt(s.balance), capital: pt(s.capital), held: pt(s.held) })}</p>` : ""}
               </div>
             </div>
             <div class="crp-tags">

@@ -98,13 +98,17 @@
     "return_days", "title", "kind", "price", "shipping_cost", "stock", "categories", "images", "video", "limit",
     "not_found", "own", "closed", "qty", "address", "points", "state", "note", "window", "empty", "text", "body",
     "product", "orders", "commission", "download", "suspended", "reason", "already", "phone",
-    "people", "visibility", "private", "full", "level",
+    "people", "visibility", "private", "full", "level", "store", "amount",
   ];
   M.errText = (data) => {
     const r = String(data?.reason || "");
     if (r === "points") return t("mkt.err.points", { need: M.fmt(data.need), have: M.fmt(data.have) });
-    // (round 30) opening a store needs LV1 (10 points earned)
-    if (r === "level") return t("mkt.err.level", { have: M.fmt(data.earned ?? 0), need: M.fmt(data.need_points ?? 10) });
+    // the price may not exceed the store capital (the guarantee), or no store / no capital yet
+    if (r === "balance") return t("mkt.err.balance", { capital: M.fmt(data.capital ?? 0) });
+    // a withdrawal beyond what can come back now
+    if (r === "capital") return t("mkt.err.capital", { max: M.fmt(data.max ?? 0) });
+    // the level gate (buying LV4, opening a store LV5 — sql/market.sql _mkt_level)
+    if (r === "level") return t("mkt.err.level", { level: data.need ?? 5, have: M.fmt(data.earned ?? 0), need: M.fmt(data.need_points ?? 0) });
     // a coupon (js/market-coupons.js) that cannot be used for this order
     if (r === "coupon" && M.couponWhy) return M.couponWhy(data.why);
     if (r === "stock" && data?.stock != null) return t("mkt.err.stockLeft", { n: M.fmt(data.stock) });
@@ -175,9 +179,11 @@
   };
 
   // ---------------------------------------------------------------- addresses
-  // ---------------------------------------------------------------- the tier of a store
-  // { code: N|K|M|B, pct, points, top, next } (sql/market.sql _mkt_tier): the points of its
-  // successful orders. The progress: one decimal under 10% (K0.6%), then whole numbers (K25%).
+  // ---------------------------------------------------------------- the tier (stores and members)
+  // { code: N1…B3, pct, points, top, next } (sql/market.sql balance_tier / js/common.js
+  // BALANCE_TIERS): one classification over the available balance — for a store its balance
+  // (capital + orders on their way), for a member the points they can spend. The progress:
+  // one decimal under 10% (K2 0.6%), then whole numbers (K2 25%).
   M.tierPct = (pct) => {
     const v = Math.max(0, Math.min(100, Number(pct) || 0));
     return v >= 10 ? String(Math.floor(v)) : String(Math.floor(v * 10) / 10);
@@ -187,12 +193,22 @@
   M.tierHtml = (tier, { big = false } = {}) => {
     if (!tier || !tier.code) return "";
     const title = M.tierTitle(tier);
-    return `<span class="mkt-tier t-${esc(tier.code)}${big ? " big" : ""}" title="${esc(title)}" aria-label="${esc(title)}" dir="ltr"><b>${esc(tier.code)}</b><span>${esc(M.tierPct(tier.pct))}%</span></span>`;
+    const letter = String(tier.code || "N").slice(0, 1);
+    return `<span class="mkt-tier t-${esc(letter)}${big ? " big" : ""}" title="${esc(title)}" aria-label="${esc(title)}" dir="ltr"><b>${esc(tier.code)}</b><span>${esc(M.tierPct(tier.pct))}%</span></span>`;
   };
-  // The tier box of a store page: the badge, a bar and what is left to the next tier.
-  M.tierBoxHtml = (tier) => {
+  // The tier box of a store page: the badge, the balance and its parts, a bar, what is left to
+  // the next tier, and the store's level (the total of its successful orders).
+  M.tierBoxHtml = (store) => {
+    const s = store || {};
+    const tier = s.tier;
     if (!tier || !tier.code) return "";
-    const left = Math.max(0, Number(tier.top) - Number(tier.points));
+    // balance/held/capital come with the market update of sql/market.sql; before it only the
+    // badge and the bar make sense to show
+    const hasBal = s.balance !== undefined && s.balance !== null;
+    const bal = hasBal ? Number(s.balance) : Number(tier.points || 0);
+    const held = Number(s.held || 0);
+    const capital = Number(s.capital ?? Math.max(0, bal - held));
+    const left = Math.max(0, Number(tier.top) - bal);
     const pct = Math.max(0, Math.min(100, Number(tier.pct) || 0));
     const next = tier.next
       ? t("mkt.tier.toNext", { left: M.ptIn(left), next: tier.next })
@@ -203,13 +219,88 @@
           ${M.tierHtml(tier, { big: true })}
           <div>
             <b>${esc(t("mkt.tier.label"))}</b>
-            <span class="muted">${esc(t("mkt.tier.sold", { points: M.ptIn(tier.points) }))}</span>
+            <span class="muted">${esc(hasBal ? t("mkt.tier.balance", { points: M.ptIn(bal) }) : t("mkt.tier.sold", { points: M.ptIn(bal) }))}</span>
           </div>
         </div>
         <div class="mkt-tierbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${esc(String(pct))}" aria-label="${esc(M.tierTitle(tier))}"><i style="width:${Math.max(pct, pct > 0 ? 1.5 : 0)}%"></i></div>
         <p class="muted mkt-tierbox-next">${esc(next)}</p>
+        ${hasBal ? `<div class="mkt-tierbox-parts">
+          <span>${esc(t("mkt.tier.capitalLine", { points: M.ptIn(capital) }))}</span>
+          ${held > 0 ? `<span>${esc(t("mkt.tier.heldLine", { points: M.ptIn(held) }))}</span>` : ""}
+          ${s.level ? `<span>${esc(t("mkt.tier.levelLine", { level: s.level, points: M.ptIn(s.sales_points || 0) }))}</span>` : ""}
+        </div>` : ""}
         <details class="mkt-tierbox-help"><summary>${esc(t("mkt.tier.how"))}</summary><p>${esc(t("mkt.tier.help"))}</p></details>
       </div>`;
+  };
+
+  // ---------------------------------------------------------------- the store balance
+  // Market.html > Store settings: the store's capital — the points placed in the store,
+  // separate from the member's points — plus the points of the orders on their way, and the
+  // tier all of it gives. Added from the member's available points, back the same way.
+  M.balanceCardHtml = (me) => {
+    const s = me?.store || {};
+    const bal = Number(s.balance || 0);
+    const held = Number(s.held || 0);
+    const capital = Number(s.capital ?? Math.max(0, bal - held));
+    const yours = Number(me?.member?.available || 0);
+    const num = (v) => `<b dir="ltr">${esc(M.fmt(v))}</b>`;
+    return `
+      <section class="mkt-balance" data-balance>
+        <div class="mkt-balance-head">
+          <h3>${ICON.coins}<span>${esc(t("mkt.bal.title"))}</span>${M.tierHtml(s.tier)}</h3>
+          <p class="muted">${esc(t("mkt.bal.intro"))}</p>
+        </div>
+        <div class="mkt-balance-nums">
+          <div><span>${esc(t("mkt.bal.balance"))}</span>${num(bal)}</div>
+          <div><span>${esc(t("mkt.bal.capital"))}</span>${num(capital)}</div>
+          <div><span>${esc(t("mkt.bal.held"))}</span>${num(held)}</div>
+          <div class="mkt-balance-yours"><span>${esc(t("mkt.bal.yours"))}</span>${num(yours)}</div>
+        </div>
+        <form class="mkt-balance-form" data-bform novalidate>
+          <label class="mkt-field"><span>${esc(t("mkt.bal.amount"))}</span>
+            <input name="amount" type="number" min="1" step="1" inputmode="numeric" required placeholder="0" /></label>
+          <button class="btn btn-primary" type="submit" data-dep>${ICON.plus}<span>${esc(t("mkt.bal.deposit"))}</span></button>
+          <button class="btn btn-ghost" type="button" data-wd>${ICON.coins}<span>${esc(t("mkt.bal.withdraw"))}</span></button>
+        </form>
+        <p class="mkt-form-err" data-berr role="alert"></p>
+        <p class="muted mkt-f-hint">${esc(t("mkt.bal.hint"))}</p>
+      </section>`;
+  };
+  M.wireBalanceCard = (root, { onChanged = null } = {}) => {
+    const form = root.querySelector("[data-bform]");
+    if (!form) return;
+    const err = root.querySelector("[data-berr]");
+    const dep = form.querySelector("[data-dep]");
+    const wd = form.querySelector("[data-wd]");
+    let busy = false;
+    const run = async (fn) => {
+      if (busy) return;
+      err.textContent = "";
+      const amount = String(M.digits ? M.digits(form.amount.value) : form.amount.value).trim();
+      if (!/^[0-9]{1,13}$/.test(amount) || Number(amount) < 1) {
+        err.textContent = t("mkt.err.amount");
+        form.amount.focus();
+        return;
+      }
+      busy = true;
+      dep.disabled = true;
+      wd.disabled = true;
+      const r = await M.call(fn, { p_member: M.memberId(), p_amount: amount });
+      busy = false;
+      dep.disabled = false;
+      wd.disabled = false;
+      if (!r.ok || !r.data?.ok) {
+        err.textContent = M.failText(r);
+        return;
+      }
+      C.toast(t(fn === "market_store_deposit" ? "mkt.bal.added" : "mkt.bal.withdrawn", { n: M.fmt(amount) }));
+      onChanged?.(r.data);
+    };
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      run("market_store_deposit");
+    });
+    wd.addEventListener("click", () => run("market_store_withdraw"));
   };
 
   M.productHref = (id, ref = "") => `./Market.html?Product=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
@@ -603,6 +694,7 @@
             <input name="shipping_cost" type="number" min="0" max="1000000" step="1" inputmode="numeric" value="${esc(p.shipping_cost ?? 0)}" /></label>
         </div>
         <p class="muted mkt-f-hint" data-price-hint></p>
+        <p class="muted mkt-f-hint" data-capital-hint></p>
         ${!ships ? `<p class="muted mkt-f-hint">${esc(t("mkt.f.noShipHint"))}</p>` : ""}
         <div class="mkt-field mkt-f-download" data-download ${kind === "digital" ? "" : "hidden"}>
           <label class="mkt-field"><span>${ICON.lock} ${esc(t("mkt.f.download"))}</span>
@@ -703,9 +795,27 @@
         ? `${t("mkt.f.commissionHint")} ${t("mkt.f.commissionCalc", { pts: M.pt(cut), net: M.pt(v - cut) })}`
         : t("mkt.f.commissionHint");
     };
+    // the capital of the store caps the price (the guarantee): shown under the price field
+    // once the store card reports it (the market update of sql/market.sql)
+    const capHint = form.querySelector("[data-capital-hint]");
+    const hasCapital = store && store.capital !== undefined;
+    const capital = hasCapital ? Math.max(0, Number(store.capital) || 0) : 0;
+    const showCapital = () => {
+      if (!capHint) return;
+      if (!hasCapital) {
+        capHint.textContent = "";
+        capHint.classList.remove("mkt-hint-bad");
+        return;
+      }
+      capHint.textContent = capital > 0 ? t("mkt.f.capitalHint", { n: M.fmt(capital) }) : t("mkt.f.capitalNone");
+      const v = Number(form.price.value) || 0;
+      capHint.classList.toggle("mkt-hint-bad", v > capital);
+    };
+    form.price.addEventListener("input", showCapital);
     form.price.addEventListener("input", showPrice);
     form.commission_pct.addEventListener("input", showPrice);
     showPrice();
+    showCapital();
     form.addEventListener("change", (e) => {
       if (e.target.name === "kind") {
         form.querySelector("[data-ship-cost]").hidden = form.kind.value === "digital";
@@ -741,14 +851,15 @@
       const bad =
         (d.title.length < 3 && "title") ||
         (!(Number(d.price) >= 1) && "price") ||
+        (hasCapital && Number(d.price) > capital && { reason: "balance", capital }) ||
         (!(Number(d.stock) >= 0) || d.stock === "" ? "stock" : "") ||
         (!cats.length && "categories") ||
         (d.video_url && !/^https?:\/\/\S+$/i.test(d.video_url) && "video") ||
         (d.download_url && !/^https?:\/\/[^\s<>"']+$/i.test(d.download_url) && "download") ||
         (d.commission_on && !(d.commission_pct !== "" && commissionOk(Number(d.commission_pct))) && "commission");
       if (bad) {
-        err.textContent = M.errText({ reason: bad });
-        const field = { categories: "kind", video: "video_url", commission: "commission_pct", download: "download_url" }[bad] || bad;
+        err.textContent = typeof bad === "object" ? M.errText(bad) : M.errText({ reason: bad });
+        const field = (typeof bad === "string" && { categories: "kind", video: "video_url", commission: "commission_pct", download: "download_url" }[bad]) || (typeof bad === "string" ? bad : "price");
         form.querySelector(`[name="${field}"]`)?.focus?.();
         if (bad === "categories") catIn.focus();
         return;

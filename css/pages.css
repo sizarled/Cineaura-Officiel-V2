@@ -2076,6 +2076,13 @@ html[dir="rtl"] .success-user { padding: 8px 8px 8px 16px; }
 .success-who small { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: 13px; }
 .success-go { color: var(--cyan); font-weight: 600; }
 
+/* profile: the unified balance tier next to the name (the same N1 … B3 badge the stores
+   show; js/common.js balanceTierHtml — its colours come from .mkt-tier in css/market.css,
+   which profile.html also loads) */
+.prof-tier { display: inline-block; margin-inline-start: 6px; vertical-align: 4px; }
+.prof-tier .mkt-tier { font-size: 13px; padding: 2px 9px; }
+.prof-tier .mkt-tier b { font-size: 14px; }
+
 /* profile: the level next to the name (sql/point_levels.sql) */
 .prof-lv {
   display: inline-block;

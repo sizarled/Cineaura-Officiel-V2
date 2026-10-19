@@ -31,6 +31,8 @@
     translateDom,
     getLocale,
     memberPoints,
+    balanceTier,
+    balanceTierHtml,
   } = window.CineAura;
 
   // Reads always go through; writes need a live session. A member who signed out
@@ -161,8 +163,9 @@
   }
 
   // The points of the member whose profile this is, counted once per page load:
-  // their level (LV0 … LV Max, sql/point_levels.sql) for every visitor, and for
-  // the owner also the points they can spend (earned minus spent).
+  // their level (LV0 … LV Max, sql/point_levels.sql) and the balance tier of their
+  // available points (the same N1 … B3 classification the stores show, visible to
+  // every visitor), and for the owner also the points they can spend (earned minus spent).
   function hostPoints() {
     const id = state.hostMember?.member_id;
     if (!id) return Promise.resolve(null);
@@ -181,6 +184,13 @@
       badge.title = `${t("points.colLevel")} · ${mult}`;
       badge.setAttribute("aria-label", `${t("points.colLevel")} ${mp.level.name} · ${mult}`);
       badge.hidden = false;
+    });
+    // the unified balance tier (N1 … B3) of the points they can spend: public, like a
+    // store's badge — the total stays in the level
+    const bt = mp.balanceTier || balanceTier(mp.available);
+    document.querySelectorAll("[data-prof-tier]").forEach((slot) => {
+      slot.innerHTML = balanceTierHtml(bt);
+      slot.hidden = false;
     });
     const stat = document.querySelector("[data-own-level]");
     if (stat) {
@@ -724,7 +734,7 @@
       <div class="prof-head">
         ${avatarTag(p, m.username)}
         <div>
-          <h1>${escapeHtml(p.display_name || m.full_name || m.username)} <span class="prof-lv" data-prof-level hidden></span></h1>
+          <h1>${escapeHtml(p.display_name || m.full_name || m.username)} <span class="prof-lv" data-prof-level hidden></span><span class="prof-tier" data-prof-tier hidden></span></h1>
           <p class="muted">@${escapeHtml(m.username || "")} · ${escapeHtml(m.member_id || "")}</p>
           <div class="status-row">${statusBadges().map((b) => `<button class="status-badge ${b.kind}" data-status="${b.kind}" title="${t("prof.st.click")}" type="button">${b.label}</button>`).join("")}</div>
           <p>${escapeHtml(p.bio || t("prof.noBio"))}</p>

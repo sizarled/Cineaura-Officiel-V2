@@ -673,6 +673,40 @@ html[data-theme="day"] .mkt-tier.t-B { --tier: #b07a00; }
 .mkt-tierbox-next { margin: 0; font-size: 12.5px; }
 .mkt-tierbox-help summary { cursor: pointer; font-size: 12.5px; color: var(--cyan); width: fit-content; }
 .mkt-tierbox-help p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+/* the balance inside the tier box: the capital, the held points, the store level */
+.mkt-tierbox-parts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+/* the store balance card (Store settings): the capital the seller placed in the store */
+.mkt-balance { display: grid; gap: 14px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.mkt-balance-head { display: grid; gap: 4px; }
+.mkt-balance-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+.mkt-balance-head .mkt-tier { margin-inline-start: 2px; }
+.mkt-balance-head p { margin: 0; font-size: 13px; line-height: 1.55; }
+.mkt-balance-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.mkt-balance-nums > div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--sub-bg);
+}
+.mkt-balance-nums span { font-size: 12px; color: var(--muted); }
+.mkt-balance-nums b { font-size: 16.5px; font-variant-numeric: tabular-nums; }
+.mkt-balance-yours b { color: var(--cyan); }
+.mkt-balance-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.mkt-balance-form .mkt-field { flex: 1 1 160px; min-width: 0; margin: 0; }
+.mkt-balance-form .mkt-field input { width: 100%; }
+.mkt-form-err[data-berr] { margin: 0; }
+.mkt-hint-bad { color: var(--red) !important; }
 
 .mkt-report-btn svg { color: var(--red); }
 .mkt-report-btn:hover { border-color: color-mix(in srgb, var(--red) 55%, transparent); }

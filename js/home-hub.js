@@ -38,9 +38,10 @@
     const v = Math.max(0, Math.min(100, Number(pct) || 0));
     return v >= 10 ? String(Math.floor(v)) : String(Math.floor(v * 10) / 10);
   };
+  // the badge of the unified balance tier (N1 … B3): the colour follows the letter
   const tierHtml = (tier) =>
     tier && tier.code
-      ? `<span class="mkt-tier t-${esc(tier.code)}" dir="ltr" title="${esc(t("mkt.tier.badge", { code: tier.code, pct: tierPct(tier.pct), points: num(tier.points) }))}"><b>${esc(tier.code)}</b><span>${esc(tierPct(tier.pct))}%</span></span>`
+      ? `<span class="mkt-tier t-${esc(String(tier.code).slice(0, 1))}" dir="ltr" title="${esc(t("mkt.tier.badge", { code: tier.code, pct: tierPct(tier.pct), points: num(tier.points) }))}"><b>${esc(tier.code)}</b><span>${esc(tierPct(tier.pct))}%</span></span>`
       : "";
   // a link of the bar: https://… (a new tab) or a page of the site
   const safeLink = (raw) => {

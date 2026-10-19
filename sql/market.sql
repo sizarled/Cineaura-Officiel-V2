@@ -4,8 +4,8 @@
 -- account_deadline.sql and image_uploads.sql.
 --
 -- Unlike the Prizes (published by the staff), the market is filled by the members: every
--- member from level LV1 (10 points earned, sql/point_levels.sql) can open one store and sell
--- products for points; every member can buy. A store opened before that rule keeps working.
+-- member from level LV5 (100,000 points earned, sql/point_levels.sql) can open one store and sell
+-- products for points; every member from LV4 (10,000 points earned) can buy.
 --
 --   stores       market_stores       one per member (Market.html > Store settings): logo and
 --                                    cover (an image link, or uploaded to IPTV/Market/Logo/<id>.jpg
@@ -44,11 +44,16 @@
 --                                                                 └─refuse──► delivered (points back on accept)
 --
 --   * "instant" stores start at sold, "on request" stores at requested (the seller accepts).
---   * The buyer pays at once (price x pieces + shipping): profiles.points_spent grows and
---     point_spends gets a row (mode 'market'). The points are held: the seller receives them
---     when the order is delivered and its return period is over (at once when the store takes
---     no returns). A cancelled, declined or returned order gives them back to the buyer
---     (a point_spends row with a negative amount, mode 'market_refund').
+--   * The buyer pays at once (price x pieces + shipping): profiles.points_spent grows,
+--     point_spends gets a row (mode 'market') and the points are added to the balance of the
+--     store (market_stores.balance, market_orders.held) — the guarantee: the buyer's points
+--     stay in the store until the goods arrive. The seller receives them (they leave the
+--     balance and become the seller's personal points, profiles.market_points) when the
+--     order is delivered and its return period is over (at once when the store takes no
+--     returns). A cancelled, declined or returned
+--     order takes them out of the balance and gives them back to the buyer (a point_spends
+--     row with a negative amount, mode 'market_refund'). Orders placed before the seventh
+--     version of this file (held = 0) keep the old flow: nothing entered the balance.
 --   * Sharing: Market.html?Product=<id>&@<username>. Every product has its share commission,
 --     chosen by the seller in the product form: off (the default), or on with 1 to 25%.
 --     A sale made through that link gives the member who shared it that part of the price
@@ -69,10 +74,20 @@
 --     orders are delivered online as soon as they are sold, and the buyer gets the link in
 --     Your purchases. Without a link the seller delivers each order (a code, a message…).
 --
--- The tier of a store (market_stores.sales_points): the points of its successful orders
--- (delivered: received by the buyer and not returned):
---   N under 1,000 PT · K under 1 million · M under 1 billion · B under 1 trillion
--- shown with the progress inside the tier: K25 = 250,000 PT (25% of 1 million).
+-- The store balance (market_stores.balance) — the seventh version: the store's capital, which
+-- the seller places in the store from Store settings (market_store_deposit / market_store_withdraw),
+-- separate from their personal points, plus the points of the orders on their way
+-- (market_orders.held). A product's price may not exceed the capital (the balance less the
+-- held points), so what a store sells is always covered — the guarantee a buyer pays into.
+--
+-- The tier of a store and of a member is one and the same classification, over the AVAILABLE
+-- points: for a store its balance, for a member the points they can spend (_points().available).
+-- The total earned keeps its own measure: the level (LV0 … LV Max, sql/point_levels.sql).
+--   N1 under 10 · N2 under 100 · N3 under 1,000 · K1 under 10,000 · K2 under 100,000 · K3 under 1M
+--   M1 under 10M · M2 under 100M · M3 under 1B · B1 under 10B · B2 under 100B · B3 under 1T
+-- (balance_tier() below; js/common.js BALANCE_TIERS holds the same table for the display).
+-- It is public: the store page shows the store's, the profile the member's. A store also
+-- shows its level, counted on the points of its successful orders (market_stores.sales_points).
 --
 -- Reports (market_reports): the Report button of every store page and product page. The team
 -- reads them in Panel > Reports > Market and can suspend a product or a whole store: hidden
@@ -162,7 +177,8 @@ create table if not exists public.market_stores (
   shipping boolean not null default true,
   returns boolean not null default false,
   return_days integer not null default 0,
-  sales_points bigint not null default 0,             -- the totals of its delivered orders: the tier (N K M B)
+  sales_points bigint not null default 0,             -- the totals of its delivered orders: the store level (LV)
+  balance bigint not null default 0,                  -- the capital placed in the store + the points of the orders on their way: the tier (N1 … B3)
   suspended boolean not null default false,           -- by the team (Panel > Reports > Market)
   suspended_reason text not null default '',
   suspended_at timestamptz,
@@ -244,6 +260,7 @@ create table if not exists public.market_orders (
   unit_price integer not null,
   shipping_cost integer not null default 0,
   total integer not null,                             -- unit_price x qty + shipping_cost - discount (a coupon)
+  held bigint not null default 0,                     -- the total as long as it is kept in the store balance (0 once paid or refunded)
   commission integer not null default 0,              -- commission_pct % of unit_price x qty for the referrer
   commission_pct smallint,                            -- the product's share commission that day (0: none), paid by
                                                       -- the seller; empty: an order of the first version (the site paid 25%)
@@ -607,6 +624,18 @@ alter table public.market_orders add column if not exists coupon_pct smallint;
 alter table public.market_orders add column if not exists discount integer not null default 0;
 create index if not exists market_orders_coupon_idx on public.market_orders (coupon_id) where coupon_id is not null;
 
+-- Added in the seventh version: the store balance (the capital the seller places in the store,
+-- from Store settings) plus the points of the orders on their way, and the unified balance
+-- tier N1 … B3 it feeds — one classification for the stores (their balance) and the members
+-- (their available points; for them the client counts it, js/common.js BALANCE_TIERS).
+alter table public.market_stores add column if not exists balance bigint not null default 0;
+alter table public.market_orders add column if not exists held bigint not null default 0;
+comment on column public.market_stores.balance is
+  'The store''s capital (points the seller placed in the store, Market.html > Store settings) plus the points of the orders on their way: the tier N1 … B3 follows it. A product''s price may not exceed the capital (the balance less the held points).';
+comment on column public.market_orders.held is
+  'The part of the total currently kept in the store balance: added at the purchase, moved with it to the seller''s personal points when the order is paid, and given back with it when it is refunded. 0 for the orders placed before the seventh version of this file.';
+create index if not exists market_orders_held_idx on public.market_orders (store_id) where held > 0;
+
 -- Faster "contains" searches when pg_trgm can be installed (optional).
 do $$
 begin
@@ -819,19 +848,114 @@ create or replace function public._mkt_images(p_images jsonb, p_n int) returns j
   select coalesce((select jsonb_agg(x order by i) from jsonb_array_elements(case when jsonb_typeof(p_images) = 'array' then p_images else '[]'::jsonb end) with ordinality e(x, i) where i <= p_n), '[]'::jsonb)
 $$;
 
--- The tier of a store from the points of its successful orders:
---   N under 1,000 · K under 1,000,000 · M under 1,000,000,000 · B under 1,000,000,000,000
---   -> { code, pct, points, top, next }: pct = points x 100 / top, rounded down to 0.1 (K25 = 250,000 PT
---      of 1,000,000; K0.6 = 6,400 PT); 1 trillion and more stays B100.
-create or replace function public._mkt_tier(p_points bigint) returns jsonb language sql immutable as $$
-  select jsonb_build_object('code', x.code, 'pct', least(100, round(floor(x.pts * 1000 / x.top) / 10, 1)), 'points', x.pts, 'top', x.top,
-                            'next', case x.code when 'N' then 'K' when 'K' then 'M' when 'M' then 'B' end)
-    from (select greatest(coalesce(p_points, 0), 0)::numeric as pts) v,
-         lateral (select v.pts,
-                         case when v.pts < 1000 then 'N' when v.pts < 1000000 then 'K' when v.pts < 1000000000 then 'M' else 'B' end as code,
-                         case when v.pts < 1000 then 1000::numeric when v.pts < 1000000 then 1000000::numeric
-                              when v.pts < 1000000000 then 1000000000::numeric else 1000000000000::numeric end as top) x
+-- The unified balance tier, shared by the stores (their balance) and the members (their
+-- available points; js/common.js BALANCE_TIERS holds the same table for the display):
+--   N1 under 10 · N2 under 100 · N3 under 1K · K1 under 10K · K2 under 100K · K3 under 1M
+--   M1 under 10M · M2 under 100M · M3 under 1B · B1 under 10B · B2 under 100B · B3 under 1T
+--   -> { code, pct, points, top, next }: pct = points x 100 / top (the threshold of the next
+--      tier), rounded down to 0.1 (K2 with 25,000 PT = 25% of 100,000); 1 trillion and more
+--      stays B3.
+create or replace function public.balance_tier(p_balance bigint) returns jsonb language sql immutable as $$
+  with b as (select greatest(coalesce(p_balance, 0), 0)::numeric as pts),
+       t as (select case
+               when b.pts >= 100000000000 then 11 when b.pts >= 10000000000 then 10 when b.pts >= 1000000000 then 9
+               when b.pts >= 100000000 then 8 when b.pts >= 10000000 then 7 when b.pts >= 1000000 then 6
+               when b.pts >= 100000 then 5 when b.pts >= 10000 then 4 when b.pts >= 1000 then 3
+               when b.pts >= 100 then 2 when b.pts >= 10 then 1 else 0 end as i from b)
+  select jsonb_build_object(
+           'code', (array['N1','N2','N3','K1','K2','K3','M1','M2','M3','B1','B2','B3'])[t.i + 1],
+           'pct', least(100, round(floor(b.pts * 1000 / power(10::numeric, t.i + 1)) / 10, 1)),
+           'points', b.pts,
+           'top', power(10::numeric, t.i + 1)::bigint,
+           'next', case when t.i < 11 then (array['N1','N2','N3','K1','K2','K3','M1','M2','M3','B1','B2','B3'])[t.i + 2] end)
+    from b, t
 $$;
+
+-- (kept for the callers of the old store tier: the same function under its old name)
+create or replace function public._mkt_tier(p_points bigint) returns jsonb language sql immutable as $$
+  select public.balance_tier(p_points)
+$$;
+
+-- The capital of a store: its balance less the points held for the orders on their way. A
+-- product's price may not exceed it — the guarantee: the balance can never drop below what
+-- the buyers of open orders are owed.
+create or replace function public._mkt_capital(p_store text) returns bigint
+language sql stable security definer set search_path = public as $$
+  select greatest(0, coalesce(s.balance, 0) - coalesce((select sum(o.held) from public.market_orders o where o.store_id = s.id), 0))
+    from public.market_stores s where s.id = btrim(coalesce(p_store, ''))
+$$;
+
+-- Adds points from the member's available points to the balance of their store (the capital:
+-- Market.html > Store settings). The points leave the available points (profiles.points_spent
+-- grows, a point_spends row mode 'market_store'): they are not earned nor lost, and the level,
+-- which counts every point ever earned, never moves.
+--   -> { ok: true, balance, held, capital, tier, available } | { ok: false, reason: member |
+--      blocked | store | amount | points (need, have) }
+create or replace function public.market_store_deposit(p_member text, p_amount bigint)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  m public.members; st public.market_stores; amt bigint;
+  pts jsonb; hold bigint; bal bigint;
+begin
+  m := public._mkt_member(p_member);
+  if m.member_id is null then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
+  if public._mkt_blocked(m.member_id, false) then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
+  if p_amount is null or p_amount < 1 or p_amount > 1000000000000 then
+    return jsonb_build_object('ok', false, 'reason', 'amount');
+  end if;
+  amt := p_amount;
+  select * into st from public.market_stores where owner_id = m.member_id for update;
+  if not found then return jsonb_build_object('ok', false, 'reason', 'store'); end if;
+  perform 1 from public.profiles where member_id = m.member_id for update;
+  pts := public._points(m.member_id);
+  if coalesce((pts->>'available')::bigint, 0) < amt then
+    return jsonb_build_object('ok', false, 'reason', 'points', 'need', amt, 'have', coalesce((pts->>'available')::bigint, 0));
+  end if;
+  update public.profiles set points_spent = coalesce(points_spent, 0) + amt where member_id = m.member_id;
+  insert into public.point_spends (member_id, amount, prize_title, mode) values (m.member_id, amt, st.name, 'market_store');
+  update public.market_stores set balance = balance + amt, updated_at = now() where id = st.id
+  returning balance into bal;
+  hold := coalesce((select sum(o.held) from public.market_orders o where o.store_id = st.id), 0);
+  pts := public._points(m.member_id);
+  return jsonb_build_object('ok', true, 'balance', bal, 'held', hold, 'capital', greatest(0, bal - hold),
+                            'tier', public._mkt_tier(bal), 'available', coalesce((pts->>'available')::bigint, 0));
+end $$;
+
+-- The way back: the capital (the balance less the points held for the orders on their way)
+-- comes back to the member's available points, as long as every product on sale keeps a price
+-- the remaining capital covers. -> the same answers as market_store_deposit, plus
+-- { ok: false, reason: capital, capital, held, max, top_price }
+create or replace function public.market_store_withdraw(p_member text, p_amount bigint)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  m public.members; st public.market_stores; amt bigint;
+  pts jsonb; hold bigint; bal bigint; cap bigint; top_price bigint; can bigint;
+begin
+  m := public._mkt_member(p_member);
+  if m.member_id is null then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
+  if public._mkt_blocked(m.member_id, false) then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
+  if p_amount is null or p_amount < 1 or p_amount > 1000000000000 then
+    return jsonb_build_object('ok', false, 'reason', 'amount');
+  end if;
+  amt := p_amount;
+  select * into st from public.market_stores where owner_id = m.member_id for update;
+  if not found then return jsonb_build_object('ok', false, 'reason', 'store'); end if;
+  hold := coalesce((select sum(o.held) from public.market_orders o where o.store_id = st.id), 0);
+  cap := greatest(0, st.balance - hold);
+  top_price := coalesce((select max(p.price) from public.market_products p where p.store_id = st.id and p.status = 'active'), 0);
+  can := greatest(0, cap - top_price);
+  if amt > can then
+    return jsonb_build_object('ok', false, 'reason', 'capital', 'capital', cap, 'held', hold, 'max', can, 'top_price', top_price);
+  end if;
+  perform 1 from public.profiles where member_id = m.member_id for update;
+  update public.profiles set points_spent = greatest(0, coalesce(points_spent, 0) - amt) where member_id = m.member_id;
+  insert into public.point_spends (member_id, amount, prize_title, mode) values (m.member_id, -amt, st.name, 'market_store_refund');
+  update public.market_stores set balance = greatest(0, balance - amt), updated_at = now() where id = st.id
+  returning balance into bal;
+  pts := public._points(m.member_id);
+  return jsonb_build_object('ok', true, 'balance', bal, 'held', hold, 'capital', greatest(0, bal - hold),
+                            'tier', public._mkt_tier(bal), 'available', coalesce((pts->>'available')::bigint, 0));
+end $$;
 
 -- Who may see a recommendation, a purchase list or a review (the rules of the videos):
 --   public     everybody
@@ -954,7 +1078,7 @@ language sql stable security definer set search_path = public as $$
     'pros', p.pros, 'cons', p.cons,
     'commission', case when p.commission_on then p.commission_pct else 0 end,   -- % for a share link (0: none)
     'store', jsonb_build_object('id', s.id, 'name', s.name, 'logo', s.logo_url, 'country', s.country, 'is_open', s.is_open,
-                                'tier', public._mkt_tier(s.sales_points)),
+                                'tier', public._mkt_tier(s.balance)),
     'seller', jsonb_build_object('id', s.owner_id, 'username', coalesce(m.username, '')))
   from public.market_stores s left join public.members m on m.member_id = s.owner_id
   where s.id = p.store_id
@@ -973,7 +1097,17 @@ language sql stable security definer set search_path = public as $$
     'sales', (select coalesce(sum(p.sales), 0) from public.market_products p where p.store_id = s.id and p.status <> 'deleted'),
     'pros', (select coalesce(sum(p.pros), 0) from public.market_products p where p.store_id = s.id),
     'cons', (select coalesce(sum(p.cons), 0) from public.market_products p where p.store_id = s.id),
-    'tier', public._mkt_tier(s.sales_points),
+    -- the balance: the capital placed in the store + the points of the orders on their way
+    -- (held); the capital is what covers prices and withdrawals. The tier follows the balance;
+    -- the level counts the points of the successful orders (sales_points), like a member's
+    -- level counts their earned points.
+    'balance', s.balance,
+    'held', (select coalesce(sum(o.held), 0) from public.market_orders o where o.store_id = s.id),
+    'capital', greatest(0, s.balance - (select coalesce(sum(o.held), 0) from public.market_orders o where o.store_id = s.id)),
+    'sales_points', s.sales_points,
+    'level', case when to_regprocedure('public.points_level(bigint)') is not null and to_regprocedure('public.points_level_name(int)') is not null
+                  then public.points_level_name(public.points_level(s.sales_points)) end,
+    'tier', public._mkt_tier(s.balance),
     -- only its seller still sees a suspended store
     'suspended', s.suspended, 'suspended_reason', s.suspended_reason, 'suspended_at', s.suspended_at,
     'created_at', s.created_at,
@@ -1004,7 +1138,8 @@ begin
   return true;
 end $$;
 
--- Gives the price of an order back to the buyer, and the coupon it was bought with.
+-- Gives the price of an order back to the buyer, and the coupon it was bought with. The part
+-- of it kept in the store balance (o.held) leaves the balance too.
 create or replace function public._mkt_refund(o public.market_orders) returns void
 language plpgsql security definer set search_path = public as $$
 begin
@@ -1014,6 +1149,10 @@ begin
     if found then
       update public.market_coupons set uses = greatest(0, uses - 1), updated_at = now() where id = o.coupon_id;
     end if;
+  end if;
+  if coalesce(o.held, 0) > 0 then
+    update public.market_orders set held = 0 where id = o.id;
+    update public.market_stores set balance = greatest(0, balance - o.held), updated_at = now() where id = o.store_id;
   end if;
   if o.total <= 0 then return; end if;
   update public.profiles set points_spent = greatest(0, coalesce(points_spent, 0) - o.total) where member_id = o.buyer_id;
@@ -1050,13 +1189,19 @@ $$;
 
 -- Pays a delivered order: the seller, and the member who shared the link (and the member who
 -- first recommended it). Once: an order already paid is left alone. p_tell: tell the seller
--- (the team, releasing an order, tells them itself).
+-- (the team, releasing an order, tells them itself). The points kept in the store balance
+-- (held) leave it: they move from the store to the seller's personal points.
 create or replace function public._mkt_pay(o public.market_orders, p_tell boolean default true) returns boolean
 language plpgsql security definer set search_path = public as $$
-declare gets int;
+declare gets int; v_held bigint;
 begin
-  update public.market_orders set settled_at = now(), updated_at = now() where id = o.id and settled_at is null;
+  update public.market_orders set settled_at = now(), updated_at = now() where id = o.id and settled_at is null
+  returning held into v_held;
   if not found then return false; end if;
+  if coalesce(v_held, 0) > 0 then
+    update public.market_orders set held = 0 where id = o.id;
+    update public.market_stores set balance = greatest(0, balance - v_held), updated_at = now() where id = o.store_id;
+  end if;
   gets := public._mkt_seller_gets(o);
   perform public._mkt_credit(o.seller_id, gets, false);
   if p_tell then
@@ -1238,10 +1383,12 @@ begin
   lv := public._mkt_level(me);
   return jsonb_build_object(
     'ok', true,
-    'member', jsonb_build_object('id', me, 'username', m.username, 'country', upper(coalesce(m.country, ''))),
+    'member', jsonb_build_object('id', me, 'username', m.username, 'country', upper(coalesce(m.country, '')),
+                                 'earned', coalesce((public._points(me)->>'earned')::bigint, 0),
+                                 'available', coalesce((public._points(me)->>'available')::bigint, 0)),
     'blocked', public._mkt_blocked(me, false), 'blocked_selling', public._mkt_blocked(me, true),
     'store', case when st.id is null then null else public._mkt_store_card(st) end,
-    -- (round 30) a store is opened from LV1: { level, earned, need, need_points, ok }; can_open: has one or may open it
+    -- a store is opened from LV5: { level, earned, need, need_points, ok }; can_open: has one or may open it
     'store_level', lv, 'can_open', st.id is not null or coalesce((lv->>'ok')::boolean, true),
     'counts', jsonb_build_object(
       'products', (select count(*) from public.market_products where owner_id = me and status <> 'deleted'),
@@ -1456,7 +1603,15 @@ begin
     if exists (select 1 from public.market_stores where owner_id = m.member_id and suspended) then
       return jsonb_build_object('ok', false, 'reason', 'suspended');
     end if;
-    st := public._mkt_ensure_store(m);
+    -- the store must exist first (Store settings), with a capital that covers the price: a
+    -- first product no longer opens the store by itself
+    select * into st from public.market_stores where owner_id = m.member_id for update;
+    if not found then
+      return jsonb_build_object('ok', false, 'reason', 'balance', 'capital', 0, 'balance', 0);
+    end if;
+    if v_price > public._mkt_capital(st.id) then
+      return jsonb_build_object('ok', false, 'reason', 'balance', 'capital', public._mkt_capital(st.id), 'balance', st.balance);
+    end if;
     loop
       pid := 'PRD' || lpad(floor(random() * 1e10)::bigint::text, 10, '0');
       exit when not exists (select 1 from public.market_products where id = pid);
@@ -1468,6 +1623,11 @@ begin
   else
     select * into pr from public.market_products where id = pid for update;
     if not found or pr.owner_id <> m.member_id or pr.status = 'deleted' then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
+    -- a price change never goes beyond what the store's capital covers
+    select * into st from public.market_stores where id = pr.store_id for update;
+    if found and v_price > public._mkt_capital(st.id) then
+      return jsonb_build_object('ok', false, 'reason', 'balance', 'capital', public._mkt_capital(st.id), 'balance', st.balance);
+    end if;
     update public.market_products set
       title = ttl, description = descr, kind = knd, price = v_price, shipping_cost = ship, stock = stk,
       images = case when d ? 'images' then imgs else images end, video_url = vid,
@@ -1917,6 +2077,10 @@ begin
   if not st.is_open then return jsonb_build_object('ok', false, 'reason', 'closed'); end if;
   if q < 1 or q > 100 then return jsonb_build_object('ok', false, 'reason', 'qty'); end if;
   if p.stock < q then return jsonb_build_object('ok', false, 'reason', 'stock', 'stock', p.stock); end if;
+  -- the store's capital must cover the price: a store cannot sell what its balance does not back
+  if p.price > public._mkt_capital(st.id) then
+    return jsonb_build_object('ok', false, 'reason', 'balance', 'capital', public._mkt_capital(st.id), 'balance', st.balance);
+  end if;
   if not coalesce(public._mkt_reach(st.scope, st.country, m.country), false) then return jsonb_build_object('ok', false, 'reason', 'scope'); end if;
   if (select count(*) from public.market_orders where buyer_id = m.member_id and created_at > now() - interval '1 day') >= 50 then
     return jsonb_build_object('ok', false, 'reason', 'limit');
@@ -1956,6 +2120,9 @@ begin
     pts := public._points(m.member_id);
     return jsonb_build_object('ok', false, 'reason', 'points', 'need', v_total, 'have', coalesce((pts->>'available')::bigint, 0));
   end if;
+  -- the buyer's points stay in the store balance until the goods arrive (the guarantee):
+  -- market_orders.held keeps how much of the balance is this order's
+  update public.market_stores set balance = balance + v_total, updated_at = now() where id = st.id;
 
   select mm.member_id into ref from public.members mm
    where lower(mm.username) = lower(btrim(coalesce(p_ref, ''))) and btrim(coalesce(p_ref, '')) <> ''
@@ -1981,11 +2148,11 @@ begin
     exit when not exists (select 1 from public.market_orders where id = oid);
   end loop;
   insert into public.market_orders (id, product_id, store_id, seller_id, buyer_id, referrer_id, title, image, kind, qty, unit_price,
-                                    shipping_cost, total, commission, commission_pct, root_referrer_id, root_commission,
+                                    shipping_cost, total, held, commission, commission_pct, root_referrer_id, root_commission,
                                     buyer_country, address, delivery, status, return_days, accepted_at,
                                     coupon_id, coupon_code, coupon_scope, coupon_pct, discount)
   values (oid, p.id, st.id, st.owner_id, m.member_id, ref, p.title, coalesce(p.images->>0, ''), p.kind, q, p.price,
-          v_ship, v_total, v_comm, c_pct,
+          v_ship, v_total, v_total, v_comm, c_pct,
           root, case when root is not null then v_comm / 2 else 0 end,
           upper(coalesce(m.country, '')), addr, dlv, st_code, case when st.returns then st.return_days else 0 end,
           case when st_code = 'sold' then now() end,
@@ -2527,7 +2694,7 @@ language sql stable security definer set search_path = public as $$
     'reporter', jsonb_build_object('id', r.reporter_id, 'username', coalesce((select mm.username from public.members mm where mm.member_id = r.reporter_id), '')),
     'owner', jsonb_build_object('id', r.owner_id, 'username', coalesce((select mm.username from public.members mm where mm.member_id = r.owner_id), '')),
     'store', (select jsonb_build_object('id', s.id, 'name', s.name, 'logo', s.logo_url, 'suspended', s.suspended,
-                                        'suspended_reason', s.suspended_reason, 'tier', public._mkt_tier(s.sales_points))
+                                        'suspended_reason', s.suspended_reason, 'tier', public._mkt_tier(s.balance))
                 from public.market_stores s where s.id = r.store_id),
     'product', case when r.kind = 'product' then
                  (select jsonb_build_object('id', p.id, 'title', p.title, 'image', coalesce(p.images->>0, ''), 'price', p.price,
@@ -3178,7 +3345,7 @@ end $$;
 -- Panel > Market > Stores.
 --   p_filter  all | open | closed | suspended
 --   p_q       words of the name, its id, the seller (username or member id)
---   p_sort    new | old | sales (points of the received orders: the tier) | products
+--   p_sort    new | old | sales (points of the received orders) | balance (the tier) | products
 create or replace function public.market_admin_stores(p_token text, p_filter text default 'all', p_q text default '',
   p_sort text default 'new', p_limit int default 40, p_offset int default 0)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -3213,7 +3380,7 @@ begin
                           and o.status in ('requested', 'sold', 'shipped', 'delivered', 'return_requested')),
         'reports', (select count(*) from public.market_reports r where r.store_id = (z.s).id and r.status = 'open'))
         order by z.ord)
-      from (select pk.*, row_number() over (order by case srt when 'sales' then (pk.s).sales_points when 'products' then pk.nprod end desc nulls last,
+      from (select pk.*, row_number() over (order by case srt when 'sales' then (pk.s).sales_points when 'balance' then (pk.s).balance when 'products' then pk.nprod end desc nulls last,
                                                      case when srt = 'old' then (pk.s).created_at end asc,
                                                      (pk.s).created_at desc, (pk.s).id) as ord
               from pick pk order by ord offset off limit lim) z), '[]'::jsonb))
@@ -3627,17 +3794,17 @@ begin
   return jsonb_build_object('ok', true, 'status', case p_action when 'suspend' then 'suspended' when 'restore' then 'active' else 'deleted' end);
 end $$;
 
--- The home page: the stores with the most points of received orders (their tier), open and with
--- products on sale. -> { items: [store cards] }
+-- The home page: the stores with the biggest balance (their tier), open and with products on
+-- sale. -> { items: [store cards] }
 create or replace function public.market_top_stores(p_member text default '', p_limit int default 8)
 returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object('items', coalesce(jsonb_agg(public._mkt_store_card(x.s) order by x.ord), '[]'::jsonb))
-    from (select s, row_number() over (order by s.sales_points desc, s.created_at desc, s.id) as ord
+    from (select s, row_number() over (order by s.balance desc, s.created_at desc, s.id) as ord
             from public.market_stores s
             join public.members mm on mm.member_id = s.owner_id and lower(btrim(coalesce(mm.status, ''))) = 'active'
            where not s.suspended and s.is_open
              and exists (select 1 from public.market_products p where p.store_id = s.id and p.status = 'active')
-           order by s.sales_points desc, s.created_at desc, s.id
+           order by s.balance desc, s.created_at desc, s.id
            limit least(greatest(coalesce(p_limit, 8), 1), 24)) x
 $$;
 
@@ -3702,7 +3869,7 @@ language sql stable security definer set search_path = public as $$
     'left', greatest(0, c.max_uses - c.uses), 'audience', c.audience, 'expires_at', c.expires_at,
     'state', public._mkt_cpn_state(c), 'created_at', c.created_at,
     'store', (select jsonb_build_object('id', s.id, 'name', s.name, 'logo_url', s.logo_url, 'country', s.country,
-                                        'tier', public._mkt_tier(s.sales_points))
+                                        'tier', public._mkt_tier(s.balance))
                 from public.market_stores s where s.id = c.store_id))
   || case when c.owner_id = coalesce(p_viewer, '') then jsonb_build_object(
        'mine', true,
@@ -4062,7 +4229,8 @@ begin
     'public._mkt_admin_can(public.market_orders)', 'public._mkt_cpn_stats(text, text)',
     'public._mkt_cpn_fits(public.market_coupons, text, text)', 'public._mkt_cpn_state(public.market_coupons)',
     'public._mkt_cpn_off(text, int, int, int)', 'public._mkt_cpn_json(public.market_coupons, text)',
-    'public._mkt_cpn_grant(text, text)', 'public._mkt_cpn_find(text, text, text, text)', 'public._mkt_level(text)']
+    'public._mkt_cpn_grant(text, text)', 'public._mkt_cpn_find(text, text, text, text)', 'public._mkt_level(text)',
+    'public._mkt_capital(text)']
   loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
   end loop;
@@ -4094,7 +4262,8 @@ begin
     'public.market_coupon_save(text, jsonb)', 'public.market_coupon_status(text, text, text)',
     'public.market_coupons_sales(text, text, int, int)', 'public.market_coupons_mine(text, text, int, int)',
     'public.market_coupon_get(text, text)', 'public.market_coupon_remove(text, text)',
-    'public.market_coupons_store(text, text)', 'public.market_coupon_check(text, text, text, int)']
+    'public.market_coupons_store(text, text)', 'public.market_coupon_check(text, text, text, int)',
+    'public.balance_tier(bigint)', 'public.market_store_deposit(text, bigint)', 'public.market_store_withdraw(text, bigint)']
   loop
     execute format('revoke all on function %s from public', f);
     execute format('grant execute on function %s to anon, authenticated', f);

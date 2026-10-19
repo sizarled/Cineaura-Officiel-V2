@@ -549,7 +549,7 @@
           <span class="pro"><b>${esc(M.fmt(s.pros))}</b> ${esc(t("mkt.pros"))}</span>
           <span class="con"><b>${esc(M.fmt(s.cons))}</b> ${esc(t("mkt.cons"))}</span>
         </div>
-        ${M.tierBoxHtml(s.tier)}
+        ${M.tierBoxHtml(s)}
         ${s.description ? `<div class="mkt-store-desc" dir="auto">${richText(s.description)}</div>` : ""}
         ${links.length ? `<div class="mkt-store-links"><span class="muted">${esc(t("mkt.s.links"))}</span>${links.map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer nofollow">${ICON.link}<span dir="auto">${esc(l.label || l.url.replace(/^https?:\/\//i, ""))}</span></a>`).join("")}</div>` : ""}
       </section>
@@ -594,6 +594,9 @@
     if (Number(p.stock) <= 0) return t("mkt.soldOut");
     if (!s.is_open) return t("mkt.storeClosed");
     if (v.member && v.reach === false) return t("mkt.notHere");
+    // the guarantee: the store's capital must cover the price (only reported once the market
+    // update of sql/market.sql has run; the server itself enforces it before that too)
+    if (s.capital !== undefined && Number(p.price) > Number(s.capital || 0)) return t("mkt.notBacked");
     return "";
   }
 
@@ -1510,11 +1513,19 @@
     }
     box.innerHTML = panelShell(
       r,
-      `${store?.suspended ? suspendedHtml("store", store.suspended_reason) : ""}${store ? "" : `<p class="mkt-panel-hint">${esc(t("mkt.s.intro"))}</p>`}${M.storeFormHtml(store, me?.member || { username: M.username(), country: "" })}`,
+      `${store?.suspended ? suspendedHtml("store", store.suspended_reason) : ""}${store ? "" : `<p class="mkt-panel-hint">${esc(t("mkt.s.intro"))}</p>`}${M.storeFormHtml(store, me?.member || { username: M.username(), country: "" })}${store ? M.balanceCardHtml(me) : ""}`,
       { tabs: false }
     );
     M.wireStoreForm(box, {
       onSaved: async () => {
+        await refreshMe();
+        if (location.hash.startsWith("#settings")) route();
+      },
+    });
+    // the store balance: add points to the capital / withdraw them (a product's price needs
+    // the capital; orders on their way hold theirs in the balance)
+    M.wireBalanceCard(box, {
+      onChanged: async () => {
         await refreshMe();
         if (location.hash.startsWith("#settings")) route();
       },
@@ -1553,6 +1564,13 @@
     // LV5 to open/sell — Store settings shows progress
     if (!state.me?.store && state.me?.can_open === false) {
       C.toast(t("mkt.lv.toast"));
+      go("./Market.html#settings");
+      return;
+    }
+    // no store yet: one is opened in Store settings, where the capital is placed — a
+    // product can only be listed once the capital covers its price (the guarantee)
+    if (!state.me?.store) {
+      C.toast(t("mkt.p.openFirst"));
       go("./Market.html#settings");
       return;
     }
