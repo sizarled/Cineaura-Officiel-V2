@@ -22,6 +22,11 @@
     "nav.logout": "Log Out",
     "nav.profile": "Profile",
     "nav.openMenu": "Open menu",
+    "nav.arrange": "Arrange the shortcuts",
+    "nav.arrangeHint": "Move a shortcut up or down; the order stays on this device.",
+    "nav.moveUp": "Move up",
+    "nav.moveDown": "Move down",
+    "nav.resetOrder": "Default order",
 
     // ── Home page ───────────────────────────────────────────────────
     "home.title": "CineAura — Movies, Series & Live IPTV",
@@ -1835,6 +1840,7 @@
     "points.newLevel": "New level: {level} · watch points ×{n}",
     "points.done": "Done",
     "prof.content": "Your content",
+    "prof.market": "Market",
     "panel.patreonTitle": "Patreon links",
     "panel.patreonHint": "Where “Buy points” (Dashboard > Points) and the premium codes of the activation page lead. Empty: the Patreon home page.",
     "panel.patreonPoints": "Buy points (Dashboard > Points)",

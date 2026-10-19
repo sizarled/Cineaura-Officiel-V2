@@ -3889,6 +3889,105 @@
   }
 
   /* ════════════════════════════════════════════════════════════════════
+     The order of the sidebar shortcuts (Profile, Dashboard): each member
+     arranges them for themself (the Arrange row under the nav, ▲ / ▼ of every
+     entry) and the order stays on the device, like the theme and the language
+     (cineaura_navorder_<page>:<member id> = JSON [ids]). The ids always come
+     from the page, so nothing of another member's list is ever shown.
+  */
+  const NAV_ORDER_PREFIX = "cineaura_navorder_";
+  const navOrderKey = (page, memberId) => `${NAV_ORDER_PREFIX}${page}:${memberId || "guest"}`;
+
+  // The page's ids in the member's own order: the saved ids first (unknown or
+  // repeated ones dropped), then any id the member never agreed on — a new
+  // section, the Market — slides into its natural slot, right after the
+  // nearest default position that is already in the list.
+  function navOrderLoad(page, memberId, defaults) {
+    const out = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(navOrderKey(page, memberId)) || "null");
+      if (Array.isArray(saved)) {
+        const known = new Set(defaults);
+        saved.forEach((id) => {
+          if (known.has(id) && !out.includes(id)) out.push(id);
+        });
+      }
+    } catch {
+      /* storage blocked/broken: the default order */
+    }
+    defaults.forEach((id, di) => {
+      if (out.includes(id)) return;
+      let at = -1;
+      for (let k = di - 1; k >= 0 && at === -1; k -= 1) at = out.indexOf(defaults[k]);
+      out.splice(at + 1, 0, id);
+    });
+    return out;
+  }
+
+  function navOrderSave(page, memberId, order) {
+    try {
+      localStorage.setItem(navOrderKey(page, memberId), JSON.stringify(order));
+    } catch {
+      /* storage blocked: the new order holds for this view */
+    }
+    return order;
+  }
+
+  function navOrderReset(page, memberId) {
+    try {
+      localStorage.removeItem(navOrderKey(page, memberId));
+    } catch {
+      /* storage blocked */
+    }
+  }
+
+  // One step up (dir < 0) or down (dir > 0): swap with the neighbour and save.
+  function navOrderMove(page, memberId, defaults, id, dir) {
+    const order = navOrderLoad(page, memberId, defaults);
+    const from = order.indexOf(id);
+    const to = from + (dir < 0 ? -1 : 1);
+    if (from === -1 || to < 0 || to >= order.length) return order;
+    order.splice(to, 0, order.splice(from, 1)[0]);
+    return navOrderSave(page, memberId, order);
+  }
+
+  const NAV_ARR_SVG = {
+    rows: '<path d="M7.5 15.5L12 20l4.5-4.5M7.5 8.5L12 4l4.5 4.5"/>',
+    up: '<path d="M12 5l7 14H5z" fill="currentColor" stroke="none"/>',
+    down: '<path d="M12 19L5 5h14z" fill="currentColor" stroke="none"/>',
+  };
+  const navArrIcon = (k) =>
+    `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${NAV_ARR_SVG[k] || ""}</svg>`;
+
+  // The small row under a sidebar nav that opens the arranging. `on` while
+  // arranging (the nav itself shows the rows then).
+  function navArrangeToggleHtml(on) {
+    return `<button type="button" class="nav-arr-toggle${on ? " on" : ""}" data-arr-toggle aria-pressed="${on}">${navArrIcon("rows")}<span>${escapeHtml(t("nav.arrange"))}</span></button>`;
+  }
+
+  // What the nav shows while arranging: one row per shortcut with ▲ / ▼, then
+  // Default order and Done. items: [{ id, label }] (the icon is the id's); the
+  // page wires the clicks ([data-arr-toggle], [data-arr-id][data-arr-move],
+  // [data-arr-reset], [data-arr-done]) and never switches sections meanwhile.
+  function navArrangeHtml(items) {
+    const rows = items
+      .map((it, i) => `
+        <div class="nav-arr-row" data-arr-row="${escapeHtml(it.id)}">
+          <span class="nav-arr-label">${navIcon(it.id)}<span dir="auto">${escapeHtml(it.label)}</span></span>
+          <button type="button" class="nav-arr-btn" data-arr-id="${escapeHtml(it.id)}" data-arr-move="-1" ${i === 0 ? "disabled" : ""} title="${escapeHtml(t("nav.moveUp"))}" aria-label="${escapeHtml(t("nav.moveUp"))}">${navArrIcon("up")}</button>
+          <button type="button" class="nav-arr-btn" data-arr-id="${escapeHtml(it.id)}" data-arr-move="1" ${i === items.length - 1 ? "disabled" : ""} title="${escapeHtml(t("nav.moveDown"))}" aria-label="${escapeHtml(t("nav.moveDown"))}">${navArrIcon("down")}</button>
+        </div>`)
+      .join("");
+    return `
+      <p class="nav-arr-hint muted">${escapeHtml(t("nav.arrangeHint"))}</p>
+      <div class="nav-arr-rows" data-arr-rows>${rows}</div>
+      <div class="nav-arr-foot">
+        <button type="button" class="btn btn-sm btn-ghost" data-arr-reset>${escapeHtml(t("nav.resetOrder"))}</button>
+        <button type="button" class="btn btn-sm btn-primary" data-arr-done>${escapeHtml(t("act.done"))}</button>
+      </div>`;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════
      Points
 
      A member earns points from these sources, each at its own rate:
@@ -5112,6 +5211,12 @@
     premiumUnlock,
     premiumCodeMessage,
     navIcon,
+    navOrderLoad,
+    navOrderSave,
+    navOrderReset,
+    navOrderMove,
+    navArrangeToggleHtml,
+    navArrangeHtml,
     deviceMac,
     deviceName,
     publicIp,

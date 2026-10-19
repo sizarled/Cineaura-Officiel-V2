@@ -2600,3 +2600,165 @@ html[data-theme="day"] .share-btn {
   color: var(--muted);
   font-size: 12.5px;
 }
+
+/* Profile > Market (viewMarket, js/profile.js): the own store's card — logo,
+   name, tier of its balance, balance/capital/held — and the sales + purchases
+   counters linked to their Market.html panels */
+.prof-mkt-store {
+  margin: 14px 0 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--sub-bg);
+  display: grid;
+  gap: 10px;
+}
+
+.prof-mkt-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.prof-mkt-logo {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+}
+
+.prof-mkt-logo-ph {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.prof-mkt-logo-ph svg {
+  width: 22px;
+  height: 22px;
+}
+
+.prof-mkt-who {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  line-height: 1.25;
+}
+
+.prof-mkt-who strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prof-mkt-balance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prof-mkt-balance > span {
+  flex: 1;
+  min-width: 96px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--input-bg);
+  display: grid;
+  gap: 2px;
+}
+
+.prof-mkt-balance small {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.prof-mkt-balance b {
+  font-size: 14px;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.prof-mkt-nostore {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.prof-mkt-nostore p {
+  margin: 0;
+  flex: 1;
+  min-width: 180px;
+}
+
+.prof-mkt-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prof-mkt-cols {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 760px) {
+  .prof-mkt-cols {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.prof-mkt-col {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--sub-bg);
+  padding: 12px;
+}
+
+.prof-mkt-col h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.prof-mkt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prof-mkt-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.prof-mkt-chip b {
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.prof-mkt-chip:hover {
+  border-color: var(--cyan);
+}
+
+.prof-mkt-chip.has {
+  color: var(--text);
+  border-color: var(--cyan);
+}

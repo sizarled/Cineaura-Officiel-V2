@@ -33,6 +33,11 @@
     memberPoints,
     balanceTier,
     balanceTierHtml,
+    navOrderLoad,
+    navOrderMove,
+    navOrderReset,
+    navArrangeToggleHtml,
+    navArrangeHtml,
   } = window.CineAura;
 
   // Reads always go through; writes need a live session. A member who signed out
@@ -72,6 +77,7 @@
     ownPoints: null, // points the signed-in member can spend, once counted
     ownPointsReq: null,
     pc: null, // the Content tab (pcState)
+    arranging: false, // arranging the sidebar shortcuts (own profile only)
   };
 
   document.addEventListener("cineaura:prefs", () => {
@@ -513,15 +519,21 @@
   // own rows, so a signed-out visitor gets no sidebar at all — only the public
   // home of the profile being visited.
   // Points live in Dashboard > Points; "Your content" (js/content-studio.js) holds the
-  // member's videos: Create, Manage, Statistics.
-  const NAV_SECTIONS = ["home", "create", "posts", "content", "messages", "search", "following", "blocked", "settings"];
+  // member's videos: Create, Manage, Statistics. Right under it "market" opens the
+  // own store (viewMarket, sql/market.sql). The member re-sorts the whole list
+  // with the Arrange row (navOrder*, js/common.js); the order stays on the device.
+  const NAV_SECTIONS = ["home", "create", "posts", "content", "market", "messages", "search", "following", "blocked", "settings"];
 
   function signedIn() {
     return Boolean(state.me?.member?.member_id);
   }
 
+  // The sidebar sections in the order the member arranged them (own profile
+  // only; someone else's profile keeps the default order, its Home first).
   function navSections() {
-    return signedIn() ? NAV_SECTIONS : [];
+    if (!signedIn()) return [];
+    if (!state.isOwner) return NAV_SECTIONS;
+    return navOrderLoad("prof", state.me?.member?.member_id, NAV_SECTIONS);
   }
 
   function secLabel(s) {
@@ -529,15 +541,38 @@
     return label !== `prof.${s}` ? label : s[0].toUpperCase() + s.slice(1);
   }
 
-  function renderShell() {
+  // The sidebar nav: the section buttons in the member's order (own profile —
+  // the Arrange row comes with it), or Home + the own-sections caption when
+  // visiting. While arranging the nav gains the ▲▼ rows; [data-arr-*] clicks
+  // redraw only this block (renderNav) and never switch the section.
+  function profNavHtml() {
     const sections = navSections();
+    if (!sections.length) return "";
     const navBtn = (s) =>
       `<button type="button" data-sec="${s}" class="${state.section===s?"active":""}">${window.CineAura.navIcon(s)}<span>${secLabel(s)}</span></button>`;
+    if (state.isOwner) {
+      if (state.arranging)
+        return `${navArrangeToggleHtml(true)}\n            ${navArrangeHtml(sections.map((s) => ({ id: s, label: secLabel(s) })))}`;
+      return `${sections.map(navBtn).join("\n            ")}\n            ${navArrangeToggleHtml(false)}`;
+    }
     // On somebody else's profile only Home is about that member; the rest of
     // the list is the signed-in member's own account, so it gets a caption.
-    const cap = sections.length && !state.isOwner
-      ? `<p class="prof-side-cap">${t("prof.sideMine")}</p>`
-      : "";
+    return `
+            ${navBtn("home")}
+            <p class="prof-side-cap">${t("prof.sideMine")}</p>
+            ${sections.filter((s) => s !== "home").map(navBtn).join("\n            ")}`;
+  }
+
+  function renderNav() {
+    const nav = $("#prof-root .prof-side nav");
+    if (nav) {
+      nav.innerHTML = profNavHtml();
+      nav.classList.toggle("arranging", Boolean(state.arranging && state.isOwner));
+    }
+  }
+
+  function renderShell() {
+    const sections = navSections();
     const aside = sections.length
       ? `
         <aside class="glass prof-side">
@@ -548,10 +583,7 @@
               <span class="muted">${state.isOwner ? t("prof.you") : t("prof.visiting")}</span>
             </span>
           </a>
-          <nav>
-            ${navBtn("home")}
-            ${cap}
-            ${sections.filter((s) => s !== "home").map(navBtn).join("\n            ")}
+          <nav${state.arranging && state.isOwner ? ` class="arranging"` : ""}>${profNavHtml()}
           </nav>
         </aside>`
       : "";
@@ -565,6 +597,23 @@
       hydrateAvatars($("#prof-root"));
     }
     $("#prof-root").onclick = (e) => {
+      // Arranging the shortcuts (own profile only): toggle, ▲▼, default, done —
+      // no section switch while it's on.
+      if (e.target.closest("[data-arr-toggle]") && state.isOwner) {
+        state.arranging = !state.arranging;
+        renderNav();
+        return;
+      }
+      // (another member's profile never offers the arranging, and its clicks pass through)
+      if (state.arranging && state.isOwner) {
+        const mv = e.target.closest("[data-arr-id][data-arr-move]");
+        if (mv) navOrderMove("prof", state.me?.member?.member_id, NAV_SECTIONS, mv.dataset.arrId, Number(mv.dataset.arrMove));
+        else if (e.target.closest("[data-arr-reset]")) navOrderReset("prof", state.me?.member?.member_id);
+        else if (e.target.closest("[data-arr-done]")) state.arranging = false;
+        else return;
+        renderNav();
+        return;
+      }
       const sec = e.target.closest("[data-sec]");
       if (sec) {
         state.section = sec.dataset.sec;
@@ -625,6 +674,7 @@
       create: viewCreate,
       posts: viewManagePosts,
       content: viewContent,
+      market: viewMarket,
       messages: viewMessages,
       search: viewSearch,
       following: viewFollowing,
@@ -4019,6 +4069,81 @@
       return;
     }
     window.CineAuraStudio.render(main, { member: state.me.member });
+  }
+
+  // ---------- Market (the member's own store + orders, sql/market.sql) ----------
+  // The own side of the Market in the sidebar, right under Your content: the
+  // store's card (tier of its balance, balance / capital / held), the sales and
+  // purchases counters, and the shortcuts into the Market page's panels.
+  async function viewMarket(main) {
+    const M = window.CineAuraMarket;
+    const me = state.me?.member?.member_id;
+    if (!M || !me) {
+      main.innerHTML = `<p class="empty">${escapeHtml(t("mkt.setupText"))}</p>`;
+      return;
+    }
+    main.innerHTML = `<p class="eyebrow">${escapeHtml(t("mkt.eyebrow"))}</p><h1>${escapeHtml(t("prof.market"))}</h1>
+      <div class="loader" style="display:grid"><div class="spinner"></div></div>`;
+    const r = await window.CineAura.rpc("market_me", { p_member: me });
+    const d = r.ok && r.data?.ok ? r.data : null;
+    if (!d || !state.me || state.me.member?.member_id !== me) {
+      main.innerHTML = `<p class="eyebrow">${escapeHtml(t("mkt.eyebrow"))}</p><h1>${escapeHtml(t("prof.market"))}</h1><p class="empty">${escapeHtml(t("mkt.setupText"))}</p>`;
+      return;
+    }
+    const s = d.store || null;
+    const counts = d.counts || {};
+    const sales = counts.sales || {};
+    const buys = counts.purchases || {};
+    // balance/held/capital come with the new sql/market.sql; before it only the card shows
+    const hasBal = s && s.balance !== undefined && s.balance !== null;
+    const chip = (group, key, n) =>
+      `<a class="prof-mkt-chip${n ? " has" : ""}" href="./Market.html#${group}/${key}"><b>${M.fmt(n)}</b><span>${escapeHtml(t(`mkt.tab.${group}.${key}`))}</span></a>`;
+    const logo = s?.logo
+      ? `<img class="prof-mkt-logo" src="${escapeHtml(s.logo)}" alt="" loading="lazy" />`
+      : `<span class="prof-mkt-logo prof-mkt-logo-ph">${M.ICON.store}</span>`;
+    main.innerHTML = `
+      <p class="eyebrow">${escapeHtml(t("mkt.eyebrow"))}</p><h1>${escapeHtml(t("prof.market"))}</h1>
+      <div class="prof-mkt">
+        <div class="prof-mkt-store">
+          ${s ? `
+            <a class="prof-mkt-id" href="${escapeHtml(M.storeHref(s.id))}">
+              ${logo}
+              <span class="prof-mkt-who">
+                <strong dir="auto">${escapeHtml(s.name || "")}</strong>
+                <span class="muted">${escapeHtml(t(s.open ? "mkt.open" : "mkt.closed"))}${s.level ? ` · ${escapeHtml(s.level)}` : ""}</span>
+              </span>
+              ${balanceTierHtml(s.tier)}
+            </a>
+            ${hasBal ? `
+              <div class="prof-mkt-balance">
+                <span><small>${escapeHtml(t("mkt.bal.balance"))}</small><b>${M.fmt(Number(s.balance || 0))} PT</b></span>
+                <span><small>${escapeHtml(t("mkt.bal.capital"))}</small><b>${M.fmt(Number(s.capital ?? 0))} PT</b></span>
+                <span><small>${escapeHtml(t("mkt.bal.held"))}</small><b>${M.fmt(Number(s.held || 0))} PT</b></span>
+              </div>` : ""}
+          ` : `
+            <span class="prof-mkt-logo prof-mkt-logo-ph">${M.ICON.store}</span>
+            <div class="prof-mkt-nostore">
+              <p class="muted">${escapeHtml(t("mkt.s.intro"))}</p>
+              <a class="btn btn-sm btn-primary" href="./Market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>
+            </div>
+          `}
+          <div class="prof-mkt-acts">
+            ${s ? `<a class="btn btn-sm btn-ghost" href="${escapeHtml(M.storeHref(s.id))}"><span>${escapeHtml(t("mkt.yourStore"))}</span></a>` : ""}
+            <a class="btn btn-sm btn-ghost" href="./Market.html#settings"><span>${escapeHtml(t("mkt.nav.settings"))}</span></a>
+            <a class="btn btn-sm btn-ghost" href="./Market.html"><span>${escapeHtml(t("mkt.eyebrow"))}</span></a>
+          </div>
+        </div>
+        <div class="prof-mkt-cols">
+          <section class="prof-mkt-col">
+            <h3>${escapeHtml(t("mkt.nav.sales"))}</h3>
+            <div class="prof-mkt-chips">${["requests", "sold", "shipped", "delivered", "returned"].map((k) => chip("sales", k, Number(sales[k] || 0))).join("")}</div>
+          </section>
+          <section class="prof-mkt-col">
+            <h3>${escapeHtml(t("mkt.nav.purchases"))}</h3>
+            <div class="prof-mkt-chips">${["later", "requests", "purchased", "shipped", "received", "returned"].map((k) => chip("purchases", k, Number(buys[k] || 0))).join("")}</div>
+          </section>
+        </div>
+      </div>`;
   }
 
   async function viewBlocked(main) {
