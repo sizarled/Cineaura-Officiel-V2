@@ -684,6 +684,12 @@
             ${buyBtn}
             ${v.own ? "" : `<button class="btn btn-lg btn-ghost" type="button" data-later aria-pressed="${v.saved ? "true" : "false"}">${ICON.clock}<span>${esc(t(v.saved ? "mkt.laterSaved" : "mkt.buyLater"))}</span></button>`}
           </div>
+          ${v.own && p.gate?.visibility === "exclusive" ? `
+          <div class="mkt-gate-box">
+            <p class="mkt-gate-head">${ICON.lock}<span>${esc(t("mkt.gate.title"))}</span></p>
+            ${M.gateCriteriaHtml(p.gate)}
+            <button class="btn btn-sm btn-ghost" type="button" data-vip-msg${p.vip_notified_at ? ` title="${esc(t("mkt.vip.wait", { at: M.dateTime(p.vip_notified_at) }))}"` : ""}>${ICON.chat}<span>${esc(t("mkt.vip.send"))}</span></button>
+          </div>` : ""}
           <p class="muted mkt-pnote">${esc(request ? t("mkt.requestNote") : t("mkt.instantNote"))} ${esc(s.returns ? t("mkt.returnsDays", { n: s.return_days }) : t("mkt.s.returnsNo"))}</p>
           <div class="mkt-pacts mkt-pacts-social">
             ${p.status === "active" ? `<button class="btn btn-sm ${v.my_rec ? "btn-primary" : "btn-ghost"}" type="button" data-recommend aria-pressed="${v.my_rec ? "true" : "false"}">${ICON.thumb}<span>${esc(t(v.my_rec ? "mkt.rc.mine" : "mkt.rc.btn"))}</span></button>
@@ -736,6 +742,17 @@
     }
     if (!res.data?.ok) {
       document.title = t("mkt.pageTitle");
+      // exclusive (round 32): the product exists but the criteria it sets are not met — they
+      // come back with the refusal, so the visitor reads what the page asks for
+      if (res.data?.reason === "exclusive") {
+        box.innerHTML = `<div class="vs-none glass mkt-gate">
+          <h2>${ICON.lock} ${esc(t("mkt.gate.title"))}</h2>
+          <p class="muted">${esc(t("mkt.gate.hint"))}</p>
+          ${M.gateCriteriaHtml(res.data.gate)}
+          <p><a class="btn btn-sm btn-primary" href="./Market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p>
+        </div>`;
+        return;
+      }
       box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.productGone"))}</h2><p class="muted">${esc(t("mkt.productGoneText"))}</p><p><a class="btn btn-sm btn-primary" href="./Market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
       return;
     }
@@ -822,6 +839,7 @@
     box.querySelector("[data-edit-product]")?.addEventListener("click", () =>
       M.openProductForm({ product: { ...p, categories: p.categories }, store: s, onSaved: () => route() })
     );
+    box.querySelector("[data-vip-msg]")?.addEventListener("click", () => M.openVipNotify({ product: p, onSent: () => route() }));
   }
 
   // ---------------------------------------------------------------- a purchase list

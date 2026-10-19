@@ -75,7 +75,15 @@
   }
 
   // -> { ok: true, data } | { ok: false, setup | network | status, data }
+  // The market RPCs that gate the exclusive products round by the visitor's interface
+  // language (sql/market.sql round 32): the page sends it by itself, in these calls.
+  const LANG_RPCS = new Set([
+    "market_home", "market_search", "market_category", "market_product", "market_suggest", "market_buy",
+    "market_list", "market_feed", "market_profile", "market_review_save", "market_rec_save",
+    "market_later", "market_list_item",
+  ]);
   M.call = async (name, args = {}) => {
+    if (LANG_RPCS.has(name) && args.p_lang == null) args = { ...args, p_lang: C.getLang?.() || "" };
     let res;
     try {
       res = await C.rpc(name, args);
@@ -99,7 +107,11 @@
     "not_found", "own", "closed", "qty", "address", "points", "state", "note", "window", "empty", "text", "body",
     "product", "orders", "commission", "download", "suspended", "reason", "already", "phone",
     "people", "visibility", "private", "full", "level", "store", "amount",
+    "exclusive", "tier", "age", "gender", "vip", "excountries",
   ];
+  // The twelve points tiers and the seven interface languages (sql/market.sql round 32)
+  M.TIERS = ["N1", "N2", "N3", "K1", "K2", "K3", "M1", "M2", "M3", "B1", "B2", "B3"];
+  M.LANGS = ["en", "ar", "fr", "de", "es", "nl", "it"];
   M.errText = (data) => {
     const r = String(data?.reason || "");
     if (r === "points") return t("mkt.err.points", { need: M.fmt(data.need), have: M.fmt(data.have) });
@@ -116,6 +128,8 @@
     if (r === "people" && Array.isArray(data?.unknown) && data.unknown.length) {
       return t("mkt.err.peopleUnknown", { names: data.unknown.map((n) => `@${n}`).join(", ") });
     }
+    // the VIP list messaged too recently: the next moment comes back with the refusal
+    if (r === "wait" && data?.next_at) return t("mkt.err.wait", { at: M.dateTime(data.next_at) });
     return t(REASONS.includes(r) || r === "stock" || r === "city" ? `mkt.err.${r}` : "mkt.err.failed");
   };
   // A failed call (no answer, SQL missing…) or a refusal, as a sentence.
@@ -376,6 +390,7 @@
     const href = M.productHref(p.id, o.ref || "");
     const badges = [
       p.kind === "digital" ? `<span class="mkt-badge b-digital">${esc(t("mkt.kind.digital"))}</span>` : "",
+      p.visibility === "exclusive" ? `<span class="mkt-badge b-exclusive">${ICON.lock}${esc(t("mkt.gate.title"))}</span>` : "",
       Number(p.stock) <= 0 ? `<span class="mkt-badge b-out">${esc(t("mkt.soldOut"))}</span>` : "",
       p.status === "hidden" ? `<span class="mkt-badge b-hidden">${esc(t("mkt.hidden"))}</span>` : "",
     ].join("");
@@ -677,6 +692,19 @@
     // off for a new product; the percentage chosen before is kept while it is off
     const cOn = typeof p.commission_on === "boolean" ? p.commission_on : Number(p.commission) > 0;
     const cPct = commissionOk(Number(p.commission_pct)) ? Number(p.commission_pct) : commissionOk(Number(p.commission)) ? Number(p.commission) : 10;
+    // who may see it (round 32): public or exclusive behind these criteria (gate: the owner's page)
+    const g0 = p.gate || {};
+    const aud = {
+      vis: g0.visibility === "exclusive" || p.visibility === "exclusive" ? "exclusive" : "public",
+      followers: Boolean(g0.followers),
+      tier: g0.tier || "",
+      countries: (Array.isArray(g0.countries) ? g0.countries : []).join(", "),
+      langs: Array.isArray(g0.langs) ? g0.langs : [],
+      ageMin: g0.age_min ?? "",
+      ageMax: g0.age_max ?? "",
+      gender: g0.gender || "",
+      vip: typeof store?.vip === "string" ? store.vip : "",
+    };
     const wrap = M.modal(`
       ${head(t(editing ? "mkt.editProduct" : "mkt.addProduct"))}
       <form class="mkt-form" data-pform novalidate>
@@ -720,6 +748,49 @@
           </div>
           <p class="muted mkt-f-hint">${esc(t("mkt.f.categoriesHint", { n: MAX_CATS }))}</p>
         </div>
+        <fieldset class="mkt-field mkt-seg" data-audience>
+          <legend>${esc(t("mkt.f.audience"))}</legend>
+          <label><input type="radio" name="pvis" value="public" ${aud.vis !== "exclusive" ? "checked" : ""} /><span>${esc(t("mkt.f.visPublic"))}</span></label>
+          <label><input type="radio" name="pvis" value="exclusive" ${aud.vis === "exclusive" ? "checked" : ""} /><span>${esc(t("mkt.f.visExclusive"))}</span></label>
+          <div class="mkt-aud-more" data-exc ${aud.vis === "exclusive" ? "" : "hidden"}>
+            <p class="muted mkt-f-hint">${esc(t("mkt.f.excHint"))}</p>
+            <fieldset class="mkt-field mkt-seg"><legend>${esc(t("mkt.f.exFollowers"))}</legend>
+              <label><input type="radio" name="pfollowers" value="0" ${aud.followers ? "" : "checked"} /><span>${esc(t("mkt.f.exEveryone"))}</span></label>
+              <label><input type="radio" name="pfollowers" value="1" ${aud.followers ? "checked" : ""} /><span>${esc(t("mkt.f.exFollowersOnly"))}</span></label>
+            </fieldset>
+            <div class="mkt-form-row">
+              <label class="mkt-field"><span>${esc(t("mkt.f.exTier"))}</span>
+                <select name="ptier">
+                  <option value="">${esc(t("mkt.f.exTierAny"))}</option>
+                  ${M.TIERS.map((c) => `<option value="${c}" ${aud.tier === c ? "selected" : ""}>${c}</option>`).join("")}
+                </select></label>
+              <label class="mkt-field"><span>${esc(t("mkt.f.exCountries"))}</span>
+                <input name="pcountries" dir="ltr" maxlength="120" value="${esc(aud.countries)}" placeholder="${esc(t("mkt.f.exCountriesPh"))}" /></label>
+              <label class="mkt-field"><span>${esc(t("mkt.f.exGender"))}</span>
+                <select name="pgender">
+                  <option value="">${esc(t("mkt.f.exGenderAny"))}</option>
+                  <option value="male" ${aud.gender === "male" ? "selected" : ""}>${esc(t("mkt.gate.male"))}</option>
+                  <option value="female" ${aud.gender === "female" ? "selected" : ""}>${esc(t("mkt.gate.female"))}</option>
+                </select></label>
+            </div>
+            <div class="mkt-field">
+              <span id="mkt-plangs-label">${esc(t("mkt.f.exLangs"))}</span>
+              <div class="mkt-aud-opts" role="group" aria-labelledby="mkt-plangs-label">
+                ${M.LANGS.map((c) => `<label class="mkt-aud-opt"><input type="checkbox" name="plang" value="${c}" ${aud.langs.includes(c) ? "checked" : ""} /><span>${esc(M.langName(c))}</span></label>`).join("")}
+              </div>
+            </div>
+            <div class="mkt-form-row">
+              <label class="mkt-field"><span>${esc(t("mkt.f.exAge"))}</span>
+                <span class="mkt-age-row">
+                  <input name="page_min" type="number" min="3" max="120" step="1" inputmode="numeric" value="${esc(aud.ageMin)}" placeholder="${esc(t("mkt.f.exAgeMin"))}" aria-label="${esc(t("mkt.f.exAgeMin"))}" />
+                  <input name="page_max" type="number" min="3" max="120" step="1" inputmode="numeric" value="${esc(aud.ageMax)}" placeholder="${esc(t("mkt.f.exAgeMax"))}" aria-label="${esc(t("mkt.f.exAgeMax"))}" />
+                </span></label>
+            </div>
+            <label class="mkt-field"><span>${esc(t("mkt.f.exVip"))}</span>
+              <input name="pvip" dir="ltr" maxlength="2000" value="${esc(aud.vip)}" placeholder="${esc(t("mkt.f.exVipPh"))}" />
+              <p class="muted mkt-f-hint">${esc(t("mkt.f.exVipHint", { n: 50 }))}</p></label>
+          </div>
+        </fieldset>
         ${C.pictureFieldHtml({ label: t("mkt.f.pictures"), hint: t("mkt.f.picturesHint", { n: MAX_PICS }), values: images(p), max: MAX_PICS })}
         <label class="mkt-field"><span>${esc(t("mkt.f.video"))}</span>
           <input name="video_url" type="url" dir="ltr" maxlength="500" value="${esc(p.video_url || "")}" placeholder="https://www.youtube.com/watch?v=…" /></label>
@@ -730,6 +801,32 @@
         </div>
       </form>`, { cls: "mkt-modal-wide", label: t(editing ? "mkt.editProduct" : "mkt.addProduct") });
     const form = wrap.querySelector("[data-pform]");
+    // Fill the audience controls from a gate (the seller's page is where the criteria live —
+    // a product card may come without them: fetch them once then)
+    const setAud = (g) => {
+      const vis = g?.visibility === "exclusive" ? "exclusive" : "public";
+      form.pvis.value = vis;
+      form.querySelector("[data-exc]").hidden = vis !== "exclusive";
+      form.querySelector(`input[name="pfollowers"][value="${g?.followers ? "1" : "0"}"]`).checked = true;
+      form.ptier.value = g?.tier || "";
+      form.pcountries.value = (Array.isArray(g?.countries) ? g.countries : []).join(", ");
+      const langs = Array.isArray(g?.langs) ? g.langs : [];
+      form.querySelectorAll('input[name="plang"]').forEach((cb) => { cb.checked = langs.includes(cb.value); });
+      form.page_min.value = g?.age_min ?? "";
+      form.page_max.value = g?.age_max ?? "";
+      form.pgender.value = g?.gender || "";
+    };
+    form.addEventListener("change", (e) => {
+      if (e.target.name === "pvis") form.querySelector("[data-exc]").hidden = form.pvis.value !== "exclusive";
+    });
+    let vipTouched = false;
+    form.pvip.addEventListener("input", () => { vipTouched = true; });
+    if (editing && !p.gate) M.call("market_product", { p_id: p.id, p_member: M.memberId() }).then((r2) => {
+      if (r2.ok && r2.data?.ok && r2.data.viewer?.own) setAud(r2.data.product.gate || {});
+    });
+    if (typeof store?.vip !== "string") M.call("market_me", { p_member: M.memberId() }).then((r3) => {
+      if (r3.ok && r3.data?.ok && !vipTouched && typeof r3.data.store?.vip === "string") form.pvip.value = r3.data.store.vip;
+    });
     const pics = C.wirePictureField(form.querySelector("[data-pcf]"), { maxSide: 1600 });
     const err = form.querySelector("[data-err]");
     const catIn = form.querySelector("[data-cat-in]");
@@ -847,12 +944,35 @@
         commission_pct: form.commission_pct.value.trim(),
       };
       if (editing) d.id = p.id;
+      // its audience: public (a public save clears the criteria server-side) or exclusive with
+      // every criterion the controls set (the missing ones are simply not criteria)
+      const ageMin = form.page_min.value.trim();
+      const ageMax = form.page_max.value.trim();
+      const countries = form.pcountries.value.replace(/\s+/g, "").toUpperCase();
+      d.visibility = form.pvis.value === "exclusive" ? "exclusive" : "public";
+      if (d.visibility === "exclusive") {
+        d.followers = form.querySelector('input[name="pfollowers"]:checked')?.value === "1";
+        d.tier = form.ptier.value;
+        d.countries = countries;
+        d.langs = [...form.querySelectorAll('input[name="plang"]:checked')].map((cb) => cb.value);
+        d.age_min = ageMin;
+        d.age_max = ageMax;
+        d.gender = form.pgender.value;
+      }
+      // the store's VIP list (usernames; only a typed change replaces it — an untouched field
+      // keeps what the store has, in particular when this copy of the store did not load it)
+      if (vipTouched) d.vip = form.pvip.value;
       // the private download link (digital); a product opened without it (not from Your
       // products / its page) leaves it as it is unless something was typed
       const dl = form.download_url.value.trim();
       if (d.kind === "digital" && (!editing || typeof p.download_url === "string" || dl)) d.download_url = dl;
       const bad =
         (d.title.length < 3 && "title") ||
+        (d.visibility === "exclusive" && countries && !/^([A-Z]{2})(,[A-Z]{2})*$/.test(countries) && "excountries") ||
+        (d.visibility === "exclusive" &&
+          ((ageMin && !(Number(ageMin) >= 3 && Number(ageMin) <= 120)) ||
+           (ageMax && !(Number(ageMax) >= 3 && Number(ageMax) <= 120)) ||
+           (ageMin && ageMax && Number(ageMin) > Number(ageMax))) && "age") ||
         (!(Number(d.price) >= 1) && "price") ||
         (hasCapital && Number(d.price) > capital && { reason: "balance", capital }) ||
         (!(Number(d.stock) >= 0) || d.stock === "" ? "stock" : "") ||
@@ -889,6 +1009,42 @@
       wrap.close();
       C.toast(t(editing || !r.data.created ? "mkt.productSaved" : "mkt.productAdded"));
       onSaved?.(id, { created: r.data.created });
+    });
+    return wrap;
+  };
+
+  // Message the store's VIP list about a product (sql/market.sql round 32): a chat message and
+  // a bell note for every member, six hours apart at most between two messages of a product.
+  M.openVipNotify = ({ product, onSent = null } = {}) => {
+    const wrap = M.modal(`
+      ${head(t("mkt.vip.send"))}
+      <form class="mkt-form" data-vform novalidate>
+        <label class="mkt-field"><span>${esc(t("mkt.vip.note"))}</span>
+          <textarea name="vnote" dir="auto" rows="3" maxlength="300" placeholder="${esc(t("mkt.vip.notePh"))}"></textarea></label>
+        <p class="mkt-form-err" data-err role="alert"></p>
+        <div class="mkt-form-acts">
+          <button class="btn btn-ghost" type="button" data-close>${esc(t("common.cancel"))}</button>
+          <button class="btn btn-primary" type="submit">${esc(t("mkt.vip.send"))}</button>
+        </div>
+      </form>`, { label: t("mkt.vip.send") });
+    const form = wrap.querySelector("[data-vform]");
+    const err = form.querySelector("[data-err]");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      err.textContent = "";
+      const btn = form.querySelector("[type=submit]");
+      btn.disabled = true;
+      const r = await M.call("market_product_notify_vip", { p_member: M.memberId(), p_product: product?.id || "", p_note: form.vnote.value.trim() });
+      btn.disabled = false;
+      if (!r.ok || !r.data?.ok) {
+        err.textContent = r.ok && r.data?.reason === "wait" && r.data.next_at
+          ? t("mkt.vip.wait", { at: M.dateTime(r.data.next_at) })
+          : M.failText(r);
+        return;
+      }
+      wrap.close();
+      C.toast(t("mkt.vip.sent", { n: M.fmt(r.data.sent || 0) }));
+      onSent?.(r.data);
     });
     return wrap;
   };
@@ -1809,8 +1965,33 @@
   };
 
   // ---------------------------------------------------------------- the cards of what members publish
+  // The criteria of an exclusive product (round 32), as lines — on the locked page the visitor
+  // who fails it sees, and on the owner's page (the form's them, in words).
+  const LANG_NAMES = { en: "English", ar: "العربية", fr: "Français", de: "Deutsch", es: "Español", nl: "Nederlands", it: "Italiano" };
+  M.langName = (code) => LANG_NAMES[String(code || "").toLowerCase()] || code;
+  M.gateCriteriaHtml = (gate) => {
+    const g = gate || {};
+    const lines = [];
+    if (g.followers) lines.push(esc(t("mkt.gate.followers")));
+    if (g.tier) lines.push(esc(t("mkt.gate.tier", { tier: g.tier })));
+    if (Array.isArray(g.countries) && g.countries.length) lines.push(esc(t("mkt.gate.countries", { list: g.countries.join(", ") })));
+    if (Array.isArray(g.langs) && g.langs.length) lines.push(esc(t("mkt.gate.langs", { list: g.langs.map(M.langName).join(", ") })));
+    const mn = Number(g.age_min) || 0, mx = Number(g.age_max) || 0;
+    if (mn && mx) lines.push(esc(t("mkt.gate.ageSpan", { min: mn, max: mx })));
+    else if (mn) lines.push(esc(t("mkt.gate.ageMin", { min: mn })));
+    else if (mx) lines.push(esc(t("mkt.gate.ageMax", { max: mx })));
+    if (g.gender === "male" || g.gender === "female") lines.push(esc(t(`mkt.gate.${g.gender}`)));
+    if (!lines.length) return "";
+    return `<ul class="mkt-gate-lines">${lines.map((l) => `<li>${ICON.check}<span dir="auto">${l}</span></li>`).join("")}</ul>`;
+  };
+  // The slate in place of a hidden (exclusive) product's embedded card
+  M.gatedSlateHtml = () =>
+    `<span class="mkt-mini mkt-gated">${ICON.lock}<span class="mkt-mini-body"><b>${esc(t("mkt.gate.locked"))}</b></span></span>`;
+
   // A product inside a recommendation or a review (ref: who brings the sale, in its link).
   M.productMiniHtml = (p, ref = "") => {
+    // an exclusive product the reader may not see: a locked slate instead of its card (round 32)
+    if (p && (p.gated || (!p.title && p.id))) return M.gatedSlateHtml();
     if (!p) return `<p class="muted mkt-mini-gone">${esc(t("mkt.productGone"))}</p>`;
     const img = M.images(p)[0];
     return `

@@ -179,6 +179,23 @@ a.mkt-slide-empty { cursor: pointer; }
 .mkt-badge.b-digital { background: rgba(123, 92, 240, 0.92); }
 .mkt-badge.b-out { background: rgba(250, 56, 62, 0.92); }
 .mkt-badge.b-hidden { background: rgba(120, 120, 120, 0.9); }
+.mkt-badge.b-exclusive { background: rgba(233, 163, 0, 0.92); gap: 4px; color: #1a1200; }
+.mkt-badge.b-exclusive svg { width: 12px; height: 12px; }
+/* an exclusive product (round 32): the locked page, the criteria in words, the masked mini-card */
+.mkt-gate h2 { display: flex; align-items: center; gap: 8px; }
+.mkt-gate h2 svg { width: 20px; height: 20px; color: var(--gold, #e9a300); }
+.mkt-gate-lines { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; }
+.mkt-gate-lines li { display: flex; align-items: center; gap: 8px; }
+.mkt-gate-lines li svg { flex: none; width: 16px; height: 16px; color: var(--gold, #e9a300); }
+.mkt-gate-box { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--sub-bg); display: grid; gap: 8px; justify-items: start; }
+.mkt-gate-head { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; }
+.mkt-gate-head svg { width: 16px; height: 16px; color: var(--gold, #e9a300); }
+.mkt-gate-box .mkt-gate-lines { margin: 0; }
+.mkt-mini.mkt-gated { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--sub-bg); color: var(--muted); }
+.mkt-mini.mkt-gated > svg { flex: none; width: 18px; height: 18px; color: var(--gold, #e9a300); }
+.mkt-mini.mkt-gated .mkt-mini-body b { color: var(--muted); font-weight: 600; }
+.mkt-age-row { display: flex; gap: 8px; }
+.mkt-age-row input { width: 110px; }
 .mkt-card-body { display: grid; gap: 4px; padding: 10px 12px 12px; align-content: start; min-width: 0; }
 .mkt-card-title {
   color: var(--text);

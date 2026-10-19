@@ -15,7 +15,9 @@
   if (!C || !document.getElementById("whats-new")) return;
   const { t, escapeHtml: esc } = C;
   const memberId = () => (C.getSession ? C.getSession()?.member_id || "" : "");
-  const call = (fn, args = {}) => C.rpc(fn, args).catch(() => null);
+  // the exclusive products hide behind criteria, one of them the interface language (round 32):
+  // the home shelf reports it with the rest, like the market pages do (js/market-forms.js)
+  const call = (fn, args = {}) => C.rpc(fn, { ...args, ...(fn === "market_home" ? { p_lang: C.getLang?.() || "" } : {}) }).catch(() => null);
   const payload = (r) => (r?.ok && r.data != null && typeof r.data === "object" ? r.data : null);
   const locale = () => `${C.getLocale?.() || "en"}-u-nu-latn`;
   const num = (n) => {

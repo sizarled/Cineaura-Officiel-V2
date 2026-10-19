@@ -232,6 +232,34 @@ create index if not exists market_products_store_idx on public.market_products (
 create index if not exists market_products_live_idx on public.market_products (status, created_at desc);
 create index if not exists market_products_owner_idx on public.market_products (owner_id, created_at desc);
 
+-- ---- the exclusive products (round 32): a product is public, or exclusive behind criteria:
+-- the purchasing power (the points tiers N1…B3 of the available points), the seller's followers
+-- (or every member), the country, the language (the visitor's interface one, the page sends it),
+-- an age span (any of 3..120, e.g. the +18 age at least) and the gender; the store's VIP list (its
+-- who the seller messages about a new product. An exclusive product hides from whoever fails it,
+-- like the exclusive videos and reviews (_mkt_product_ok).
+alter table public.market_stores add column if not exists vip text[] not null default '{}';
+alter table public.market_products add column if not exists visibility text not null default 'public';
+alter table public.market_products add column if not exists req_tier text;                       -- N1…B3: the least balance tier needed (its available points)
+alter table public.market_products add column if not exists req_followers boolean not null default false;
+alter table public.market_products add column if not exists req_countries text not null default '';
+alter table public.market_products add column if not exists req_langs text not null default '';
+alter table public.market_products add column if not exists req_age_min int;
+alter table public.market_products add column if not exists req_age_max int;
+alter table public.market_products add column if not exists req_gender text;
+alter table public.market_products add column if not exists vip_notified_at timestamptz;          -- the last "message the VIP list" of the product (6h apart)
+alter table public.market_products drop constraint if exists market_products_vis;
+alter table public.market_products add constraint market_products_vis check (visibility in ('public', 'exclusive'));
+alter table public.market_products drop constraint if exists market_products_reqtier;
+alter table public.market_products add constraint market_products_reqtier
+  check (req_tier is null or req_tier in ('N1', 'N2', 'N3', 'K1', 'K2', 'K3', 'M1', 'M2', 'M3', 'B1', 'B2', 'B3'));
+alter table public.market_products drop constraint if exists market_products_reqage;
+alter table public.market_products add constraint market_products_reqage
+  check ((req_age_min is null or req_age_min between 3 and 120) and (req_age_max is null or req_age_max between 3 and 120));
+alter table public.market_products drop constraint if exists market_products_reqgender;
+alter table public.market_products add constraint market_products_reqgender
+  check (req_gender is null or req_gender in ('male', 'female'));
+
 create table if not exists public.market_product_categories (
   product_id text not null references public.market_products(id) on delete cascade,
   category_id text not null references public.market_categories(id) on delete cascade,
@@ -520,13 +548,13 @@ delete from public.market_reviews r using public.market_reviews r2
 drop index if exists public.market_reviews_buyer_idx;
 create unique index if not exists market_reviews_one on public.market_reviews (member_id, product_id);
 create index if not exists market_reviews_member_idx on public.market_reviews (member_id, created_at desc);
--- the counts of good and bad points of the products: their public reviews only
+-- the counts of good and bad points of the products: the public reviews of their buyers only
 update public.market_products p set pros = x.pros, cons = x.cons
   from (select p2.id,
                coalesce((select sum(jsonb_array_length(r.pros)) from public.market_reviews r
-                          where r.product_id = p2.id and r.visibility = 'public'), 0) as pros,
+                          where r.product_id = p2.id and r.visibility = 'public' and r.order_id is not null), 0) as pros,
                coalesce((select sum(jsonb_array_length(r.cons)) from public.market_reviews r
-                          where r.product_id = p2.id and r.visibility = 'public'), 0) as cons
+                          where r.product_id = p2.id and r.visibility = 'public' and r.order_id is not null), 0) as cons
           from public.market_products p2) x
  where x.id = p.id and (p.pros, p.cons) is distinct from (x.pros::int, x.cons::int);
 
@@ -885,6 +913,110 @@ language sql stable security definer set search_path = public as $$
     from public.market_stores s where s.id = btrim(coalesce(p_store, ''))
 $$;
 
+-- ---- the exclusive products: viewers and criteria
+-- the rank of a points-tier code: N1=0, N2=1, N3=2, K1=3, K2=4, K3=5, M1=6, M2=7, M3=8, B1=9,
+-- B2=10, B3=11; -1 for an unknown one.
+create or replace function public._mkt_tier_rank(p_code text) returns int language sql immutable as $$
+  select coalesce((select a.i - 1 from unnest(array['N1','N2','N3','K1','K2','K3','M1','M2','M3','B1','B2','B3'])
+                                          with ordinality a(c, i) where a.c = upper(btrim(coalesce(p_code, ''))) limit 1), -1)
+$$;
+
+-- What a visitor is for the eligibility checks, one lookup: their id ('': a guest), country,
+-- gender, whole-years age (members.birth_date is never null), the points they can spend
+-- (available — the same basis the balance tier N1…B3 follows) and the interface language the
+-- page sent (a member never stores one; the seller asks for a language, the language the buyer
+-- actually uses is what matters).
+create or replace function public._mkt_ctx(p_member text, p_lang text default '') returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'id', coalesce(m.member_id, ''),
+    'country', upper(coalesce(m.country, '')),
+    'gender', coalesce(m.gender, ''),
+    'age', case when m.birth_date is null then null else (extract(year from age(m.birth_date)))::int end,
+    'available', case when m.member_id is null then 0
+                      else coalesce((public._points(m.member_id)->>'available')::bigint, 0) end,
+    'lang', lower(left(btrim(coalesce(p_lang, '')), 2)))
+    from (values (1)) one
+    left join public.members m on m.member_id = btrim(coalesce(p_member, ''))
+                              and lower(btrim(coalesce(m.status, ''))) = 'active'
+$$;
+
+-- The criteria of a product (its exclusive visibility), for the owner's form and for the gate
+-- card a visitor who fails it sees.
+create or replace function public._mkt_gate_out(p public.market_products) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('visibility', p.visibility, 'followers', coalesce(p.req_followers, false),
+    'tier', p.req_tier,
+    'countries', to_jsonb(coalesce(string_to_array(nullif(p.req_countries, ''), ','), '{}'::text[])),
+    'langs', to_jsonb(coalesce(string_to_array(nullif(p.req_langs, ''), ','), '{}'::text[])),
+    'age_min', p.req_age_min, 'age_max', p.req_age_max, 'gender', p.req_gender)
+$$;
+
+-- May this visitor see (and buy) this product? Sight = buy: the exclusive product hides from
+-- whoever fails one criterion — the seller and the store's VIP list always pass, then every
+-- criterion it sets: the seller's followers (when asked), the available-points tier (its rank
+-- at least the required one), the country, the interface language, the age span and the gender.
+create or replace function public._mkt_product_ok(p public.market_products, p_vip text[], cx jsonb) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if coalesce(p.visibility, 'public') = 'public' then return true; end if;
+  if coalesce(cx->>'id', '') = '' then return false; end if;
+  if cx->>'id' = p.owner_id or (cx->>'id') = any (coalesce(p_vip, '{}')) then return true; end if;
+  if coalesce(p.req_followers, false) and not exists (select 1 from public.follows f where f.follower_id = (cx->>'id')
+                                                        and f.following_id = p.owner_id and f.status = 'accepted') then
+    return false;
+  end if;
+  if p.req_tier is not null and public._mkt_tier_rank(public.balance_tier(coalesce((cx->>'available')::bigint, 0))->>'code')
+                                < public._mkt_tier_rank(p.req_tier) then
+    return false;
+  end if;
+  if nullif(p.req_countries, '') is not null
+     and not ((cx->>'country') = any (string_to_array(p.req_countries, ','))) then
+    return false;
+  end if;
+  if nullif(p.req_langs, '') is not null
+     and not ((cx->>'lang') = any (string_to_array(lower(p.req_langs), ','))) then
+    return false;
+  end if;
+  if p.req_age_min is not null and (cx->>'age' is null or (cx->>'age')::int < p.req_age_min) then return false; end if;
+  if p.req_age_max is not null and (cx->>'age' is null or (cx->>'age')::int > p.req_age_max) then return false; end if;
+  if p.req_gender is not null and (cx->>'gender') <> p.req_gender then return false; end if;
+  return true;
+end $$;
+
+-- its one-lookup sibling, for the card embeddings of products (a recommendation's or a review's
+-- product, a purchase list), where only the product id and the viewer are at hand.
+create or replace function public._mkt_prod_ok(p_id text, p_member text, p_lang text default '') returns boolean
+language sql stable security definer set search_path = public as $$
+  select case when p.id is null then false else public._mkt_product_ok(p, s.vip, public._mkt_ctx(p_member, p_lang)) end
+    from (select 1) one
+    left join public.market_products p on p.id = coalesce(p_id, '')
+    left join public.market_stores s on s.id = p.store_id
+$$;
+
+-- ids behind usernames or member ids, like the private audience's people (at most 50, the owner
+-- itself dropped) — for the store's VIP list.
+--   -> { ids: [..] } | { reason: people, unknown?: [names nobody has] }
+create or replace function public._mkt_people_ids(p_people text, p_owner text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  names text[]; ids text[] := '{}'; unknown text[] := '{}'; n text; mid text;
+begin
+  names := (select array_agg(distinct z.v) from (
+              select btrim(regexp_replace(y, '^@', '')) as v
+                from regexp_split_to_table(coalesce(p_people, ''), '[,;[:space:]]+') y) z where z.v <> '');
+  if names is null then return jsonb_build_object('ids', to_jsonb('{}'::text[])); end if;
+  if cardinality(names) > 50 then return jsonb_build_object('reason', 'people'); end if;
+  foreach n in array names loop
+    mid := null;
+    select member_id into mid from public.members
+     where (lower(username) = lower(n) or upper(member_id) = upper(n)) and lower(btrim(coalesce(status, ''))) = 'active' limit 1;
+    if mid is null then unknown := unknown || n; elsif mid <> coalesce(p_owner, '') then ids := ids || mid; end if;
+  end loop;
+  if cardinality(unknown) > 0 then return jsonb_build_object('reason', 'people', 'unknown', to_jsonb(unknown)); end if;
+  return jsonb_build_object('ids', to_jsonb(coalesce((select array_agg(distinct i order by i) from unnest(ids) i), '{}'::text[])));
+end $$;
+
 -- Adds points from the member's available points to the balance of their store (the capital:
 -- Market.html > Store settings). The points leave the available points (profiles.points_spent
 -- grows, a point_spends row mode 'market_store'): they are not earned nor lost, and the level,
@@ -1075,7 +1207,7 @@ language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'id', p.id, 'title', p.title, 'price', p.price, 'kind', p.kind, 'images', public._mkt_images(p.images, 5),
     'created_at', p.created_at, 'sales', p.sales, 'stock', p.stock, 'status', p.status, 'shipping_cost', p.shipping_cost,
-    'pros', p.pros, 'cons', p.cons,
+    'pros', p.pros, 'cons', p.cons, 'visibility', coalesce(p.visibility, 'public'),
     'commission', case when p.commission_on then p.commission_pct else 0 end,   -- % for a share link (0: none)
     'store', jsonb_build_object('id', s.id, 'name', s.name, 'logo', s.logo_url, 'country', s.country, 'is_open', s.is_open,
                                 'tier', public._mkt_tier(s.balance)),
@@ -1388,6 +1520,10 @@ begin
                                  'available', coalesce((public._points(me)->>'available')::bigint, 0)),
     'blocked', public._mkt_blocked(me, false), 'blocked_selling', public._mkt_blocked(me, true),
     'store', case when st.id is null then null else public._mkt_store_card(st) end,
+    -- the store's VIP list (usernames, like an audience's people), always eligible for its
+    -- exclusive products and messaged about new ones
+    'vip', coalesce((select string_agg(mm.username, ', ' order by lower(mm.username))
+                       from public.members mm where mm.member_id = any (coalesce(st.vip, '{}'))), ''),
     -- a store is opened from LV5: { level, earned, need, need_points, ok }; can_open: has one or may open it
     'store_level', lv, 'can_open', st.id is not null or coalesce((lv->>'ok')::boolean, true),
     'counts', jsonb_build_object(
@@ -1410,7 +1546,8 @@ begin
       'reviews', jsonb_build_object(
         'to_write', (select count(*) from public.market_orders o where o.buyer_id = me and o.status in ('delivered', 'returned')
                        and not exists (select 1 from public.market_reviews r where r.order_id = o.id)),
-        'received', (select count(*) from public.market_reviews where seller_id = me)),
+        -- the market's rating of the store: its buyers only (the order-backed reviews)
+        'received', (select count(*) from public.market_reviews where seller_id = me and order_id is not null)),
       'requests', jsonb_build_object(
         'sent', (select count(*) from public.market_requests where from_id = me and status = 'answered'),
         'received', (select count(*) from public.market_requests where to_id = me and status = 'open')),
@@ -1520,7 +1657,11 @@ end $$;
 -- ------------------------------------------------------------------ 7. products
 -- Add (no id) or change a product. d = { id?, title, description, kind, price, shipping_cost, stock,
 -- categories: ["…"], images?: ["https://…"], video_url, commission_on?, commission_pct? (1 to 25),
--- download_url? (digital: the private link its buyers get; absent: unchanged) }.
+-- download_url? (digital: the private link its buyers get; absent: unchanged),
+-- visibility ("public" | "exclusive") + the exclusive criteria followers?, tier? (N1…B3), countries?
+-- (["MA",…] or "MA,FR"), langs? (["ar",…] or "ar,en"), age_min?, age_max? (3..120), gender? — a public
+-- save clears them, an exclusive one replaces only the keys it carries —, vip?: the store's VIP list
+-- (["@name",…] or "@name, name"; checked before anything is written, absent: unchanged) }.
 -- The first product opens the store. A product the team suspended can be changed, and stays
 -- suspended; a suspended store cannot add products. A digital product that gets a download link
 -- delivers its sold orders that were waiting.
@@ -1533,6 +1674,8 @@ declare
   m public.members; st public.market_stores; pr public.market_products; pid text; ttl text; descr text; knd text;
   v_price int; ship int; stk int; cats text[] := '{}'; c text; ckey text; cid text; imgs jsonb := '[]'::jsonb; x jsonb;
   vid text; created boolean := false; keys text[] := '{}'; c_on boolean; c_raw text; c_pct int; dl text; w_id text;
+  vis text; f_fol boolean; f_tier text; f_cty_raw text; f_cty text; f_lang_raw text; f_lang text;
+  f_amin int; f_amax int; f_gender text; ids jsonb; pr2 public.market_products;
   lv jsonb;
 begin
   m := public._mkt_member(p_member);
@@ -1594,6 +1737,44 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'download');
   end if;
   if knd <> 'digital' then dl := ''; end if;
+  -- the exclusive visibility (round 32). visibility: public | exclusive (absent: unchanged/public);
+  -- the criteria are the seller's followers, the points tier N1…B3 (available points), countries,
+  -- interface languages (en ar fr de es nl it), the age span 3+..18+ and the gender. A public one
+  -- keeps none of them; each sent field replaces, an absent one stays.
+  vis := nullif(lower(btrim(coalesce(d->>'visibility', ''))), '');
+  if vis is not null and vis not in ('public', 'exclusive') then return jsonb_build_object('ok', false, 'reason', 'visibility'); end if;
+  f_fol := public._mkt_bool(d->>'followers', false);
+  f_tier := upper(btrim(coalesce(d->>'tier', '')));
+  if f_tier <> '' and public._mkt_tier_rank(f_tier) < 0 then return jsonb_build_object('ok', false, 'reason', 'tier'); end if;
+  f_cty_raw := case when jsonb_typeof(d->'countries') = 'array'
+                    then (select string_agg(ct, ',') from jsonb_array_elements_text(d->'countries') ct)
+                    else coalesce(d->>'countries', '') end;
+  f_cty := coalesce((select string_agg(distinct ct, ',' order by ct)
+                       from unnest(string_to_array(upper(regexp_replace(coalesce(f_cty_raw, ''), '[^A-Za-z,]', '', 'g')), ',')) ct
+                      where ct ~ '^[A-Z]{2}$'), '');
+  f_lang_raw := case when jsonb_typeof(d->'langs') = 'array'
+                     then (select string_agg(lg, ',') from jsonb_array_elements_text(d->'langs') lg)
+                     else coalesce(d->>'langs', '') end;
+  f_lang := coalesce((select string_agg(distinct lg, ',' order by lg)
+                        from unnest(string_to_array(lower(regexp_replace(coalesce(f_lang_raw, ''), '[^a-z,]', '', 'g')), ',')) lg
+                       where lg in ('en', 'ar', 'fr', 'de', 'es', 'nl', 'it')), '');
+  f_amin := public._mkt_int(nullif(btrim(coalesce(d->>'age_min', '')), ''));
+  f_amax := public._mkt_int(nullif(btrim(coalesce(d->>'age_max', '')), ''));
+  if (f_amin is not null and (f_amin < 3 or f_amin > 120)) or (f_amax is not null and (f_amax < 3 or f_amax > 120))
+     or (f_amin is not null and f_amax is not null and f_amin > f_amax) then
+    return jsonb_build_object('ok', false, 'reason', 'age');
+  end if;
+  f_gender := lower(btrim(coalesce(d->>'gender', '')));
+  if f_gender <> '' and f_gender not in ('male', 'female') then return jsonb_build_object('ok', false, 'reason', 'gender'); end if;
+  -- the store's VIP list (round 32): ids of the members who always qualify for its exclusive
+  -- products and get its "a new product" messages (vip in d replaces it; absent: unchanged).
+  -- It is checked BEFORE anything is written, so a bad name fails without leaving the product half-saved.
+  if d ? 'vip' then
+    ids := public._mkt_people_ids(case when jsonb_typeof(d->'vip') = 'array'
+                                       then coalesce((select string_agg(un, ' ') from jsonb_array_elements_text(d->'vip') un), '')
+                                       else coalesce(d->>'vip', '') end, m.member_id);
+    if ids ? 'reason' then return jsonb_build_object('ok', false) || ids; end if;
+  end if;
 
   if pid is null then
     if (select count(*) from public.market_products where owner_id = m.member_id and created_at > now() - interval '1 day') >= 30
@@ -1617,8 +1798,17 @@ begin
       exit when not exists (select 1 from public.market_products where id = pid);
     end loop;
     insert into public.market_products (id, store_id, owner_id, title, description, kind, price, shipping_cost, stock, images, video_url,
-                                        commission_on, commission_pct, download_url)
-    values (pid, st.id, m.member_id, ttl, descr, knd, v_price, ship, stk, imgs, vid, coalesce(c_on, false), coalesce(c_pct, 10), dl);
+                                        commission_on, commission_pct, download_url,
+                                        visibility, req_tier, req_followers, req_countries, req_langs, req_age_min, req_age_max, req_gender)
+    values (pid, st.id, m.member_id, ttl, descr, knd, v_price, ship, stk, imgs, vid, coalesce(c_on, false), coalesce(c_pct, 10), dl,
+            coalesce(vis, 'public'),
+            case when coalesce(vis, 'public') = 'exclusive' then nullif(f_tier, '') end,
+            coalesce(vis, 'public') = 'exclusive' and f_fol,
+            case when coalesce(vis, 'public') = 'exclusive' then f_cty else '' end,
+            case when coalesce(vis, 'public') = 'exclusive' then f_lang else '' end,
+            case when coalesce(vis, 'public') = 'exclusive' then f_amin end,
+            case when coalesce(vis, 'public') = 'exclusive' then f_amax end,
+            case when coalesce(vis, 'public') = 'exclusive' then nullif(f_gender, '') end);
     created := true;
   else
     select * into pr from public.market_products where id = pid for update;
@@ -1632,7 +1822,16 @@ begin
       title = ttl, description = descr, kind = knd, price = v_price, shipping_cost = ship, stock = stk,
       images = case when d ? 'images' then imgs else images end, video_url = vid,
       commission_on = coalesce(c_on, commission_on), commission_pct = coalesce(c_pct, commission_pct),
-      download_url = case when knd <> 'digital' then '' when d ? 'download_url' then dl else download_url end, updated_at = now()
+      download_url = case when knd <> 'digital' then '' when d ? 'download_url' then dl else download_url end,
+      visibility = coalesce(vis, visibility),
+      req_tier = case when coalesce(vis, visibility) = 'public' then null when d ? 'tier' then nullif(f_tier, '') else req_tier end,
+      req_followers = case when coalesce(vis, visibility) = 'public' then false when d ? 'followers' then f_fol else req_followers end,
+      req_countries = case when coalesce(vis, visibility) = 'public' then '' when d ? 'countries' then f_cty else req_countries end,
+      req_langs = case when coalesce(vis, visibility) = 'public' then '' when d ? 'langs' then f_lang else req_langs end,
+      req_age_min = case when coalesce(vis, visibility) = 'public' then null when d ? 'age_min' then f_amin else req_age_min end,
+      req_age_max = case when coalesce(vis, visibility) = 'public' then null when d ? 'age_max' then f_amax else req_age_max end,
+      req_gender = case when coalesce(vis, visibility) = 'public' then null when d ? 'gender' then nullif(f_gender, '') else req_gender end,
+      updated_at = now()
     where id = pid;
     st.id := pr.store_id;
     -- sold orders of it that were waiting for their download link
@@ -1661,7 +1860,12 @@ begin
     insert into public.market_product_categories (product_id, category_id) values (pid, cid) on conflict do nothing;
     cid := null;
   end loop;
-  return jsonb_build_object('ok', true, 'id', pid, 'created', created, 'store_id', st.id);
+  -- (the VIP list was checked up front; it lands now)
+  if ids is not null then
+    update public.market_stores set vip = array(select jsonb_array_elements_text(ids->'ids')) where id = st.id;
+  end if;
+  select * into pr2 from public.market_products where id = pid;
+  return jsonb_build_object('ok', true, 'id', pid, 'created', created, 'store_id', st.id, 'gate', public._mkt_gate_out(pr2));
 end $$;
 
 -- Show (active), hide or delete a product of the member's store. A product with orders that
@@ -1685,6 +1889,48 @@ begin
   update public.market_products set status = p_status, updated_at = now() where id = pr.id;
   if p_status = 'deleted' then delete from public.market_saved where product_id = pr.id; end if;
   return jsonb_build_object('ok', true);
+end $$;
+
+-- ------------------------------------------------------------------ 9b. message the VIP list
+-- The owner of a store messages the members of the store's VIP list about a product (round 32)
+-- — from the product's form when it is published, or later, six hours apart at most: every one
+-- of them gets a chat message and a bell note with the product's page.
+--   -> { ok: true, sent } | { ok: false, reason: member | blocked | not_found | vip | wait }
+drop function if exists public.market_product_notify_vip(text, text, text);
+create or replace function public.market_product_notify_vip(p_member text, p_product text, p_note text default '')
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  m public.members; p public.market_products; st public.market_stores; note text; vid text; sent int := 0;
+begin
+  m := public._mkt_member(p_member);
+  if m.member_id is null then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
+  if public._mkt_blocked(m.member_id, true) then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
+  select * into p from public.market_products where id = btrim(coalesce(p_product, ''));
+  if p.id is null or p.status = 'deleted' or p.owner_id <> m.member_id then
+    return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
+  select * into st from public.market_stores where id = p.store_id;
+  if coalesce(array_length(st.vip, 1), 0) = 0 then return jsonb_build_object('ok', false, 'reason', 'vip'); end if;
+  -- six hours apart at most (the schema's comment is the rule)
+  if p.vip_notified_at is not null and p.vip_notified_at > now() - interval '6 hours' then
+    return jsonb_build_object('ok', false, 'reason', 'wait', 'next_at', p.vip_notified_at + interval '6 hours');
+  end if;
+  note := left(btrim(coalesce(p_note, '')), 300);
+  insert into public.messages (sender_id, receiver_id, sender_username, receiver_username, body)
+    select m.member_id, mm.member_id, m.username, mm.username,
+           left(case when note <> '' then note || e'\n\n' else '' end ||
+                p.title || ' · ' || st.name || e'\n' || './Market.html?Product=' || p.id, 2000)
+      from public.members mm
+     where mm.member_id = any (st.vip) and lower(btrim(coalesce(mm.status, ''))) = 'active';
+  get diagnostics sent = row_count;
+  foreach vid in array coalesce(st.vip, '{}') loop
+    if vid <> m.member_id then
+      perform public._mkt_notify(vid, 'market_vip', st.name,
+                                 left(p.title || case when note <> '' then ' — ' || note else '' end, 200),
+                                 './Market.html?Product=' || p.id, m.member_id);
+    end if;
+  end loop;
+  update public.market_products set vip_notified_at = now() where id = p.id;
+  return jsonb_build_object('ok', true, 'sent', sent);
 end $$;
 
 -- Upload tickets for pictures (sql/image_uploads.sql), asked by the owner after saving:
@@ -1796,7 +2042,8 @@ $$;
 -- 5 categories that sell most, 20 products each. Worldwide for guests; for a member, sales in
 -- their country and products their country can buy only.
 --   -> { country, trending: [card], categories: [{ id, name, products: [card] }] }
-create or replace function public.market_home(p_member text)
+drop function if exists public.market_home(text);
+create or replace function public.market_home(p_member text, p_lang text default '')
 returns jsonb language sql stable security definer set search_path = public as $$
 with viewer as (
   select upper(coalesce((select m.country from public.members m
@@ -1809,6 +2056,7 @@ with viewer as (
    cross join viewer v
    where p.status = 'active' and p.stock > 0 and s.is_open
      and (v.cc = '' or coalesce(public._mkt_reach(s.scope, s.country, v.cc), false))
+     and public._mkt_product_ok(p, s.vip, public._mkt_ctx(p_member, p_lang))   -- exclusive: only whom it accepts (round 32)
 ), sold as (
   select o.product_id,
          sum(o.qty) filter (where o.created_at > now() - interval '30 days') as recent,
@@ -1849,8 +2097,10 @@ $$;
 --   p_category Market.html?Categories=<id>: products of one category
 --   p_store    Market.html?Store=<id>: products of one store (sold out ones too)
 --   -> { total, items: [card] }
+drop function if exists public.market_search(text, text, text, text, text, text, text, text, int, int);
 create or replace function public.market_search(p_member text, p_q text, p_type text, p_sort text, p_country text,
-                                                p_kind text, p_category text, p_store text, p_limit int, p_offset int)
+                                                p_kind text, p_category text, p_store text, p_limit int, p_offset int,
+                                                p_lang text default '')
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   q text := left(public._mkt_line(p_q), 100);
@@ -1862,9 +2112,10 @@ declare
   old boolean := coalesce(p_sort, '') = 'old';
   lim int := least(greatest(coalesce(p_limit, 24), 1), 60);
   off int := greatest(coalesce(p_offset, 0), 0);
-  total bigint; items jsonb;
+  total bigint; items jsonb; cx jsonb;
 begin
   pat := '%' || replace(replace(replace(lower(q), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+  cx := public._mkt_ctx(p_member, p_lang);
   if cc !~ '^[A-Z]{2}$' then cc := ''; end if;
   if p_type = 'stores' then
     select count(*), coalesce(jsonb_agg(public._mkt_store_card(x.st) order by
@@ -1886,7 +2137,9 @@ begin
                    (select coalesce(jsonb_agg(z.img), '[]'::jsonb) from (
                       select p2.images->>0 as img from public.market_product_categories pc2
                         join public.market_products p2 on p2.id = pc2.product_id and p2.status = 'active' and jsonb_array_length(p2.images) > 0
-                       where pc2.category_id = c.id order by p2.sales desc, p2.created_at desc limit 4) z) as imgs
+                        join public.market_stores s2 on s2.id = p2.store_id
+                       where pc2.category_id = c.id and public._mkt_product_ok(p2, s2.vip, cx)
+                       order by p2.sales desc, p2.created_at desc limit 4) z) as imgs
               from public.market_categories c
               join public.market_product_categories pc on pc.category_id = c.id
               join public.market_products p on p.id = pc.product_id and p.status = 'active'
@@ -1894,6 +2147,7 @@ begin
               join public.members mm on mm.member_id = s.owner_id and lower(btrim(coalesce(mm.status, ''))) = 'active'
              where (q = '' or c.name_key like pat)
                and (knd = '' or p.kind = knd)
+               and public._mkt_product_ok(p, s.vip, cx)
              group by c.id, c.name, c.created_at) x;
     select coalesce(jsonb_agg(e order by i), '[]'::jsonb) into items
       from jsonb_array_elements(items) with ordinality a(e, i) where i > off and i <= off + lim;
@@ -1911,6 +2165,7 @@ begin
          and (q = '' or lower(p.title) like pat or lower(p.description) like pat or lower(s.name) like pat
               or exists (select 1 from public.market_product_categories pc join public.market_categories c on c.id = pc.category_id
                           where pc.product_id = p.id and c.name_key like pat))
+         and public._mkt_product_ok(p, s.vip, cx)
     )
     select (select count(*) from hits),
            coalesce((select jsonb_agg(public._mkt_card(h.p) order by case when old then (h.p).created_at end asc, (h.p).created_at desc)
@@ -1921,42 +2176,54 @@ begin
   return jsonb_build_object('total', total, 'items', items);
 end $$;
 
--- Market.html?Categories=<id>: the name of the category.
-create or replace function public.market_category(p_id text)
+-- Market.html?Categories=<id>: the name of the category. Its live count hides the exclusive
+-- products the visitor may not see (round 32; p_lang: their interface language, asked by some).
+drop function if exists public.market_category(text);
+create or replace function public.market_category(p_id text, p_member text default '', p_lang text default '')
 returns jsonb language sql stable security definer set search_path = public as $$
   select coalesce((
     select jsonb_build_object('ok', true, 'category', jsonb_build_object('id', c.id, 'name', c.name,
              'products', (select count(*) from public.market_product_categories pc
                             join public.market_products p on p.id = pc.product_id and p.status = 'active'
-                           where pc.category_id = c.id)))
+                            join public.market_stores s on s.id = p.store_id
+                           where pc.category_id = c.id and public._mkt_product_ok(p, s.vip, public._mkt_ctx(p_member, p_lang)))))
       from public.market_categories c where c.id = btrim(coalesce(p_id, ''))),
     jsonb_build_object('ok', false, 'reason', 'not_found'))
 $$;
 
--- Market.html?Product=<id>: the product, its store, the reviews the viewer may read and what
--- the viewer may do (review it, recommend it: their own review and recommendation of it).
--- p_country: the country of a guest (the browser's guess), only for "ships to your region".
---   -> { ok: true, product, store, viewer, reviews } | { ok: false, reason: not_found }
-create or replace function public.market_product(p_id text, p_member text, p_country text default '')
+-- Market.html?Product=<id>: the product, its store, the reviews a visitor may read and what
+-- the visitor may do (review it, recommend it: their own review and recommendation of it).
+-- p_country: the country of a guest (the browser's guess), only for "ships to your region";
+-- p_lang: the visitor's interface language (some exclusive products ask for one).
+-- The exclusive product hides from whoever fails one criterion (round 32): the page then gets
+-- the criteria (gate) instead of the product.
+--   -> { ok: true, product, store, viewer, reviews } | { ok: false, reason: not_found | exclusive (gate) }
+drop function if exists public.market_product(text, text, text);
+create or replace function public.market_product(p_id text, p_member text, p_country text default '', p_lang text default '')
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   p public.market_products; st public.market_stores; m public.members; me text; cc text; owner_ok boolean;
-  mine jsonb; my_rec jsonb;
+  mine jsonb; my_rec jsonb; cx jsonb;
 begin
   select * into p from public.market_products where id = btrim(coalesce(p_id, ''));
   if not found or p.status = 'deleted' then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   select * into st from public.market_stores where id = p.store_id;
   m := public._mkt_member(p_member);
   me := coalesce(m.member_id, '');
+  cx := public._mkt_ctx(me, p_lang);
   select lower(btrim(coalesce(status, ''))) = 'active' into owner_ok from public.members where member_id = st.owner_id;
   if me <> st.owner_id and (p.status <> 'active' or not coalesce(owner_ok, false)) then
     return jsonb_build_object('ok', false, 'reason', 'not_found');
   end if;
+  -- exclusive (round 32): hides from whoever fails one criterion — the criteria come back, the product does not
+  if not public._mkt_product_ok(p, st.vip, cx) then
+    return jsonb_build_object('ok', false, 'reason', 'exclusive', 'gate', public._mkt_gate_out(p));
+  end if;
   cc := case when me <> '' then upper(coalesce(m.country, '')) else upper(btrim(coalesce(p_country, ''))) end;
   if cc !~ '^[A-Z]{2}$' then cc := ''; end if;
   if me <> '' then
-    select public._mkt_review_json(r, me) into mine from public.market_reviews r where r.member_id = me and r.product_id = p.id;
-    select public._mkt_rec_json(r, me) into my_rec from public.market_recs r
+    select public._mkt_review_json(r, me, p_lang) into mine from public.market_reviews r where r.member_id = me and r.product_id = p.id;
+    select public._mkt_rec_json(r, me, p_lang) into my_rec from public.market_recs r
      where r.member_id = me and r.kind = 'product' and r.product_id = p.id;
   end if;
   return jsonb_build_object(
@@ -1973,7 +2240,9 @@ begin
       -- the seller's own page also gets the switch and the percentage kept while it is off (the form)
       || case when me = st.owner_id then jsonb_build_object('commission_on', p.commission_on, 'commission_pct', p.commission_pct,
                                                             'download_url', p.download_url, 'suspended_reason', p.suspended_reason,
-                                                            'suspended_with_store', p.suspended_with_store)
+                                                            'suspended_with_store', p.suspended_with_store,
+                                                            'gate', public._mkt_gate_out(p),  -- its visibility and criteria (the form), round 32
+                                                            'vip_notified_at', p.vip_notified_at)
               else '{}'::jsonb end,
     'store', public._mkt_store_card(st),
     'viewer', jsonb_build_object(
@@ -1989,9 +2258,11 @@ begin
     -- how many members recommend it (publicly)
     'recs', (select count(*) from public.market_recs r where r.kind = 'product' and r.product_id = p.id and r.visibility = 'public'
                                                            and public._mkt_sees(r.member_id, 'public', false, false, '', '{}', me)),
-    'reviews', coalesce((select jsonb_agg(public._mkt_review_json(r, me) - 'product' order by r.created_at desc)
+    -- the market's ratings of the product: the order-backed (buyers') reviews only, each under
+    -- its own reading audience; reviews of the others live on their profiles
+    'reviews', coalesce((select jsonb_agg(public._mkt_review_json(r, me, p_lang) - 'product' order by r.created_at desc)
                            from (select * from public.market_reviews x
-                                  where x.product_id = p.id
+                                  where x.product_id = p.id and x.order_id is not null
                                     and public._mkt_sees(x.member_id, x.visibility, x.excl_followers, x.excl_premium, x.excl_countries,
                                                          x.allowed, me)
                                   order by x.created_at desc limit 200) r), '[]'::jsonb));
@@ -1999,7 +2270,8 @@ end $$;
 
 -- The suggestions under a product, in this order: more categories in common with it, then
 -- more purchases, then more good points, then fewer bad points.
-create or replace function public.market_suggest(p_id text, p_limit int default 12)
+drop function if exists public.market_suggest(text, int);
+create or replace function public.market_suggest(p_id text, p_limit int default 12, p_member text default '', p_lang text default '')
 returns jsonb language sql stable security definer set search_path = public as $$
   select coalesce(jsonb_agg(public._mkt_card(x.p) order by x.common desc, (x.p).sales desc, (x.p).pros desc, (x.p).cons asc, (x.p).created_at desc), '[]'::jsonb)
   from (
@@ -2010,6 +2282,7 @@ returns jsonb language sql stable security definer set search_path = public as $
       join public.market_stores s on s.id = p.store_id and s.is_open
       join public.members mm on mm.member_id = s.owner_id and lower(btrim(coalesce(mm.status, ''))) = 'active'
      where p.id <> btrim(coalesce(p_id, '')) and p.status = 'active' and p.stock > 0
+       and public._mkt_product_ok(p, s.vip, public._mkt_ctx(p_member, p_lang))
      order by 2 desc, p.sales desc, p.pros desc, p.cons asc, p.created_at desc
      limit least(greatest(coalesce(p_limit, 12), 1), 40)
   ) x
@@ -2017,7 +2290,8 @@ $$;
 
 -- Buy later (on: true adds, false removes).
 --   -> { ok: true, saved } | { ok: false, reason: member | not_found | own | limit }
-create or replace function public.market_later(p_member text, p_product text, p_on boolean)
+drop function if exists public.market_later(text, text, boolean);
+create or replace function public.market_later(p_member text, p_product text, p_on boolean, p_lang text default '')
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare m public.members; p public.market_products;
 begin
@@ -2030,6 +2304,8 @@ begin
   select * into p from public.market_products where id = btrim(coalesce(p_product, '')) and status = 'active';
   if not found then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   if p.owner_id = m.member_id then return jsonb_build_object('ok', false, 'reason', 'own'); end if;
+  -- a hidden (exclusive) product cannot be saved by somebody it hides from (round 32)
+  if not public._mkt_prod_ok(p.id, p_member, p_lang) then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   if (select count(*) from public.market_saved where member_id = m.member_id) >= 500 then return jsonb_build_object('ok', false, 'reason', 'limit'); end if;
   insert into public.market_saved (member_id, product_id) values (m.member_id, p.id) on conflict do nothing;
   return jsonb_build_object('ok', true, 'saved', true);
@@ -2048,8 +2324,9 @@ end $$;
 --      coupon (why: not_found | own | paused | expired | used_up | used | country | purchases | positive |
 --      negative | nothing) }
 drop function if exists public.market_buy(text, text, int, jsonb, text);
+drop function if exists public.market_buy(text, text, int, jsonb, text, text);   -- before the buyer's interface language (exclusive products)
 create or replace function public.market_buy(p_member text, p_product text, p_qty int, p_address jsonb, p_ref text default '',
-                                              p_coupon text default '')
+                                              p_coupon text default '', p_lang text default '')
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   m public.members; p public.market_products; st public.market_stores; q int := coalesce(p_qty, 1); addr jsonb;
@@ -2074,6 +2351,10 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'not_found');
   end if;
   if st.owner_id = m.member_id then return jsonb_build_object('ok', false, 'reason', 'own'); end if;
+  -- exclusive (round 32): the buyer must pass every criterion the product sets
+  if not public._mkt_product_ok(p, st.vip, public._mkt_ctx(m.member_id, p_lang)) then
+    return jsonb_build_object('ok', false, 'reason', 'exclusive', 'gate', public._mkt_gate_out(p));
+  end if;
   if not st.is_open then return jsonb_build_object('ok', false, 'reason', 'closed'); end if;
   if q < 1 or q > 100 then return jsonb_build_object('ok', false, 'reason', 'qty'); end if;
   if p.stock < q then return jsonb_build_object('ok', false, 'reason', 'stock', 'stock', p.stock); end if;
@@ -2366,15 +2647,20 @@ end $$;
 -- The counts of good and bad points of a product (its cards, its page): its public reviews.
 create or replace function public._mkt_review_counts(p_product text) returns void
 language sql security definer set search_path = public as $$
+  -- the market's rating of a product: its BUYERS only (a review of an order: received it or sent
+  -- it back). A review of any other member lives on their profile (it may be public there) and
+  -- never enters these counts.
   update public.market_products set
-    pros = (select coalesce(sum(jsonb_array_length(r.pros)), 0) from public.market_reviews r where r.product_id = p_product and r.visibility = 'public'),
-    cons = (select coalesce(sum(jsonb_array_length(r.cons)), 0) from public.market_reviews r where r.product_id = p_product and r.visibility = 'public')
+    pros = (select coalesce(sum(jsonb_array_length(r.pros)), 0) from public.market_reviews r
+             where r.product_id = p_product and r.visibility = 'public' and r.order_id is not null),
+    cons = (select coalesce(sum(jsonb_array_length(r.cons)), 0) from public.market_reviews r
+             where r.product_id = p_product and r.visibility = 'public' and r.order_id is not null)
   where id = p_product;
 $$;
 
 -- A review: its points, who wrote it (a verified purchase or not), the product (a card) and, for
 -- its author, the audience.
-create or replace function public._mkt_review_json(r public.market_reviews, p_viewer text) returns jsonb
+create or replace function public._mkt_review_json(r public.market_reviews, p_viewer text, p_lang text default '') returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'type', 'review', 'id', r.id, 'at', r.created_at, 'created_at', r.created_at, 'updated_at', r.updated_at,
@@ -2384,7 +2670,10 @@ language sql stable security definer set search_path = public as $$
                                  'username', coalesce((select mm.username from public.members mm where mm.member_id = r.member_id), '')),
     'seller', jsonb_build_object('id', r.seller_id,
                                  'username', coalesce((select mm.username from public.members mm where mm.member_id = r.seller_id), '')),
-    'product', (select public._mkt_card(p) from public.market_products p where p.id = r.product_id))
+    -- an exclusive product hides its card from whoever fails its criteria (round 32): a slate instead
+    'product', case when public._mkt_prod_ok(r.product_id, p_viewer, p_lang)
+                    then (select public._mkt_card(p) from public.market_products p where p.id = r.product_id)
+                    else jsonb_build_object('id', r.product_id, 'gated', true, 'visibility', 'exclusive') end)
   || case when r.member_id = coalesce(p_viewer, '')
           then jsonb_build_object('audience', public._mkt_audience_out(r.visibility, r.excl_followers, r.excl_premium, r.excl_countries, r.allowed),
                                   'suspended', case when r.suspended_at is not null
@@ -2397,8 +2686,9 @@ $$;
 -- _mkt_audience). A member who received the product writes a verified purchase.
 --   -> { ok: true, id, created, verified } | { ok: false, reason: member | blocked | not_found | own | empty |
 --      text | visibility | people (unknown) }
+drop function if exists public.market_review_save(text, text, jsonb, jsonb, jsonb);
 create or replace function public.market_review_save(p_member text, p_product text, p_pros jsonb, p_cons jsonb,
-                                                     p_audience jsonb default '{}'::jsonb)
+                                                     p_audience jsonb default '{}'::jsonb, p_lang text default '')
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   m public.members; p public.market_products; st public.market_stores; old public.market_reviews;
@@ -2416,6 +2706,8 @@ begin
   if old.id is null and p.status <> 'active' then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   select * into st from public.market_stores where id = p.store_id;
   if st.owner_id = m.member_id then return jsonb_build_object('ok', false, 'reason', 'own'); end if;
+  -- a hidden (exclusive) product takes no review of somebody it hides from (round 32)
+  if not public._mkt_prod_ok(p.id, p_member, p_lang) then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   for x in select * from jsonb_array_elements(case when jsonb_typeof(p_pros) = 'array' then p_pros else '[]'::jsonb end) loop
     v := public._mkt_line(x #>> '{}');
     if v = '' then continue; end if;
@@ -2482,13 +2774,16 @@ begin
   return jsonb_build_object('ok', true,
     'total', (select count(*) from public.market_reviews r
                where case when p_side = 'given' then r.member_id = me
-                          else r.seller_id = me and public._mkt_sees(r.member_id, r.visibility, r.excl_followers, r.excl_premium,
-                                                                     r.excl_countries, r.allowed, me) end),
+                          -- the market's rating of a seller: their buyers only (order-backed), round 32
+                          else r.seller_id = me and r.order_id is not null
+                           and public._mkt_sees(r.member_id, r.visibility, r.excl_followers, r.excl_premium,
+                                                r.excl_countries, r.allowed, me) end),
     'items', coalesce((select jsonb_agg(public._mkt_review_json(r, me) order by r.created_at desc)
       from (select * from public.market_reviews r
              where case when p_side = 'given' then r.member_id = me
-                        else r.seller_id = me and public._mkt_sees(r.member_id, r.visibility, r.excl_followers, r.excl_premium,
-                                                                   r.excl_countries, r.allowed, me) end
+                        else r.seller_id = me and r.order_id is not null
+                         and public._mkt_sees(r.member_id, r.visibility, r.excl_followers, r.excl_premium,
+                                              r.excl_countries, r.allowed, me) end
              order by r.created_at desc limit lim offset off) r), '[]'::jsonb),
     -- one received order per product not reviewed yet
     'pending', case when p_side = 'given' and off = 0 then coalesce((select jsonb_agg(public._mkt_order_json(x.ord, me) order by (x.ord).delivered_at desc nulls last)
@@ -2848,19 +3143,24 @@ end $$;
 -- ------------------------------------------------------------------ 15. purchase lists, recommendations, Updates
 -- A purchase list as a card: its author, the products on sale in it (how many, the first pictures)
 -- and, for its author, the audience.
-create or replace function public._mkt_list_json(l public.market_lists, p_viewer text) returns jsonb
+create or replace function public._mkt_list_json(l public.market_lists, p_viewer text, p_lang text default '') returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'type', 'list', 'id', l.id, 'name', l.name, 'description', l.description, 'visibility', l.visibility,
     'at', l.created_at, 'created_at', l.created_at, 'updated_at', l.updated_at, 'mine', l.member_id = coalesce(p_viewer, ''),
     'author', jsonb_build_object('id', l.member_id,
                                  'username', coalesce((select mm.username from public.members mm where mm.member_id = l.member_id), '')),
-    'count', (select count(*) from public.market_list_items i join public.market_products p on p.id = i.product_id and p.status = 'active'
-               where i.list_id = l.id),
+    -- an exclusive product inside the list stays hidden from whoever fails its criteria (round 32)
+    'count', (select count(*) from public.market_list_items i
+                join public.market_products p on p.id = i.product_id and p.status = 'active'
+                join public.market_stores sp on sp.id = p.store_id
+               where i.list_id = l.id and public._mkt_product_ok(p, sp.vip, public._mkt_ctx(p_viewer, p_lang))),
     'images', coalesce((select jsonb_agg(x.img) from (
                 select p.images->>0 as img from public.market_list_items i
                   join public.market_products p on p.id = i.product_id and p.status = 'active'
+                  join public.market_stores sp on sp.id = p.store_id
                  where i.list_id = l.id and jsonb_array_length(p.images) > 0
+                   and public._mkt_product_ok(p, sp.vip, public._mkt_ctx(p_viewer, p_lang))
                  order by i.added_at desc limit 4) x), '[]'::jsonb),
     -- recommended again: how many times; may the viewer (a public list of somebody else, once)
     'shares', (select count(*) from public.market_recs x where x.kind = 'list' and x.list_id = l.id),
@@ -2878,16 +3178,20 @@ $$;
 -- was recommended again: the member who first recommended it (root, with their note when the
 -- viewer may read it) and the one it came from (via). can_share: the viewer may recommend it
 -- again (a public one, of somebody else, of something they don't recommend yet).
-create or replace function public._mkt_rec_json(r public.market_recs, p_viewer text) returns jsonb
+create or replace function public._mkt_rec_json(r public.market_recs, p_viewer text, p_lang text default '') returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'type', 'rec', 'id', r.id, 'kind', r.kind, 'note', r.note, 'visibility', r.visibility,
     'at', r.created_at, 'created_at', r.created_at, 'updated_at', r.updated_at, 'mine', r.member_id = coalesce(p_viewer, ''),
     'author', jsonb_build_object('id', r.member_id,
                                  'username', coalesce((select mm.username from public.members mm where mm.member_id = r.member_id), '')),
-    'product', case when r.kind = 'product' then (select public._mkt_card(p) from public.market_products p where p.id = r.product_id) end,
+    'product', case when r.kind = 'product'
+                    then case when public._mkt_prod_ok(r.product_id, p_viewer, p_lang)
+                              then (select public._mkt_card(p) from public.market_products p where p.id = r.product_id)
+                              else jsonb_build_object('id', r.product_id, 'gated', true, 'visibility', 'exclusive') end
+               end,
     -- a purchase list the team suspended: only its author still sees it
-    'list', case when r.kind = 'list' then (select public._mkt_list_json(l, p_viewer) from public.market_lists l
+    'list', case when r.kind = 'list' then (select public._mkt_list_json(l, p_viewer, p_lang) from public.market_lists l
                                              where l.id = r.list_id and (l.suspended_at is null or l.member_id = coalesce(p_viewer, ''))) end,
     'root', case when r.kind = 'product' then
               (select jsonb_build_object('id', o.id, 'author', jsonb_build_object('id', o.member_id, 'username', mm.username),
@@ -2904,7 +3208,8 @@ language sql stable security definer set search_path = public as $$
                    or (r.kind = 'list' and x.kind = 'list' and x.list_id = r.list_id)),
     'can_share', coalesce(p_viewer, '') <> '' and r.member_id <> coalesce(p_viewer, '') and r.visibility = 'public'
                  and case when r.kind = 'product'
-                          then exists (select 1 from public.market_products p where p.id = r.product_id and p.status = 'active')
+                          then exists (select 1 from public.market_products p where p.id = r.product_id and p.status = 'active'
+                                     and public._mkt_prod_ok(p.id, p_viewer, p_lang))
                                and not exists (select 1 from public.market_recs o where o.id = r.root_id and o.member_id = p_viewer)
                           else exists (select 1 from public.market_lists l where l.id = r.list_id and l.visibility = 'public'
                                                                               and l.member_id <> p_viewer) end
@@ -3007,7 +3312,8 @@ end $$;
 
 -- Put a product in one of your purchase lists (p_on), or take it out. 100 products per list.
 --   -> { ok: true, on, count } | { ok: false, reason: member | not_found | product | full }
-create or replace function public.market_list_item(p_member text, p_list text, p_product text, p_on boolean)
+drop function if exists public.market_list_item(text, text, text, boolean);
+create or replace function public.market_list_item(p_member text, p_list text, p_product text, p_on boolean, p_lang text default '')
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare m public.members; l public.market_lists; pid text := btrim(coalesce(p_product, ''));
 begin
@@ -3016,7 +3322,9 @@ begin
   select * into l from public.market_lists where id = btrim(coalesce(p_list, '')) and member_id = m.member_id;
   if not found then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   if coalesce(p_on, false) then
-    if not exists (select 1 from public.market_products where id = pid and status = 'active') then
+    -- a hidden (exclusive) product joins no list of somebody it hides from (round 32)
+    if not exists (select 1 from public.market_products where id = pid and status = 'active'
+                     and public._mkt_prod_ok(pid, p_member, p_lang)) then
       return jsonb_build_object('ok', false, 'reason', 'product');
     end if;
     if not exists (select 1 from public.market_list_items where list_id = l.id and product_id = pid) then
@@ -3050,7 +3358,8 @@ end $$;
 
 -- A purchase list page: Market.html?List=<id>. Its products on sale (newest first), for whoever
 -- may see it. -> { ok: true, list, items: [cards] } | { ok: false, reason: not_found }
-create or replace function public.market_list(p_list text, p_member text default '')
+drop function if exists public.market_list(text, text);
+create or replace function public.market_list(p_list text, p_member text default '', p_lang text default '')
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare l public.market_lists; me text;
 begin
@@ -3060,10 +3369,12 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'not_found');
   end if;
   return jsonb_build_object('ok', true,
-    'list', public._mkt_list_json(l, me),
+    'list', public._mkt_list_json(l, me, p_lang),
     'items', coalesce((select jsonb_agg(public._mkt_card(p) || jsonb_build_object('added_at', i.added_at) order by i.added_at desc)
-                         from public.market_list_items i join public.market_products p on p.id = i.product_id and p.status = 'active'
-                        where i.list_id = l.id), '[]'::jsonb));
+                         from public.market_list_items i
+                         join public.market_products p on p.id = i.product_id and p.status = 'active'
+                         join public.market_stores sp on sp.id = p.store_id
+                        where i.list_id = l.id and public._mkt_product_ok(p, sp.vip, public._mkt_ctx(p_member, p_lang))), '[]'::jsonb));
 end $$;
 
 -- ---- recommendations
@@ -3071,7 +3382,8 @@ end $$;
 -- characters; d also holds the audience). A recommendation made again from somebody else's stays
 -- linked to the first one.
 --   -> { ok: true, id, created } | { ok: false, reason: member | blocked | not_found | note | visibility | people | limit }
-create or replace function public.market_rec_save(p_member text, p_product text, d jsonb)
+drop function if exists public.market_rec_save(text, text, jsonb);
+create or replace function public.market_rec_save(p_member text, p_product text, d jsonb, p_lang text default '')
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   m public.members; p public.market_products; x jsonb := case when jsonb_typeof(d) = 'object' then d else '{}'::jsonb end;
@@ -3082,6 +3394,8 @@ begin
   if public._mkt_blocked(m.member_id, true) then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
   select * into p from public.market_products where id = btrim(coalesce(p_product, '')) and status = 'active';
   if not found then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
+  -- a hidden (exclusive) product takes no recommendation of somebody it hides from (round 32)
+  if not public._mkt_prod_ok(p.id, p_member, p_lang) then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   if length(v_note) > 500 then return jsonb_build_object('ok', false, 'reason', 'note'); end if;
   aud := public._mkt_audience(x, m.member_id);
   if aud ? 'reason' then return jsonb_build_object('ok', false) || aud; end if;
@@ -3203,14 +3517,16 @@ end $$;
 -- What p_owner published that the viewer may see, still on sale: recommendations (of a product on
 -- sale, or of a purchase list the viewer may see with products in it), purchase lists (with
 -- products in it; their author also sees the empty ones), reviews (of a product on sale).
-create or replace function public._mkt_published(p_owners text[], p_viewer text)
+drop function if exists public._mkt_published(text[], text);
+create or replace function public._mkt_published(p_owners text[], p_viewer text, p_lang text default '')
 returns table (t text, id text, at timestamptz, owner text)
 language sql stable security definer set search_path = public as $$
   select 'rec', r.id, r.created_at, r.member_id from public.market_recs r
    where r.member_id = any (p_owners)
      and public._mkt_sees(r.member_id, r.visibility, r.excl_followers, r.excl_premium, r.excl_countries, r.allowed, p_viewer)
      and case when r.kind = 'product'
-              then exists (select 1 from public.market_products p where p.id = r.product_id and p.status = 'active')
+              then exists (select 1 from public.market_products p where p.id = r.product_id and p.status = 'active'
+                                     and public._mkt_prod_ok(p.id, p_viewer, p_lang))
               else exists (select 1 from public.market_lists l where l.id = r.list_id
                              and public._mkt_sees(l.member_id, l.visibility, l.excl_followers, l.excl_premium, l.excl_countries, l.allowed, p_viewer)
                              and exists (select 1 from public.market_list_items i join public.market_products p on p.id = i.product_id
@@ -3229,20 +3545,22 @@ language sql stable security definer set search_path = public as $$
      and exists (select 1 from public.market_products p where p.id = r.product_id and p.status = 'active')
 $$;
 
-create or replace function public._mkt_published_json(p_t text, p_id text, p_viewer text) returns jsonb
+drop function if exists public._mkt_published_json(text, text, text);
+create or replace function public._mkt_published_json(p_t text, p_id text, p_viewer text, p_lang text default '') returns jsonb
 language sql stable security definer set search_path = public as $$
   select case p_t
-    when 'rec' then (select public._mkt_rec_json(r, p_viewer) from public.market_recs r where r.id = p_id)
-    when 'list' then (select public._mkt_list_json(l, p_viewer) from public.market_lists l where l.id = p_id)
-    when 'review' then (select public._mkt_review_json(r, p_viewer) from public.market_reviews r where r.id = substr(p_id, 3)::bigint)
+    when 'rec' then (select public._mkt_rec_json(r, p_viewer, p_lang) from public.market_recs r where r.id = p_id)
+    when 'list' then (select public._mkt_list_json(l, p_viewer, p_lang) from public.market_lists l where l.id = p_id)
+    when 'review' then (select public._mkt_review_json(r, p_viewer, p_lang) from public.market_reviews r where r.id = substr(p_id, 3)::bigint)
   end
 $$;
 
 -- A member's page > Market: their store (the Visit store button) and what they published that the
 -- viewer may see. p_tab: recs | lists | reviews.
 --   -> { ok: true, store: card | null, counts: { recs, lists, reviews }, items, total } | { ok: false, reason: not_found | tab }
+drop function if exists public.market_profile(text, text, text, int, int);
 create or replace function public.market_profile(p_owner text, p_member text default '', p_tab text default 'recs',
-                                                 p_limit int default 24, p_offset int default 0)
+                                                 p_limit int default 24, p_offset int default 0, p_lang text default '')
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   o public.members; me text; st public.market_stores; lim int := least(greatest(coalesce(p_limit, 24), 1), 60);
@@ -3258,10 +3576,10 @@ begin
     'store', case when st.id is not null and (not st.suspended or me = o.member_id) then public._mkt_store_card(st) end,
     'counts', (select jsonb_build_object('recs', count(*) filter (where x.t = 'rec'), 'lists', count(*) filter (where x.t = 'list'),
                                          'reviews', count(*) filter (where x.t = 'review'))
-                 from public._mkt_published(array[o.member_id], me) x),
-    'total', (select count(*) from public._mkt_published(array[o.member_id], me) x where x.t = v_t),
-    'items', coalesce((select jsonb_agg(public._mkt_published_json(x.t, x.id, me) order by x.at desc, x.id desc)
-                         from (select * from public._mkt_published(array[o.member_id], me) y where y.t = v_t
+                 from public._mkt_published(array[o.member_id], me, p_lang) x),
+    'total', (select count(*) from public._mkt_published(array[o.member_id], me, p_lang) x where x.t = v_t),
+    'items', coalesce((select jsonb_agg(public._mkt_published_json(x.t, x.id, me, p_lang) order by x.at desc, x.id desc)
+                         from (select * from public._mkt_published(array[o.member_id], me, p_lang) y where y.t = v_t
                                 order by y.at desc, y.id desc limit lim offset off) x), '[]'::jsonb));
 end $$;
 
@@ -3269,8 +3587,9 @@ end $$;
 -- lists they made and their reviews, that you may see; newest first, p_limit at a time
 -- (p_before / p_before_id: the date and id of the last one shown).
 --   -> { ok: true, items: [rec | list | review (+ feed_id)], more } | { ok: false, reason: member }
+drop function if exists public.market_feed(text, int, timestamptz, text);
 create or replace function public.market_feed(p_member text, p_limit int default 20, p_before timestamptz default null,
-                                              p_before_id text default '')
+                                              p_before_id text default '', p_lang text default '')
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare m public.members; lim int := least(greatest(coalesce(p_limit, 20), 1), 50); fol text[]; items jsonb; n int;
 begin
@@ -3285,10 +3604,10 @@ begin
                              and (b.kind = 'full' or 'updates' = any (string_to_array(replace(coalesce(b.features, ''), ' ', ''), ','))))
                          or (b.blocker_id = m.member_id and b.blocked_id = f.following_id and b.kind = 'full'));
   -- feed_id: what p_before_id takes for the next ones
-  select coalesce(jsonb_agg(public._mkt_published_json(x.t, x.id, m.member_id) || jsonb_build_object('feed_id', x.id)
+  select coalesce(jsonb_agg(public._mkt_published_json(x.t, x.id, m.member_id, p_lang) || jsonb_build_object('feed_id', x.id)
                             order by x.at desc, x.id desc), '[]'::jsonb), count(*)
     into items, n
-    from (select * from public._mkt_published(fol, m.member_id) y
+    from (select * from public._mkt_published(fol, m.member_id, p_lang) y
            where p_before is null or (y.at, y.id) < (p_before, coalesce(p_before_id, ''))
            order by y.at desc, y.id desc limit lim + 1) x;
   if n > lim then items := items - lim; end if;
@@ -4223,14 +4542,16 @@ begin
     'public._mkt_tier_points()', 'public._mkt_after_sale(text)', 'public._mkt_staff(text)', 'public._mkt_report_json(public.market_reports)',
     'public._mkt_sees(text, text, boolean, boolean, text, text[], text)', 'public._mkt_audience(jsonb, text)',
     'public._mkt_audience_out(text, boolean, boolean, text, text[])', 'public._mkt_review_counts(text)',
-    'public._mkt_review_json(public.market_reviews, text)', 'public._mkt_list_json(public.market_lists, text)',
-    'public._mkt_rec_json(public.market_recs, text)', 'public._mkt_root_of(text, text)', 'public._mkt_published(text[], text)',
-    'public._mkt_published_json(text, text, text)', 'public._mkt_pay(public.market_orders, boolean)',
+    'public._mkt_review_json(public.market_reviews, text, text)', 'public._mkt_list_json(public.market_lists, text, text)',
+    'public._mkt_rec_json(public.market_recs, text, text)', 'public._mkt_root_of(text, text)', 'public._mkt_published(text[], text, text)',
+    'public._mkt_published_json(text, text, text, text)', 'public._mkt_pay(public.market_orders, boolean)',
     'public._mkt_admin_can(public.market_orders)', 'public._mkt_cpn_stats(text, text)',
     'public._mkt_cpn_fits(public.market_coupons, text, text)', 'public._mkt_cpn_state(public.market_coupons)',
     'public._mkt_cpn_off(text, int, int, int)', 'public._mkt_cpn_json(public.market_coupons, text)',
     'public._mkt_cpn_grant(text, text)', 'public._mkt_cpn_find(text, text, text, text)', 'public._mkt_level(text)',
-    'public._mkt_capital(text)']
+    'public._mkt_capital(text)', 'public._mkt_tier_rank(text)', 'public._mkt_ctx(text, text)',
+    'public._mkt_gate_out(public.market_products)', 'public._mkt_product_ok(public.market_products, text[], jsonb)',
+    'public._mkt_prod_ok(text, text, text)', 'public._mkt_people_ids(text, text)']
   loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
   end loop;
@@ -4238,15 +4559,16 @@ begin
     'public.market_me(text)', 'public.market_store_save(text, jsonb)', 'public.market_store(text, text)',
     'public.market_product_save(text, jsonb)', 'public.market_product_status(text, text, text)',
     'public.market_upload(text, text, text, text[])', 'public.market_images(text, text, text, jsonb)',
-    'public.market_my_products(text, int, int)', 'public.market_categories(text, int)', 'public.market_home(text)',
-    'public.market_search(text, text, text, text, text, text, text, text, int, int)', 'public.market_category(text)',
-    'public.market_product(text, text, text)', 'public.market_suggest(text, int)', 'public.market_later(text, text, boolean)',
-    'public.market_buy(text, text, int, jsonb, text, text)', 'public.market_order_action(text, text, text, text)',
-    'public.market_orders(text, text, text, int, int)', 'public.market_review_save(text, text, jsonb, jsonb, jsonb)',
+    'public.market_my_products(text, int, int)', 'public.market_categories(text, int)', 'public.market_home(text, text)',
+    'public.market_search(text, text, text, text, text, text, text, text, int, int, text)', 'public.market_category(text, text, text)',
+    'public.market_product(text, text, text, text)', 'public.market_suggest(text, int, text, text)', 'public.market_later(text, text, boolean, text)',
+    'public.market_buy(text, text, int, jsonb, text, text, text)', 'public.market_order_action(text, text, text, text)',
+    'public.market_product_notify_vip(text, text, text)',
+    'public.market_orders(text, text, text, int, int)', 'public.market_review_save(text, text, jsonb, jsonb, jsonb, text)',
     'public.market_review_delete(text, text)', 'public.market_list_save(text, jsonb)', 'public.market_list_delete(text, text)',
-    'public.market_list_item(text, text, text, boolean)', 'public.market_lists_mine(text, text)', 'public.market_list(text, text)',
-    'public.market_rec_save(text, text, jsonb)', 'public.market_rec_share(text, text, text, jsonb)', 'public.market_rec_delete(text, text)',
-    'public.market_profile(text, text, text, int, int)', 'public.market_feed(text, int, timestamptz, text)',
+    'public.market_list_item(text, text, text, boolean, text)', 'public.market_lists_mine(text, text)', 'public.market_list(text, text, text)',
+    'public.market_rec_save(text, text, jsonb, text)', 'public.market_rec_share(text, text, text, jsonb)', 'public.market_rec_delete(text, text)',
+    'public.market_profile(text, text, text, int, int, text)', 'public.market_feed(text, int, timestamptz, text, text)',
     'public.market_reviews(text, text, int, int)', 'public.market_request_send(text, text, text, text, text)',
     'public.market_request_reply(text, bigint, text)', 'public.market_request_close(text, bigint)',
     'public.market_requests(text, text, int, int)', 'public.market_order_address(text, text, jsonb, boolean)',
