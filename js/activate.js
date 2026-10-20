@@ -455,10 +455,10 @@
         state.avatar = url;
       },
     });
-    $("#back").onclick = stepPlan;
+    // the primary action is wired first, so no other assignment can ever kill it
     $("#next").onclick = async () => {
-      state.bio = $("#bio").value.trim();
-      state.avatar = $("#avatar").value.trim();
+      state.bio = $("#bio")?.value.trim() || "";
+      state.avatar = $("#avatar")?.value.trim() || state.avatar || "";
       const btn = $("#next");
       btn.disabled = true;
       btn.textContent = t("act.saving");
@@ -469,6 +469,7 @@
       }
       stepActivate();
     };
+    $("#back").onclick = stepPlanFirstFree;
   }
 
   function stepReactivateSummary() {
