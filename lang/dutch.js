@@ -4300,4 +4300,17 @@
  "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.": "Je bestand wordt geüpload naar je eigen Streamtape-map (Videos) en wordt de link van deze video; je kunt het op elk moment verwijderen via het tabblad Beheren.",
  "A video of yours (optional)": "Een video van jou (optioneel)",
  "It uploads to your own Streamtape folder (Posts) and plays right inside this post.": "Het wordt geüpload naar je eigen Streamtape-map (Posts) en speelt direct in dit bericht af."
+,
+ "Upload": "Uploaden",
+ "Upload videos": "Video's uploaden",
+ "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.": "Je eigen videobestanden gaan naar je persoonlijke Streamtape-map: een film of aflevering wordt meteen een afspeellink van hun titel, en de video van een product komt bij de galerij ervan. Alles hieronder is van jou om te uploaden of te verwijderen — nooit de map van een ander lid.",
+ "For a film: its TMDB id; one quality of one film exists only once on the whole site.": "Voor een film: de TMDB-id; één kwaliteit van één film bestaat maar één keer op de hele site.",
+ "For a series: its TMDB id, the season and the episode this file is.": "Voor een serie: de TMDB-id, het seizoen en de aflevering die dit bestand is.",
+ "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.": "Voor een product van jou: de video's oplopen als VID - product - 0, 1, 2… in je Market-map.",
+ "Choose a product…": "Kies een product…",
+ "No product in your store yet.": "Nog geen product in je winkel.",
+ "My uploads": "Mijn uploads",
+ "Nothing uploaded yet.": "Nog niets geüpload.",
+ "Removed — the file is gone from your folder.": "Verwijderd — het bestand is uit je map weg.",
+ "Choose the video quality.": "Kies de videokwaliteit."
 };

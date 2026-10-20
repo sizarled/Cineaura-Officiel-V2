@@ -4302,4 +4302,17 @@
  "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.": "Il tuo file viene caricato nella tua cartella Streamtape (Videos) e diventa il link di questo video; puoi eliminarlo in qualsiasi momento dalla scheda Gestisci.",
  "A video of yours (optional)": "Un tuo video (facoltativo)",
  "It uploads to your own Streamtape folder (Posts) and plays right inside this post.": "Viene caricato nella tua cartella Streamtape (Posts) e si riproduce direttamente in questo post."
+,
+ "Upload": "Carica",
+ "Upload videos": "Carica video",
+ "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.": "I tuoi file video vanno nella tua cartella Streamtape personale: un film o un episodio diventa subito un link di riproduzione del suo titolo, e il video di un prodotto entra nella sua galleria. Tutto ciò che segue è tuo, da caricare o rimuovere — mai la cartella di un altro membro.",
+ "For a film: its TMDB id; one quality of one film exists only once on the whole site.": "Per un film: il suo ID TMDB; una qualità di un film esiste una sola volta in tutto il sito.",
+ "For a series: its TMDB id, the season and the episode this file is.": "Per una serie: il suo ID TMDB, la stagione e l'episodio di questo file.",
+ "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.": "Per un tuo prodotto: i suoi video salgono come VID - prodotto - 0, 1, 2… nella tua cartella Market.",
+ "Choose a product…": "Scegli un prodotto…",
+ "No product in your store yet.": "Nessun prodotto ancora nel tuo negozio.",
+ "My uploads": "I miei caricamenti",
+ "Nothing uploaded yet.": "Niente di caricato per ora.",
+ "Removed — the file is gone from your folder.": "Rimosso — il file è sparito dalla tua cartella.",
+ "Choose the video quality.": "Scegli la qualità del video."
 };

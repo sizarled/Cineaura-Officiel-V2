@@ -2208,8 +2208,9 @@
       .map((x) => x.trim())
       .filter(Boolean);
     if (!lines.length) return toast(t("watch.al.urlsEmpty"));
+    /* Too many for one paste is not a refusal: the membership's share is
+       published and the extra lines are reported, like the daily ceiling. */
     const batchCap = await linkBatchCap();
-    if (lines.length > batchCap) return toast(t("watch.al.tooMany", { n: batchCap }));
     if (!(await C.guardFeature("links"))) return;
     if (!(await C.guardLevel("publish_links"))) return;
     const quota = await linkQuotaLeft(session);
@@ -2229,10 +2230,11 @@
       });
     });
     if (!entries.length) return toast(t("watch.al.urlsEmpty"));
-    if (se.episode + entries.length - 1 > 999) return toast(t("watch.al.seBad"));
-    const left = quota.left ?? entries.length;
+    const left = Math.min(batchCap, quota.left ?? batchCap);
     const toSave = entries.slice(0, left);
     const over = entries.length - toSave.length;
+    if (se.episode + toSave.length - 1 > 999) return toast(t("watch.al.seBad"));
+    if (!toSave.length) return toast(t("watch.al.dayFull", { cap: quota.cap, lv: quota.level }));
     const button = $("#al-save");
     button.disabled = true;
     const res = await publishLinkRows(toSave);
@@ -2260,7 +2262,6 @@
     const parsed = parseLinkDump($("#al-import")?.value || "");
     if (!parsed.pairs.length) return toast(t("watch.al.importEmpty"));
     const batchCap = await linkBatchCap();
-    if (parsed.pairs.length > batchCap) return toast(t("watch.al.tooMany", { n: batchCap }));
     const meta = linkMetaFromForm();
     const metaToast = linkMetaToast(meta, true);
     if (metaToast) return toast(metaToast);
@@ -2297,10 +2298,11 @@
       entries.push({ table: p.parsed.kind === "tv" ? "tvlink" : "movielink", row });
     });
     if (!entries.length && !bad) bad = 1;
-    const left = quota.left ?? entries.length;
+    const left = Math.min(batchCap, quota.left ?? batchCap);
     const toSave = entries.slice(0, left);
     const over = entries.length - toSave.length;
-    const res = await publishLinkRows(toSave);
+    if (!toSave.length && over) return toast(t("watch.al.dayFull", { cap: quota.cap, lv: quota.level }));
+    const res = entries.length ? await publishLinkRows(toSave) : { added: 0, dup: 0, bad: 0 };
     button.disabled = false;
     if (res.bad && !res.added && !res.dup && !bad) return toast(t("dash.linkFail"));
     closeAddLinkModal();

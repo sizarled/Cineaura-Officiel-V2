@@ -4304,4 +4304,17 @@
  "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.": "Tu archivo se sube a tu propia carpeta de Streamtape (Videos) y se convierte en el enlace de este vídeo; puedes borrarlo en cualquier momento desde la pestaña Gestionar.",
  "A video of yours (optional)": "Un vídeo tuyo (opcional)",
  "It uploads to your own Streamtape folder (Posts) and plays right inside this post.": "Se sube a tu propia carpeta de Streamtape (Posts) y se reproduce directamente dentro de esta publicación."
+,
+ "Upload": "Subir",
+ "Upload videos": "Subir vídeos",
+ "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.": "Tus propios archivos de vídeo van a tu carpeta personal de Streamtape: una película o un episodio se convierte al instante en un enlace de reproducción de su título, y el vídeo de un producto se une a su galería. Todo lo de abajo es tuyo, para subir o eliminar — nunca la carpeta de otro miembro.",
+ "For a film: its TMDB id; one quality of one film exists only once on the whole site.": "Para una película: su id de TMDB; una calidad de una película existe solo una vez en todo el sitio.",
+ "For a series: its TMDB id, the season and the episode this file is.": "Para una serie: su id de TMDB, la temporada y el episodio que es este archivo.",
+ "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.": "Para un producto tuyo: sus vídeos ascienden como VID - producto - 0, 1, 2… en tu carpeta Market.",
+ "Choose a product…": "Elige un producto…",
+ "No product in your store yet.": "Aún no hay producto en tu tienda.",
+ "My uploads": "Mis subidas",
+ "Nothing uploaded yet.": "Nada subido todavía.",
+ "Removed — the file is gone from your folder.": "Eliminado — el archivo ya no está en tu carpeta.",
+ "Choose the video quality.": "Elige la calidad del vídeo."
 };

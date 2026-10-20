@@ -395,6 +395,7 @@
       withdraw: viewWithdraw,
       playlists: viewPlaylists,
       links: viewLinks,
+      upload: viewUpload,
       reports: viewReports,
       codes: viewCodes,
       iptv: viewIptv,
@@ -1407,7 +1408,6 @@
       const parsed = parseLinkDump($("#lk-import")?.value || "");
       if (!parsed.pairs.length) return toast(t("watch.al.importEmpty"));
       const batchCap = membershipBatchCap(await C.membership());
-      if (parsed.pairs.length > batchCap) return toast(t("watch.al.tooMany", { n: batchCap }));
       const kind = $('input[name="lk-kind"]:checked')?.value || "watch";
       const quality = selectedQualities("lk-q");
       const urlHidden = $("#lk-urlvis")?.value === "hide";
@@ -1460,10 +1460,11 @@
         entries.push({ table: p.parsed.kind === "tv" ? "tvlink" : "movielink", row });
       });
       if (!entries.length && !bad) bad = 1;
-      const left = quota.left ?? entries.length;
+      const left = Math.min(batchCap, quota.left ?? batchCap);
       const toSave = entries.slice(0, left);
       const over = entries.length - toSave.length;
-      const res = await publishLinkRows(toSave);
+      if (!toSave.length && over) return toast(t("watch.al.dayFull", { cap: quota.cap, lv: quota.level }));
+      const res = entries.length ? await publishLinkRows(toSave) : { added: 0, dup: 0, bad: 0 };
       button.disabled = false;
       if (res.bad && !res.added && !res.dup && !bad) return toast(t("dash.linkFail"));
       toast(t("watch.al.result", { added: res.added, dup: res.dup + dup, bad: res.bad + bad, over }));
@@ -1573,6 +1574,274 @@
     bad: t("dash.rpt.bad"),
     indirect: t("dash.rpt.indirect"),
   });
+
+  /* ── Upload (round 35): the member's own video files on Streamtape. A film
+     or an episode uploads into the Movies / TV folder and is published at
+     once as a watch link of its title; a product video goes to the Market
+     folder under an ascending ordinal. Below the form, every upload of the
+     member with its delete: the Streamtape file goes, its registry row, and
+     — for a film or an episode — the watch link it became. Only the member's
+     own folder is ever touched; folders themselves are never deleted. */
+  async function viewUpload(main) {
+    const ST = window.Streamtape;
+    const productsRes = await supabaseRequest(
+      `/rest/v1/market_products?owner_id=eq.${restValue(state.member.member_id)}&status=neq.deleted&select=id,title&order=created_at.desc&limit=100`
+    );
+    const products = productsRes.ok && Array.isArray(productsRes.data) ? productsRes.data : [];
+    const regs = await supabaseRequest(
+      `/rest/v1/media_uploads?owner_id=eq.${restValue(state.member.member_id)}&select=*&order=created_at.desc&limit=200`
+    );
+    const sqlMissing = regs?.data?.code === "PGRST205";
+    const rows = regs.ok && Array.isArray(regs.data) ? regs.data : [];
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.nav.upload")}</p>
+      <h1>${t("up.title")}</h1>
+      <p class="muted">${t("up.lead")}</p>
+      ${sqlMissing ? `<p class="empty">${t("up.needSql")}</p>` : ""}
+      <div class="stack">
+        <div class="addlink-kinds" role="radiogroup">
+          <label class="kind-pick"><input type="radio" name="up-kind" value="movie" checked ${ST ? "" : "disabled"} /><span>${t("common.movie")}</span></label>
+          <label class="kind-pick"><input type="radio" name="up-kind" value="tv" ${ST ? "" : "disabled"} /><span>${t("common.series")}</span></label>
+          <label class="kind-pick"><input type="radio" name="up-kind" value="market" ${ST ? "" : "disabled"} /><span>${t("nav.market")}</span></label>
+        </div>
+        <div class="sub-fields" id="up-movie-box">
+          <p class="muted">${t("up.movieHint")}</p>
+          <div class="form-row">
+            <input id="up-tmdb" type="number" min="1" placeholder="${t("panel.tmdbId")}" />
+          </div>
+        </div>
+        <div class="sub-fields" id="up-tv-box" hidden>
+          <p class="muted">${t("up.tvHint")}</p>
+          <div class="form-row">
+            <input id="up-tv-tmdb" type="number" min="1" placeholder="${t("panel.tmdbId")}" />
+            <input id="up-season" type="number" min="1" max="99" placeholder="${t("common.season")}" />
+            <input id="up-episode" type="number" min="1" max="999" placeholder="${t("common.episode")}" />
+          </div>
+        </div>
+        <div class="addlink-field" id="up-q-box">
+          <span>${t("watch.al.quality")}</span>
+          <div class="lang-picker">${qualityPickerHtml("up-q")}</div>
+        </div>
+        <div class="sub-fields" id="up-market-box" hidden>
+          <p class="muted">${t("up.marketHint")}</p>
+          <select id="up-product">
+            <option value="">${t("up.pickProduct")}</option>
+            ${products.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.title || p.id)}</option>`).join("")}
+          </select>
+          <p class="muted" id="up-product-no" ${products.length ? "hidden" : ""}>${t("up.noProduct")}</p>
+        </div>
+        <div class="sub-fields">
+          <label class="addlink-field">
+            <span>${t("watch.al.uploadFile")}</span>
+            <input id="up-file" type="file" accept="video/*" ${ST ? "" : "disabled"} />
+          </label>
+          <div class="up-prog" id="up-prog" hidden>
+            <div class="up-prog-bar" id="up-bar"></div>
+            <span class="up-prog-n" id="up-n">0%</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-primary" id="up-go" type="button" ${ST ? "" : "disabled"}>${t("dash.nav.upload")}</button>
+      </div>
+      <h2 style="margin:22px 0 10px">${t("up.mine")}</h2>
+      <div id="up-list"></div>`;
+
+    const $ = (s) => main.querySelector(s);
+    /* The metadata quality of a film / an episode is one of the palette: the
+       first picked chip. */
+    const oneQuality = () => (selectedQualities("up-q").split(", ").filter(Boolean)[0] || "").trim();
+
+    $$('input[name="up-kind"]').forEach((el) => {
+      el.onchange = () => {
+        const kind = $('input[name="up-kind"]:checked')?.value || "movie";
+        $("#up-movie-box").hidden = kind !== "movie";
+        $("#up-tv-box").hidden = kind !== "tv";
+        $("#up-market-box").hidden = kind !== "market";
+        $("#up-q-box").hidden = kind === "market";
+      };
+    });
+
+    const quotaGate = async () => {
+      const q = await publishQuota(state.member.member_id, "links");
+      if (q.cap != null && q.left <= 0) {
+        toast(t("watch.al.dayFull", { cap: q.cap, lv: q.level }));
+        return null;
+      }
+      return q;
+    };
+
+    $("#up-go").onclick = async () => {
+      if (!ST) return toast(t("up.fail"));
+      const kind = $('input[name="up-kind"]:checked')?.value || "movie";
+      const file = $("#up-file")?.files?.[0];
+      if (!file) return toast(t("up.needFile"));
+      if (!/^(video\/|application\/(mp4|x-matroska|x-msvideo))/i.test(String(file.type || "")) && !/\.(mp4|mkv|avi|mov|webm|m4v|mpg|mpeg)$/i.test(String(file.name || ""))) {
+        return toast(t("up.needVideo"));
+      }
+      // The radio says movie/tv/market; the folder grammar says movies/tv/market.
+      const folder = kind === "movie" ? "movies" : kind;
+      let tmdbId = 0;
+      let season = 0;
+      let episode = 0;
+      let quality = "";
+      let product = null;
+      if (kind === "market") {
+        product = products.find((p) => p.id === $("#up-product")?.value);
+        if (!product) return toast(t("up.pickProduct"));
+      } else {
+        tmdbId = Number($(kind === "tv" ? "#up-tv-tmdb" : "#up-tmdb")?.value) || 0;
+        if (!tmdbId) return toast(t("panel.needTmdb"));
+        quality = oneQuality();
+        if (!quality) return toast(t("up.needQuality"));
+        if (kind === "tv") {
+          season = Number($("#up-season")?.value) || 0;
+          episode = Number($("#up-episode")?.value) || 0;
+          if (!(season >= 1 && season <= 99 && episode >= 1 && episode <= 999)) return toast(t("watch.al.seBad"));
+        }
+        if (!(await quotaGate())) return;
+        const taken = kind === "tv"
+          ? await ST.tvQualityTaken(tmdbId, season, episode, quality)
+          : await ST.movieQualityTaken(quality, tmdbId);
+        if (taken.length) return toast(t("up.dupTitle"));
+      }
+      let base = "";
+      if (kind === "tv") base = ST.names.tv(tmdbId, season, episode, quality);
+      else if (kind === "movie") base = ST.names.movie(quality, tmdbId);
+      else {
+        const mine = await ST.uploadsByRef("market", product.id);
+        const ordinal = mine.reduce((m, r) => Math.max(m, Number(r.ordinal) || 0), -1) + 1;
+        base = ST.names.market(product.id, ordinal);
+        product.__ordinal = ordinal;
+      }
+      const button = $("#up-go");
+      button.disabled = true;
+      const prog = $("#up-prog");
+      const bar = $("#up-bar");
+      const nEl = $("#up-n");
+      prog.hidden = false;
+      const paint = (n) => {
+        bar.style.width = `${n}%`;
+        nEl.textContent = `${n}%`;
+      };
+      paint(0);
+      const up = await ST.uploadNamed(state.member.member_id, folder, file, base, paint);
+      if (!up.ok) {
+        prog.hidden = true;
+        button.disabled = false;
+        return toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+      }
+      const reg = await ST.registerUpload({
+        owner_id: state.member.member_id,
+        owner_username: state.member.username,
+        folder,
+        name: up.name,
+        file_id: up.fileId,
+        page_url: up.pageUrl,
+        embed_url: up.embedUrl,
+        quality: quality || "",
+        tmdb_id: kind === "market" ? null : tmdbId,
+        season: kind === "tv" ? season : null,
+        episode: kind === "tv" ? episode : null,
+        ref_id: kind === "market" ? String(product.id) : "",
+        ordinal: kind === "market" ? product.__ordinal : null,
+        size_bytes: file.size || 0,
+      });
+      if (!reg.ok) {
+        try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
+        prog.hidden = true;
+        button.disabled = false;
+        return toast(t(reg.reason === "sql" ? "up.needSql" : reg.reason === "dup" ? "up.dupTitle" : "up.fail"));
+      }
+      /* The link heads of a film or an episode: the upload is published as a
+         watch link of its title, playable everywhere on the site at once. */
+      if (kind !== "market") {
+        let title = "";
+        try {
+          const info = await tmdb(`/${kind}/${tmdbId}`, "");
+          title = info?.title || info?.name || "";
+        } catch { /* TMDB unreachable: the id says enough */ }
+        const row = {
+          tmdb_id: tmdbId,
+          member_id: state.member.member_id,
+          username: state.member.username,
+          watch_url: up.pageUrl,
+          title: title || `TMDB ${tmdbId}`,
+          quality,
+          original_language: "",
+          has_subtitles: false,
+          subtitle_languages: "",
+          has_ads: false,
+          url_hidden: false,
+          link_kind: "watch",
+        };
+        if (kind === "tv") {
+          row.season = season;
+          row.episode = episode;
+        }
+        await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", row, ["watch"]);
+      } else if (product && !(product.video_url || "")) {
+        await supabaseRequest(`/rest/v1/market_products?id=eq.${restValue(product.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ video_url: up.pageUrl }),
+        });
+      }
+      prog.hidden = true;
+      button.disabled = false;
+      toast(t("up.done"));
+      $("#up-file").value = "";
+      viewUpload(main);
+    };
+
+    /* Every upload of the member, newest first, each row with its delete: the
+       film/episode link goes with the file, a product keeps its other videos. */
+    const listEl = $("#up-list");
+    const drawUploads = () => {
+      listEl.innerHTML =
+        sqlMissing
+          ? ""
+          : (rows
+              .map((r) => {
+                const chip = r.folder === "market" ? t("nav.market") : r.folder === "tv" ? t("common.series") : r.folder === "movies" ? t("common.movie") : r.folder;
+                const when = String(r.created_at || "").slice(0, 10);
+                return `
+          <div class="item-row">
+            <div></div>
+            <a href="${escapeHtml(r.page_url || "")}" target="_blank" rel="noopener">
+              <strong>${escapeHtml(r.name || r.file_id)}</strong>
+              <div class="muted">${escapeHtml(chip)} · ${Number(r.size_bytes || 0) ? `${(Number(r.size_bytes) / 1048576).toFixed(1)} MB · ` : ""}${when}</div>
+            </a>
+            <button class="btn btn-sm btn-ghost" data-up-del="${escapeHtml(r.file_id)}" data-up-folder="${escapeHtml(r.folder)}" type="button">${t("common.remove")}</button>
+          </div>`;
+              })
+              .join("") || `<p class="empty">${t("up.empty")}</p>`);
+    };
+    drawUploads();
+    listEl.onclick = async (e) => {
+      const btn = e.target.closest("[data-up-del]");
+      if (!btn) return;
+      const row = rows.find((r) => String(r.file_id) === btn.dataset.upDel);
+      if (!row) return;
+      btn.disabled = true;
+      const table = row.folder === "tv" ? "tvlink" : row.folder === "movies" ? "movielink" : "";
+      if (table) {
+        await supabaseRequest(
+          `/rest/v1/${table}?watch_url=eq.${encodeURIComponent(row.page_url)}&member_id=eq.${restValue(state.member.member_id)}`,
+          { method: "DELETE" }
+        );
+      }
+      await ST.dropFileUpload(state.member.member_id, row.file_id);
+      if (row.folder === "market") {
+        // Only stay the main product video if another product video can take over.
+        const rest = await ST.uploadsByRef("market", row.ref_id);
+        const next = rest.find((x) => x.file_id !== row.file_id);
+        await supabaseRequest(`/rest/v1/market_products?id=eq.${restValue(row.ref_id)}&video_url=eq.${encodeURIComponent(row.page_url)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ video_url: next ? next.page_url : "" }),
+        });
+      }
+      toast(t("up.delDone"));
+      viewUpload(main);
+    };
+  }
 
   async function viewReports(main) {
     const incoming = await supabaseRequest(
@@ -3600,7 +3869,7 @@
 
   // "points" (Earn points / Buy points / Earn prizes / Shop now, the sources and the spends) moved here from the profile;
   // "withdraw": points exchanged for money (js/withdraw.js, sql/withdrawals.sql)
-  const SECTIONS = ["overview","level","points","withdraw","playlists","links","reports","codes","iptv","views","analytics","prizes","history","settings"];
+  const SECTIONS = ["overview","level","points","withdraw","playlists","links","upload","reports","codes","iptv","views","analytics","prizes","history","settings"];
   // dashboard.html#claims: Prizes > Prize claims (where the claim notifications lead)
   // dashboard.html#devices: Codes > Linked devices (named by the watch page)
   // dashboard.html#iptv-lists: IPTV > Your lists

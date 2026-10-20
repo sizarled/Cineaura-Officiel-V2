@@ -4367,4 +4367,17 @@
  "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.": "يُرفع ملفّك إلى مجلدك الخاص على Streamtape (‏Videos‏) ويصبح رابط هذا الفيديو؛ ويمكنك حذفه في أي وقت من تبويب إدارة.",
  "A video of yours (optional)": "فيديو خاص بك (اختياري)",
  "It uploads to your own Streamtape folder (Posts) and plays right inside this post.": "يُرفع إلى مجلدك الخاص على Streamtape (‏Posts‏) ويعمل مباشرة داخل هذا المنشور."
+,
+ "Upload": "رفع",
+ "Upload videos": "رفع الفيديوهات",
+ "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.": "ملفات الفيديو الخاصة بك تذهب إلى مجلدك الشخصي على Streamtape: فيلم أو حلقة يصبح فورًا رابط مشاهدة لعنوانه، وفيديو المنتج ينضم إلى معرض المنتج. كل ما هو أدناه ملكك ترفعه أو تحذفه — فلا مجلد عضو آخر أبدًا.",
+ "For a film: its TMDB id; one quality of one film exists only once on the whole site.": "لفيلم: معرّف TMDB الخاص به؛ والجودة الواحدة للفيلم الواحد موجودة مرة واحدة فقط في الموقع كله.",
+ "For a series: its TMDB id, the season and the episode this file is.": "لمسلسل: معرّف TMDB الخاص به، والموسم والحلقة اللذان هو هذا الملف.",
+ "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.": "لمنتج من منتجاتك: تترقى فيديوهاته كـ ‎VID - منتج - 0، 1، 2… في مجلد Market الخاص بك.",
+ "Choose a product…": "اختر منتجًا…",
+ "No product in your store yet.": "لا منتج في متجرك بعد.",
+ "My uploads": "رفوعاتي",
+ "Nothing uploaded yet.": "لا شيء مرفوعًا بعد.",
+ "Removed — the file is gone from your folder.": "أُزيل — صار الملف ذاهبًا من مجلدك.",
+ "Choose the video quality.": "اختر جودة الفيديو."
 };

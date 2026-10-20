@@ -4310,4 +4310,17 @@
  "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.": "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.",
  "A video of yours (optional)": "A video of yours (optional)",
  "It uploads to your own Streamtape folder (Posts) and plays right inside this post.": "It uploads to your own Streamtape folder (Posts) and plays right inside this post."
+,
+ "Upload": "Upload",
+ "Upload videos": "Upload videos",
+ "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.": "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.",
+ "For a film: its TMDB id; one quality of one film exists only once on the whole site.": "For a film: its TMDB id; one quality of one film exists only once on the whole site.",
+ "For a series: its TMDB id, the season and the episode this file is.": "For a series: its TMDB id, the season and the episode this file is.",
+ "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.": "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.",
+ "Choose a product…": "Choose a product…",
+ "No product in your store yet.": "No product in your store yet.",
+ "My uploads": "My uploads",
+ "Nothing uploaded yet.": "Nothing uploaded yet.",
+ "Removed — the file is gone from your folder.": "Removed — the file is gone from your folder.",
+ "Choose the video quality.": "Choose the video quality."
 };

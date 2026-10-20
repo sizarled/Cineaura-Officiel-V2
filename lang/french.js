@@ -4299,4 +4299,17 @@
  "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.": "Votre fichier est téléversé dans votre propre dossier Streamtape (Videos) et devient le lien de cette vidéo ; vous pouvez le supprimer à tout moment depuis l’onglet Gérer.",
  "A video of yours (optional)": "Une de vos vidéos (optionnel)",
  "It uploads to your own Streamtape folder (Posts) and plays right inside this post.": "Il est téléversé dans votre propre dossier Streamtape (Posts) et se lit directement dans cette publication."
+,
+ "Upload": "Téléverser",
+ "Upload videos": "Téléverser des vidéos",
+ "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.": "Vos propres fichiers vidéo vont dans votre dossier Streamtape personnel : un film ou un épisode devient aussitôt un lien de lecture de son titre, et la vidéo d’un produit rejoint sa galerie. Tout ce qui suit est à vous, à téléverser ou à supprimer — jamais le dossier d’un autre membre.",
+ "For a film: its TMDB id; one quality of one film exists only once on the whole site.": "Pour un film : son id TMDB ; une qualité d’un film n’existe qu’une seule fois sur tout le site.",
+ "For a series: its TMDB id, the season and the episode this file is.": "Pour une série : son id TMDB, la saison et l’épisode qu’est ce fichier.",
+ "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.": "Pour un de vos produits : ses vidéos montent en VID - produit - 0, 1, 2… dans votre dossier Market.",
+ "Choose a product…": "Choisir un produit…",
+ "No product in your store yet.": "Pas encore de produit dans votre boutique.",
+ "My uploads": "Mes téléversements",
+ "Nothing uploaded yet.": "Rien de téléversé pour l’instant.",
+ "Removed — the file is gone from your folder.": "Supprimé — le fichier a quitté votre dossier.",
+ "Choose the video quality.": "Choisissez la qualité de la vidéo."
 };

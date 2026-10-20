@@ -4301,4 +4301,17 @@
  "Your file uploads to your own Streamtape folder (Videos) and becomes this video's link; you can delete it any time from the Manage tab.": "Deine Datei wird in deinen eigenen Streamtape-Ordner (Videos) hochgeladen und wird zum Link dieses Videos; du kannst sie jederzeit im Tab Verwalten löschen.",
  "A video of yours (optional)": "Ein Video von dir (optional)",
  "It uploads to your own Streamtape folder (Posts) and plays right inside this post.": "Es wird in deinen eigenen Streamtape-Ordner (Posts) hochgeladen und spielt direkt in diesem Beitrag."
+,
+ "Upload": "Hochladen",
+ "Upload videos": "Videos hochladen",
+ "Your own video files go to your personal Streamtape folder: a film or an episode becomes a watch link of its title at once, and a product video joins the product's gallery. Everything below is yours to upload or to remove — never another member's folder.": "Deine eigenen Videodateien wandern in deinen persönlichen Streamtape-Ordner: Ein Film oder eine Folge wird sofort zum Wiedergabelink ihres Titels, und ein Produktvideo reiht sich in die Produktgalerie. Alles darunter gehört dir zum Hochladen oder Entfernen — niemals der Ordner eines anderen Mitglieds.",
+ "For a film: its TMDB id; one quality of one film exists only once on the whole site.": "Für einen Film: seine TMDB-ID; eine Qualität eines Films existiert nur einmal auf der ganzen Seite.",
+ "For a series: its TMDB id, the season and the episode this file is.": "Für eine Serie: ihre TMDB-ID, die Staffel und die Folge, die diese Datei ist.",
+ "For a product of yours: its videos ascend as VID - product - 0, 1, 2… in your Market folder.": "Für ein Produkt von dir: seine Videos steigen als VID - Produkt - 0, 1, 2… in deinem Market-Ordner.",
+ "Choose a product…": "Produkt wählen…",
+ "No product in your store yet.": "Noch kein Produkt in deinem Shop.",
+ "My uploads": "Meine Uploads",
+ "Nothing uploaded yet.": "Noch nichts hochgeladen.",
+ "Removed — the file is gone from your folder.": "Entfernt — die Datei ist aus deinem Ordner verschwunden.",
+ "Choose the video quality.": "Wähle die Videoqualität."
 };

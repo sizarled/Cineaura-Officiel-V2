@@ -3817,6 +3817,7 @@
     overview: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>',
     playlists: '<path d="M4 6h11M4 11h11M4 16h7"/><path d="M15.5 14.5v6l5-3z"/>',
     links: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>',
+    upload: '<path d="M12 16V4.5"/><path d="M7 9.5l5-5 5 5"/><path d="M4.5 15v4.5h15v-4.5"/>',
     reports: '<path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2 4 2 4h-11"/>',
     codes: '<circle cx="8" cy="15.5" r="4"/><path d="M10.9 12.6L20 3.5M16.5 7l2.5 2.5M14 9.5l2 2"/>',
     iptv: '<rect x="3" y="6.5" width="18" height="12.5" rx="2"/><path d="M8.5 3l3.5 3.5L15.5 3M9 22h6"/>',
@@ -4788,9 +4789,9 @@
        <!--  Title [SD] -->                   movie by title
 
      The [quality] is optional; the season/episode flags a series. */
-  const LINK_DUMP_HEAD = /^<!--\s*(.*?)\s*-->$/;
-  const LINK_DUMP_TV = /^(.*?)\s+-\s+[Ss]\s*(\d{1,2})\s+-\s*[Ee]p\s*(\d{1,4})(?:\s*\[([^\]]{1,8})\])?\s*$/;
-  const LINK_DUMP_MOVIE = /^(.*?)(?:\s*\[([^\]]{1,8})\])?\s*$/;
+  const LINK_DUMP_HEAD = /^\s*<!--\s*(.*?)\s*-->\s*$/;
+  const LINK_DUMP_TV = /^(.*?)\s*-\s*[Ss]\s*(\d{1,2})\s*-\s*[Ee][Pp]?\s*(\d{1,4})(?:\s*\[([^\]]{1,16})\])?\s*$/;
+  const LINK_DUMP_MOVIE = /^(.*?)(?:\s*\[([^\]]{1,16})\])?\s*$/;
 
   function parseLinkDump(text) {
     const pairs = [];
@@ -4809,6 +4810,11 @@
           head = null;
           return;
         }
+        /* Some dumps skip the <!-- --> wrapper: a bare line that still parses
+           as a head (id or name + S/E, or an id/name with a quality bracket)
+           counts as the next URL's head as well. Plain prose never does. */
+        const bare = parseLinkDumpHead(line);
+        if (bare && (bare.kind === "tv" || bare.tmdb !== null || bare.quality)) { head = line; return; }
         bad += 1;
       });
     return { pairs, bad };
@@ -4820,9 +4826,34 @@
       const v = String(part || "").trim().replace(/^-+|[-–—]+$/g, "").trim();
       return /^\d{1,10}$/.test(v) ? { tmdb: Number(v), name: null } : { tmdb: null, name: v || null };
     };
+    /* The bracket can name any real-world quality label: every common
+       resolution is folded into the site's palette (360p/480p → SD,
+       720p → HD, 1080p → FHD, 1440p/2K → 2K, 2160p/4K → 4K, 4320p/8K → 8K),
+       a palette word itself goes through unchanged, and the junk words around
+       a number (HDTV, WEB-DL, CAM…) never block the number. Anything else is
+       not a quality at all, and the form's picker decides instead. */
     const qualOf = (q) => {
-      const v = String(q || "").trim().toUpperCase();
-      return LINK_QUALITIES.includes(v) ? v : "";
+      const v = String(q || "").trim().toUpperCase().replace(/[\s_.\-]+/g, "");
+      if (!v) return "";
+      if (LINK_QUALITIES.includes(v)) return v;
+      const rp = v.match(/(\d{3,4})[PI]/);
+      if (rp) {
+        const n = Number(rp[1]);
+        if (/(CAM|TS|LOW)/.test(v) && n < 1080) return "SD";
+        if (n <= 480) return "SD";
+        if (n <= 760) return "HD";
+        if (n <= 1120) return "FHD";
+        if (n <= 1600) return "2K";
+        if (n <= 2500) return "4K";
+        return "8K";
+      }
+      if (/4320|8K/.test(v)) return "8K";
+      if (/2160|4K|UHD|ULTRAHD/.test(v)) return "4K";
+      if (/1440|WQHD|QHD|2K/.test(v)) return "2K";
+      if (/1080|FULLHD/.test(v)) return "FHD";
+      if (/CAM|HDCAM|(^|[^A-Z])TS([^A-Z]|$)|LOW/.test(v) || /(^|[^0-9])(144|240|360|480|540|576)([^0-9]|$)/.test(v) || v.startsWith("SD")) return "SD";
+      if (/(^|[^A-Z])720|HD720|(^|[^A-Z])HD([^A-Z]|$)|HDTV/.test(v)) return "HD";
+      return "";
     };
     const tv = clean.match(LINK_DUMP_TV);
     if (tv && tv[1].trim()) {
