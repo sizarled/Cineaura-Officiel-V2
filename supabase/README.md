@@ -111,3 +111,28 @@ support”, and `patreon_claims` tells you exactly who claimed which code.
   perfectly normal code for the redemption systems (`account_code_redeem` and
   `points_code_redeem`) — the buyer redeems it on CineAura exactly like any
   other member.
+
+# 6 · Memberships bought with POINTS (sql/membership_points.sql)
+
+The reward points themselves buy the membership, straight in Dashboard →
+Points ("Buy a membership with points"): three plan cards showing the money
+price, the points price, and Buy/Extend. **The points price simply equals the
+money price** — plan price in points = the plan's dollar price (Silver $5 /
+3 mo · Gold $10 / 6 mo · Diamond $20 / 12 mo) × the withdrawal rate (points
+per 1 unit of the currency, default 100 → 1 point = 1 cent), so a $5 Silver
+is 500 points and a $20 Diamond is 2,000.
+
+- The purchase spends through `_spend_prize` (the same locked check-and-deduct
+  the prizes use; every buy is journaled in `point_spends` +
+  `membership_purchases`) and activates through `_account_set_plan` (the
+  activation codes' own helper) — a plan still running **stacks** the months
+  onto its expiry.
+- Custom prices: set `membership_points_prices` (JSON, e.g.
+  `{"Silver":450,"Gold":900,"Diamond":1800}`) on the `panel_settings` row;
+  any plan missing from it falls back to the ×rate equality.
+- The shop section hides itself (and every RPC returns
+  `{ok:false,reason:'setup'}`) when `prize_secure.sql`/`packages.sql` are not
+  in yet, so the file is safe regardless of setup order.
+
+Run `sql/membership_points.sql` in the SQL editor after those two files — the
+site picks the new section up with no further change.
