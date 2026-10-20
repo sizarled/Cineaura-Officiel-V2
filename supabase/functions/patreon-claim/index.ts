@@ -1,8 +1,18 @@
-// Patreon OAuth → membership verification → one code from the site stock.
+// Patreon OAuth → purchase verification → ONE POINTS code from the site stock.
+// The site sells nothing but points codes on Patreon; with the default
+// withdrawal rate a $5 tier hands back a 500-point serial (the money and the
+// points are equal). The buyer then redeems the serial in Dashboard → Points
+// and can buy his membership with those points right there.
 // Deploy:  supabase functions deploy patreon-claim
 // Secrets: supabase secrets set PATREON_CLIENT_ID=… PATREON_CLIENT_SECRET=… PATREON_CAMPAIGN_ID=…
-// Optional PATREON_TIER_MAP='{"TIERID":{"kind":"membership","membership":"Gold","duration":"1 month"},"TIERID2":{"kind":"points","points":500}}'
-// Optional PATREON_DEFAULT_KIND=membership   (what a patron gets when no tier mapping hits)
+// Optional PATREON_TIER_MAP='{"TIERID":{"points":500},"TIERID2":{"price_cents":1000}}'
+//   · {"points":N}   pins the serial's value directly;
+//   · {"price_cents":C} pins the money, the points follow the equality rule;
+//   · a legacy {"kind":"membership","membership":"Gold"} entry is translated
+//     to the plan's money price in points (Silver 500 · Gold 1000 · Diamond 2000).
+//   With no mapping, the value comes from the amount Patreon reports the
+//   patron is currently entitled to.
+// (PATREON_DEFAULT_KIND is retired — every new claim is a points claim.)
 //
 // The browser never sees the OAuth client secret: the exchange with Patreon's
 // API happens here, and Supabase itself injects SUPABASE_URL /
@@ -100,10 +110,11 @@ Deno.serve(async (req) => {
     return json({ ok: false, reason: "not_active", name, status });
   }
 
-  // 3 · which tier, then which kind of code ---------------------------------------
+  // 3 · which tier → WHICH POINTS value -------------------------------------------
   const tierIds: string[] = (membership?.relationships?.currently_entitled_tiers?.data || [])
     .map((t: any) => String(t?.id || ""))
     .filter(Boolean);
+  const entitledCents = Number(membership?.attributes?.currently_entitled_amount_cents) || 0;
 
   let tierMap: Record<string, any> = {};
   try {
@@ -118,12 +129,23 @@ Deno.serve(async (req) => {
       break;
     }
   }
-  const kind = mapped?.kind || Deno.env.get("PATREON_DEFAULT_KIND") || "membership";
-  const membershipType = mapped?.membership || null;
-  const duration = mapped?.duration || null;
-  const points = Number(mapped?.points) > 0 ? Number(mapped.points) : null;
 
-  // 4 · one code out of the stock, atomically --------------------------------------
+  // Patreon sells POINTS codes only on this site. Determinism, in order:
+  // explicit {"points":N} → pinned/mapped/legacy-plan money → what the patron pays.
+  const planCents: Record<string, number> = { Silver: 500, Gold: 1000, Diamond: 2000 };
+  let points = Number(mapped?.points) > 0 ? Number(mapped.points) : null;
+  let priceCents: number | null = null;
+  if (!points) {
+    if (Number(mapped?.price_cents) > 0) {
+      priceCents = Number(mapped.price_cents);
+    } else if (mapped?.kind === "membership" && planCents[mapped?.membership]) {
+      priceCents = planCents[mapped.membership]; // legacy tier maps keep working — as points now
+    } else if (entitledCents > 0) {
+      priceCents = entitledCents;
+    }
+  }
+
+  // 4 · one serial out of the stock, atomically ------------------------------------
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   try {
@@ -138,10 +160,9 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         p_user: userId,
         p_account: account || name || email,
-        p_kind: kind,
-        p_membership: membershipType,
-        p_duration: duration,
+        p_kind: "points",
         p_points: points,
+        p_price_cents: priceCents,
       }),
     });
     if (!resp.ok && (await resp.text()).includes("patreon_claim")) {

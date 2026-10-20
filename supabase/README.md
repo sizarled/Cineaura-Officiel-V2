@@ -17,21 +17,26 @@ confirmed again in
 So this page **cannot check a "Golden membership activation code · 6 months"
 shop listing purchase**, and never will — that endpoint simply does not exist.
 
-Sell codes in a way the API *can* verify:
+**What this site sells on Patreon: points codes — and nothing else.**
+Memberships are bought with points inside the dashboard (section 6), so every
+Patreon purchase is a POINTS code whose value equals the money paid: at the
+default withdrawal rate (100 points per 1 currency unit) a $5 tier delivers a
+500-point serial.
 
-- **Membership codes (Silver / Gold / Diamond, any duration) → sell as
-  Patreon tiers.** A paid tier shows up in `identity?include=memberships` as
-  `active_patron` with the entitled tier — exactly what `patreon-claim`
-  verifies. One tier can even serve a fixed-duration code: the buyer pays the
-  first charge, cancels whenever, and the claims journal below guarantees he
-  only ever receives the code once (re-subscribing never hands a second).
-- **Points serials and any truly one-time items → easiest honest path is the
-  product content itself.** Generate unique serials in SQL
-  (`point_codes_generate(20, 500, 'Patreon - 500 points')`) and paste each
-  serial into its own shop listing (one listing = one code, Patreon even
-  tracks limited quantity), or put the serials block in the product's
-  post-purchase description. The buyer reads the code right after buying and
-  redeems it on CineAura — no verification page needed for these.
+Sell them in a way the API *can* verify — **sell each points tier as a
+Patreon tier** (e.g. "500 points · $5", "1000 points · $10"): a paid tier
+shows up in `identity?include=memberships` as `active_patron` with the
+entitled tier and its `currently_entitled_amount_cents` — exactly what
+`patreon-claim` verifies, and that amount is what sizes the serial when the
+tier map doesn't pin one. The buyer pays the first charge, cancels whenever,
+and the claims journal below guarantees he only ever receives the code once
+(re-subscribing never hands a second — the same account always gets its own
+code back).
+
+Legacy tier maps that still say `{"kind":"membership","membership":"Gold"}`
+keep working on their own: the money price of the plan is translated into the
+equally many points (Silver 500 · Gold 1000 · Diamond 2000), and the stock
+touched is `point_codes` only.
 
 If later Patreon opens an Orders API, this same edge function grows it behind
 the door: the claims journal and the stock plumbing stay exactly as they are.
@@ -40,8 +45,10 @@ the door: the claims journal and the stock plumbing stay exactly as they are.
 
 Run `sql/patreon.sql` in the Supabase SQL editor **once** (idempotent).
 It creates the claims journal `patreon_claims`, the `reserved_by` /
-`reserved_at` columns on both code stocks, and the atomic `patreon_claim()`
-function. Only the edge function (service role) may run it.
+`reserved_at` columns on the points stock, and the atomic `patreon_claim()`
+function. Only the edge function (service role) may run it. New claims are
+always `kind = 'points'`; codes a patron claimed before the points-only
+switch keep coming back to him exactly as they were.
 
 ## 2 · Edge function
 
@@ -53,19 +60,26 @@ supabase secrets set \
   PATREON_CAMPAIGN_ID=<your campaign id, from the Patreon developer portal>
 ```
 
-Optional behavior knobs:
-
-- `PATREON_DEFAULT_KIND=points` — what a patron gets when his entitled tier is
-  not in the tier map (default: `membership`).
-- `PATREON_TIER_MAP` — a JSON string mapping tier ids → what they buy, e.g.
+Optional behavior knob — `PATREON_TIER_MAP`, a JSON string mapping tier ids →
+the value pinned to them:
 
 ```json
 {
-  "22123456": { "kind": "membership", "membership": "Gold", "duration": "1 month" },
-  "22123457": { "kind": "membership", "membership": "Diamond", "duration": "3 months" },
-  "22123458": { "kind": "points", "points": 500 }
+  "22123456": { "points": 500 },
+  "22123457": { "price_cents": 1000 },
+  "22123458": { "kind": "membership", "membership": "Gold" }
 }
 ```
+
+- `{"points": N}` pins the serial's value directly;
+- `{"price_cents": C}` pins the money — the delivered points follow the
+  ×rate equality;
+- a **legacy** membership entry keeps working, translated: Gold becomes a
+  1,000-point serial (the plan's money price in points).
+- Tiers missing from the map (or a map entirely absent) → the amount Patreon
+  reports the patron is entitled to (`currently_entitled_amount_cents`) sizes
+  the serial. Every new claim is a point claim; `PATREON_DEFAULT_KIND` is
+  retired.
 
 The tier id of each tier lives in the Patreon developer portal (Tiers section)
 or in the identity response under `included[]/type=tier`.
@@ -89,15 +103,22 @@ campaign — and nothing else.
 
 ## 4 · Filling the stock
 
-- Membership codes are the rows of `activation` (see `sql/activation.sql`) —
-  generate Silver/Gold/Diamond codes in the Panel / in SQL and the page starts
-  selling them immediately.
-- Points serials are the rows of `point_codes` (see `sql/point_codes.sql`) —
-  `select * from public.point_codes_generate(10, 500, 'Patreon - 500 points');`
-  produces ten 500-point serials, all instantly available to the page.
+Only points serials are handed out here — the rows of `point_codes` (see
+`sql/point_codes.sql`):
 
-When the stock of the kind runs out the buyer sees “sold out — contact
-support”, and `patreon_claims` tells you exactly who claimed which code.
+```sql
+select * from public.point_codes_generate(10, 500,  'Patreon - 500 points');
+select * from public.point_codes_generate(10, 1000, 'Patreon - 1000 points');
+select * from public.point_codes_generate(10, 2000, 'Patreon - 2000 points');
+```
+
+Keep the values matched to your Patreon tier prices (1 point = 1 cent at the
+default rate → a $5 tier wants 500-point serials in stock). The claim picks
+the exact value the tier settled on (`tier map points → tier map price_cents →
+currently_entitled_amount_cents`, converted by the same ×rate equality the
+dashboard shop uses) — with no numbers pinned, any available serial goes.
+When the stock runs out the buyer sees “sold out — contact support”, and
+`patreon_claims` tells you exactly who claimed which code.
 
 ## 5 · Security notes
 
@@ -107,10 +128,10 @@ support”, and `patreon_claims` tells you exactly who claimed which code.
   Patreon portal (Client settings → rotate), then `supabase secrets set` the
   new value — the page itself needs no change (it only ever uses the public
   client id).
-- Reservation is a separate `reserved_by` flag, so a delivered code stays a
-  perfectly normal code for the redemption systems (`account_code_redeem` and
-  `points_code_redeem`) — the buyer redeems it on CineAura exactly like any
-  other member.
+- Reservation is a separate `reserved_by` flag, so a delivered serial stays a
+  perfectly normal code for `points_code_redeem` — the buyer redeems it in
+  Dashboard → Points exactly like any other member, and the same section
+  sells memberships for the points he just got.
 
 # 6 · Memberships bought with POINTS (sql/membership_points.sql)
 

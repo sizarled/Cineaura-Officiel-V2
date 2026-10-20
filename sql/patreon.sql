@@ -1,15 +1,30 @@
--- Patreon → code delivery (codeactivation page)
--- Run in the Supabase SQL editor after activation.sql and point_codes.sql.
+-- Patreon → POINTS code delivery (codeactivation page)
+-- Run in the Supabase SQL editor after point_codes.sql.
 --
--- The page at codeactivation.html asks the visitor for his Patreon account and
--- sends him through Patreon's OAuth. The edge function (supabase/functions/
--- patreon-claim) confirms the membership of YOUR campaign with Patreon's API and
--- then calls the function below, which takes ONE unused code out of the stock —
--- activation (membership codes) or point_codes (points serials) — reserves it for
--- this Patreon identity and returns it. Every new visit of the same Patreon
--- account returns the SAME code again (nobody can farm the stock with OAuth
--- retries), and a code is reserved with the dedicated `reserved_by` column so the
--- redemption systems keep working with it exactly like any other code.
+-- The site sells ONE kind of thing on Patreon: points codes. The page at
+-- codeactivation.html asks the visitor for his Patreon account and walks him
+-- through Patreon's own OAuth; the edge function (supabase/functions/
+-- patreon-claim) confirms the paid purchase of YOUR campaign with Patreon's
+-- API and calls the function below, which takes ONE unused serial out of the
+-- point_codes stock, reserves it for this Patreon identity, and returns it.
+-- Every new visit of the same Patreon account returns the SAME code again
+-- (nobody can farm the stock with OAuth retries), and the serial is reserved
+-- with the dedicated `reserved_by` column so the redemption systems keep
+-- working with it exactly like any other code.
+--
+-- Value rule — the points equal the money: with the default withdrawal rate
+-- (100 points per 1 unit of the currency → 1 point = 1 cent) a $5 tier gives
+-- a 500-point serial. The delivered value comes from, in order:
+--   1. an explicit p_points (a tier map entry {"kind":"points","points":500});
+--   2. p_price_cents (tier map {"price_cents":500}, or the amount Patreon
+--      reports the patron is entitled to);
+--   3. any available serial, when nothing pins the value.
+-- A legacy p_kind='membership' request (old tier maps) is TRANSLATED to its
+-- money price in points (Silver $5 → 500, Gold $10 → 1000, Diamond $20 →
+-- 2000): the stock touched is point_codes only, forever. Memberships are
+-- bought with points inside the dashboard now (sql/membership_points.sql).
+--
+-- Safe to run more than once.
 
 -- ---------------------------------------------------------------- 1. the claims journal
 create table if not exists public.patreon_claims (
@@ -18,33 +33,33 @@ create table if not exists public.patreon_claims (
   account text not null default '',           -- what the visitor typed into the box
   kind text not null check (kind in ('membership', 'points')),
   code text not null unique,
-  payload jsonb not null default '{}'::jsonb, -- membership_type/duration or points
+  payload jsonb not null default '{}'::jsonb, -- points / price_cents (legacy rows: membership_type/duration)
   created_at timestamptz not null default now()
 );
-comment on table public.patreon_claims is 'Which Patreon identity received which code — one claim per identity, forever idempotent';
+comment on table public.patreon_claims is 'Which Patreon identity received which code — one claim per identity, forever idempotent. New claims are always points codes.';
 
 alter table public.patreon_claims enable row level security;
 -- the journal is private: only the edge function (service role) reads or writes it
 drop policy if exists "PatreonClaims read" on public.patreon_claims;
 drop policy if exists "PatreonClaims write" on public.patreon_claims;
 
--- ------------------------------------------------ 2. the reservation marker on the stocks
-alter table public.activation add column if not exists reserved_by text;
-alter table public.activation add column if not exists reserved_at timestamptz;
-comment on column public.activation.reserved_by is 'PATREON:<user id> when the code was handed out on the Patreon activation page (redemption still works normally)';
-
+-- ------------------------------------------------ 2. the reservation marker on the stock
 alter table public.point_codes add column if not exists reserved_by text;
 alter table public.point_codes add column if not exists reserved_at timestamptz;
 comment on column public.point_codes.reserved_by is 'PATREON:<user id> when the serial was handed out on the Patreon activation page (redemption still works normally)';
 
 -- ---------------------------------------------------------------- 3. the claim itself
+-- (the old 6-parameter shape is replaced by this one with p_price_cents)
+drop function if exists public.patreon_claim(text, text, text, text, text, integer);
+
 create or replace function public.patreon_claim(
   p_user text,
   p_account text,
-  p_kind text,
+  p_kind text default 'points',
   p_membership text default null,
   p_duration text default null,
-  p_points integer default null
+  p_points integer default null,
+  p_price_cents integer default null
 )
 returns jsonb
 language plpgsql
@@ -53,15 +68,15 @@ set search_path = public
 as $$
 declare
   v_existing record;
-  v_act record;
   v_pc record;
   v_payload jsonb;
+  v_cents int;
+  v_points int;
+  v_rate int := 100;
 begin
-  if p_kind not in ('membership', 'points') then
-    return jsonb_build_object('ok', false, 'reason', 'bad_kind');
-  end if;
-
-  -- The same Patreon identity always sees the same code.
+  -- The same Patreon identity always sees the same code — including codes
+  -- handed out before the points-only switch (legacy kind='membership' rows
+  -- come back untouched from here).
   select * into v_existing from public.patreon_claims where patreon_user_id = p_user for update;
   if found then
     return jsonb_build_object(
@@ -72,38 +87,30 @@ begin
     );
   end if;
 
+  -- Everything new is a points claim. A legacy membership request is worth
+  -- the plan's public money price, turned into points instead.
+  v_cents := p_price_cents;
   if p_kind = 'membership' then
-    -- One unused membership code nobody reserved, optionally pinned to a plan/duration.
-    select id, activation_code, membership_type, duration
-      into v_act
-      from public.activation
-     where used = false
-       and coalesce(reserved_by, '') = ''
-       and (member_id is null or member_id = '')
-       and (p_membership is null or membership_type = p_membership)
-       and (p_duration is null or lower(duration) = lower(p_duration))
-     order by id
-     limit 1
-     for update skip locked;
-
-    if not found then
-      return jsonb_build_object('ok', false, 'reason', 'sold_out');
-    end if;
-
-    update public.activation
-       set reserved_by = 'PATREON:' || p_user,
-           reserved_at = now()
-     where id = v_act.id;
-
-    v_payload := jsonb_build_object('membership_type', v_act.membership_type, 'duration', v_act.duration);
-
-    insert into public.patreon_claims (patreon_user_id, account, kind, code, payload)
-    values (p_user, coalesce(p_account, ''), 'membership', v_act.activation_code, v_payload);
-
-    return jsonb_build_object('ok', true, 'reused', false, 'kind', 'membership', 'code', v_act.activation_code, 'detail', v_payload);
+    v_cents := case p_membership
+                 when 'Silver' then 500
+                 when 'Gold' then 1000
+                 when 'Diamond' then 2000
+                 else null
+               end;
+    if v_cents is null then v_cents := p_price_cents; end if;
   end if;
 
-  -- points: one unused public serial nobody reserved and nobody pre-assigned.
+  v_points := p_points;
+  if v_points is null and v_cents is not null and v_cents > 0 then
+    -- the equality rule: points = price-in-dollars × rate (1 pt = 1 cent at 100)
+    if to_regclass('public.withdraw_settings') is not null then
+      select rate into v_rate from public.withdraw_settings where id = 1 limit 1;
+    end if;
+    v_rate := greatest(1, coalesce(v_rate, 100));
+    v_points := ceil(v_cents::numeric * v_rate / 100.0)::int;
+  end if;
+
+  -- One unused public serial nobody reserved and nobody pre-assigned.
   select code, points
     into v_pc
     from public.point_codes
@@ -113,13 +120,13 @@ begin
      and coalesce(member_id, '') = ''
      and coalesce(audience, 'public') = 'public'
      and (expires_at is null or expires_at > now())
-     and (p_points is null or points = p_points)
+     and (v_points is null or points = v_points)
    order by created_at
    limit 1
    for update skip locked;
 
   if not found then
-    return jsonb_build_object('ok', false, 'reason', 'sold_out');
+    return jsonb_build_object('ok', false, 'reason', 'sold_out', 'detail', jsonb_build_object('wanted_points', v_points));
   end if;
 
   update public.point_codes
@@ -128,6 +135,13 @@ begin
    where code = v_pc.code;
 
   v_payload := jsonb_build_object('points', v_pc.points);
+  if v_cents is not null then
+    v_payload := v_payload || jsonb_build_object('price_cents', v_cents);
+  end if;
+  if p_kind = 'membership' then
+    -- remember the request started as a membership (from an old tier map)
+    v_payload := v_payload || jsonb_build_object('from', 'membership', 'plan', coalesce(p_membership, ''));
+  end if;
 
   insert into public.patreon_claims (patreon_user_id, account, kind, code, payload)
   values (p_user, coalesce(p_account, ''), 'points', v_pc.code, v_payload);
@@ -136,5 +150,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.patreon_claim(text, text, text, text, text, integer) from public;
-grant execute on function public.patreon_claim(text, text, text, text, text, integer) to service_role;
+revoke execute on function public.patreon_claim(text, text, text, text, text, integer, integer) from public;
+grant execute on function public.patreon_claim(text, text, text, text, text, integer, integer) to service_role;
