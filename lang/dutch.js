@@ -4354,4 +4354,17 @@
  "ca.sqlMissing": "De leveringstabel ontbreekt aan onze kant (sql/patreon.sql). Neem alsjeblieft contact op met support.",
  "ca.netFail": "Een netwerkprobleem heeft de verificatie onderbroken. Controleer je verbinding en begin opnieuw.",
  "ca.again": "Opnieuw beginnen"
+,
+ "ptsShop.title": "Koop een lidmaatschap met punten",
+ "ptsShop.sub": "De punten evenaren de prijs: een plan kost evenveel punten als zijn dollarwaarde × de opnametarief van je site. Tik op kopen en het wordt meteen actief — loopt er al een plan, dan komen de maanden er bovenop.",
+ "ptsShop.term": "{m} maanden",
+ "ptsShop.price": "{n} punten",
+ "ptsShop.activeUntil": "Actief tot {d}",
+ "ptsShop.buy": "Kopen",
+ "ptsShop.extend": "Verlengen",
+ "ptsShop.bought": "{plan} is actief tot {d}.",
+ "ptsShop.boughtExt": "{plan} verlengd — nu actief tot {d}.",
+ "ptsShop.noPoints": "Niet genoeg punten: de prijs is {p} punten en je hebt er {a}.",
+ "ptsShop.missing": "De puntenwinkel voor lidmaatschappen is nog niet live — voer eerst sql/membership_points.sql uit.",
+ "ptsShop.fail": "De aankoop is deze keer mislukt. Probeer het zo opnieuw."
 };

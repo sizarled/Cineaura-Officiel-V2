@@ -4358,4 +4358,17 @@
  "ca.sqlMissing": "Falta la tabla de entrega por nuestra parte (sql/patreon.sql). Contacta con soporte, por favor.",
  "ca.netFail": "Un problema de red interrumpió la verificación. Revisa tu conexión y vuelve a empezar.",
  "ca.again": "Empezar otra vez"
+,
+ "ptsShop.title": "Compra una membresía con puntos",
+ "ptsShop.sub": "Los puntos igualan el precio: un plan cuesta tantos puntos como su valor en dólares × la tasa de retiro del sitio. Toca comprar y se activa al instante — un plan ya vigente apila los meses encima.",
+ "ptsShop.term": "{m} meses",
+ "ptsShop.price": "{n} puntos",
+ "ptsShop.activeUntil": "Activa hasta {d}",
+ "ptsShop.buy": "Comprar",
+ "ptsShop.extend": "Extender",
+ "ptsShop.bought": "{plan} está activa hasta {d}.",
+ "ptsShop.boughtExt": "{plan} alargada — ahora activa hasta {d}.",
+ "ptsShop.noPoints": "No te dan los puntos: el precio son {p} y tienes {a}.",
+ "ptsShop.missing": "La tienda de membresías con puntos aún no está en vivo — ejecuta primero sql/membership_points.sql.",
+ "ptsShop.fail": "La compra falló esta vez. Inténtalo de nuevo en un momento."
 };

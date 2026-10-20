@@ -3308,3 +3308,16 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
 .ca-ok-ic { color: #052e16; background: var(--green, #90cea1); }
 .ca-err-ic { color: #2d0606; background: #f87171; }
 .btn.is-ok { background: var(--green, #90cea1); border-color: transparent; color: #052e16; }
+
+/* ── Buy membership with points (Dashboard → Points) ── */
+.mp-cat { margin-top: 18px; }
+.mp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+.mp-plan { padding: 16px 14px 14px; border: 1px solid var(--line, #2b3570); border-radius: 14px; text-align: center; background: rgba(255,255,255,.03); display: grid; gap: 4px; align-content: start; }
+.mp-plan.is-active { border-color: var(--green, #90cea1); background: rgba(144,206,161,.06); }
+.mp-name { margin: 0; }
+.mp-dur { margin: 0; font-size: .85rem; color: var(--muted, #9aa3c7); }
+.mp-money { margin: 6px 0 0; font-size: .82rem; color: var(--muted, #9aa3c7); }
+.mp-price { margin: 0; font-weight: 800; color: var(--cyan, #38bdf8); }
+.mp-active { margin: 2px 0 6px; font-size: .78rem; color: var(--green, #90cea1); }
+.mp-plan .mp-buy { margin-top: 8px; }
+.mp-missing { margin-top: 14px; }

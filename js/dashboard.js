@@ -3404,12 +3404,81 @@
           <a class="btn btn-lg btn-ghost pts-act" id="pt-shop" href="./Market.html">${ptIcon("shop")}<span><b>${t("points.shopBtn")}</b><small>${t("points.shopSub")}</small></span></a>
         </div>
       </div>
-      <div id="pt-body"><p class="muted">${t("points.loading")}</p></div>`;
+      <div id="pt-body"><p class="muted">${t("points.loading")}</p></div>
+      <div id="mp-shop"></div>`;
     C.siteLink("patreon_points").then((url) => {
       main.querySelectorAll("#pt-buy").forEach((a) => { a.href = url; });
     });
     main.querySelector("#pt-earn").onclick = () => openEarnPoints(main);
     await drawPointsBody(main);
+    loadMembershipShop(main);
+  }
+
+  /* ── Buy a membership with POINTS (sql/membership_points.sql). The points
+     price simply equals the money price × the withdrawal rate — tap a plan,
+     the same locked transaction as the prizes spends the points, the exact
+     helper of the activation codes hands over the months (a plan still
+     running stacks), and the expiry shows up at once. ── */
+  async function loadMembershipShop(main) {
+    const slot = main.querySelector("#mp-shop");
+    if (!slot) return;
+    const me = state.member.member_id;
+    let cat = null;
+    try {
+      const res = await C.rpc("membership_points_catalog", { p_member: me });
+      if (res.ok) cat = res.data;
+    } catch { /* the rpc did not ship yet */ }
+    if (!main.isConnected || state.section !== "points") return;
+    if (!cat || !cat.ok) {
+      slot.innerHTML = `<p class="mp-missing muted">${t("ptsShop.missing")}</p>`;
+      return;
+    }
+    slot.innerHTML = `
+      <section class="pt-box mp-cat" aria-label="${escapeHtml(t("ptsShop.title"))}">
+        <div class="pt-head"><span>${escapeHtml(t("ptsShop.title"))}</span></div>
+        <p class="muted pts-sub">${escapeHtml(t("ptsShop.sub"))}</p>
+        <div class="mp-grid" id="mp-grid"></div>
+      </section>`;
+    const grid = slot.querySelector("#mp-grid");
+    const drawPlan = (p) => {
+      const plan = p.plan;
+      const price = Number(p.price_points || 0);
+      const same = cat.membership?.type === plan && cat.membership?.active;
+      const money = `$${Number(p.price_usd_cents || 0) / 100}`;
+      const canAfford = Number(cat.available || 0) >= price;
+      return `
+        <div class="mp-plan ${same ? "is-active" : ""}">
+          <h3 class="mp-name">${escapeHtml(t(`membership.${plan.toLowerCase()}`) === `membership.${plan.toLowerCase()}` ? plan : t(`membership.${plan.toLowerCase()}`))}</h3>
+          <p class="mp-dur">${escapeHtml(t("ptsShop.term", { m: p.months }))}</p>
+          <p class="mp-money">${escapeHtml(money)}</p>
+          <p class="mp-price">${escapeHtml(t("ptsShop.price", { n: price }))}</p>
+          ${cat.membership?.active && same
+            ? `<p class="mp-active">${escapeHtml(t("ptsShop.activeUntil", { d: String(cat.membership.expires_at || "").slice(0, 10) }))}</p>`
+            : ""}
+          <button class="btn btn-sm ${canAfford ? "btn-primary" : "btn-ghost"} mp-buy" data-plan="${plan}" type="button" ${canAfford ? "" : "disabled"}>${escapeHtml(t(same ? "ptsShop.extend" : "ptsShop.buy"))}</button>
+        </div>`;
+    };
+    grid.innerHTML = (cat.plans || []).map(drawPlan).join("");
+    grid.querySelectorAll(".mp-buy").forEach((btn) => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        let out = null;
+        try {
+          const res = await C.rpc("membership_buy_with_points", { p_member: me, p_plan: btn.dataset.plan });
+          if (res.ok) out = res.data;
+        } catch { out = null; }
+        btn.disabled = false;
+        if (out?.ok) {
+          toast(t(out.extended ? "ptsShop.boughtExt" : "ptsShop.bought", { plan: btn.dataset.plan, d: String(out.expires_at || "").slice(0, 10) }));
+          drawPointsBody(main);
+          loadMembershipShop(main);
+          return;
+        }
+        if (out?.reason === "no_points") toast(t("ptsShop.noPoints", { p: Number(out.price || 0), a: Number(out.available || 0) }));
+        else if (out?.reason === "setup") toast(t("ptsShop.missing"));
+        else toast(t("ptsShop.fail"));
+      };
+    });
   }
 
   async function drawPointsBody(main) {

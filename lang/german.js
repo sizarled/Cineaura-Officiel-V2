@@ -4355,4 +4355,17 @@
  "ca.sqlMissing": "Die Liefer-Tabelle fehlt auf unserer Seite (sql/patreon.sql). Bitte kontaktiere den Support.",
  "ca.netFail": "Ein Netzwerkproblem hat die Prüfung unterbrochen. Prüfe deine Verbindung und starte erneut.",
  "ca.again": "Erneut starten"
+,
+ "ptsShop.title": "Mitgliedschaft mit Punkten kaufen",
+ "ptsShop.sub": "Die Punkte entsprechen dem Preis: Ein Plan kostet so viele Punkte wie sein Dollarwert × dein Auszahlungskurs. Tippe Kaufen und er aktiviert sofort — laufen Pläne bereits, kommen die Monate oben drauf.",
+ "ptsShop.term": "{m} Monate",
+ "ptsShop.price": "{n} Punkte",
+ "ptsShop.activeUntil": "Aktiv bis {d}",
+ "ptsShop.buy": "Kaufen",
+ "ptsShop.extend": "Verlängern",
+ "ptsShop.bought": "{plan} ist aktiv bis {d}.",
+ "ptsShop.boughtExt": "{plan} verlängert — jetzt aktiv bis {d}.",
+ "ptsShop.noPoints": "Nicht genug Punkte: Der Preis liegt bei {p} Punkten, du hast {a}.",
+ "ptsShop.missing": "Der Punkte-Shop für Mitgliedschaften ist noch nicht live — führe zuerst sql/membership_points.sql aus.",
+ "ptsShop.fail": "Der Kauf ist diesmal fehlgeschlagen. Versuche es gleich erneut."
 };

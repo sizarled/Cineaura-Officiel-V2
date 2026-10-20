@@ -4353,4 +4353,17 @@
  "ca.sqlMissing": "La table de livraison manque de notre côté (sql/patreon.sql). Contactez l’assistance.",
  "ca.netFail": "Un problème réseau a interrompu la vérification. Vérifiez votre connexion et recommencez.",
  "ca.again": "Recommencer"
+,
+ "ptsShop.title": "Acheter une adhésion avec des points",
+ "ptsShop.sub": "Les points valent le prix : un plan coûte autant de points que sa valeur en dollars × le taux de retrait du site. Touchez acheter et il s’active aussitôt — un plan déjà en cours gagne les mois en plus.",
+ "ptsShop.term": "{m} mois",
+ "ptsShop.price": "{n} points",
+ "ptsShop.activeUntil": "Active jusqu’au {d}",
+ "ptsShop.buy": "Acheter",
+ "ptsShop.extend": "Prolonger",
+ "ptsShop.bought": "{plan} est active jusqu’au {d}.",
+ "ptsShop.boughtExt": "{plan} prolongée — désormais active jusqu’au {d}.",
+ "ptsShop.noPoints": "Pas assez de points : le prix est de {p} points et vous en avez {a}.",
+ "ptsShop.missing": "La boutique d’adhésions par points n’est pas encore active — lancez d’abord sql/membership_points.sql.",
+ "ptsShop.fail": "L’achat a échoué cette fois. Réessayez dans un instant."
 };

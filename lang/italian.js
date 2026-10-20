@@ -4356,4 +4356,17 @@
  "ca.sqlMissing": "La tabella di consegna manca dalla nostra parte (sql/patreon.sql). Contatta l’assistenza.",
  "ca.netFail": "Un problema di rete ha interrotto la verifica. Controlla la connessione e ricomincia.",
  "ca.again": "Ricomincia"
+,
+ "ptsShop.title": "Compra un abbonamento con i punti",
+ "ptsShop.sub": "I punti equivalgono al prezzo: un piano costa tanti punti quanto il suo valore in dollari × il tasso di prelievo del sito. Tocca compra e si attiva subito — un piano già attivo ottiene i mesi in più.",
+ "ptsShop.term": "{m} mesi",
+ "ptsShop.price": "{n} punti",
+ "ptsShop.activeUntil": "Attivo fino al {d}",
+ "ptsShop.buy": "Compra",
+ "ptsShop.extend": "Prolunga",
+ "ptsShop.bought": "{plan} è attivo fino al {d}.",
+ "ptsShop.boughtExt": "{plan} prolungato — ora attivo fino al {d}.",
+ "ptsShop.noPoints": "Punti insufficienti: il prezzo è {p} punti e tu ne hai {a}.",
+ "ptsShop.missing": "Il negozio di abbonamenti a punti non è ancora attivo — esegui prima sql/membership_points.sql.",
+ "ptsShop.fail": "L’acquisto è fallito questa volta. Riprova fra un attimo."
 };
