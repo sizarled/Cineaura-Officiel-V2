@@ -59,7 +59,7 @@
       else if ((m = path.match(/^\/(?:embed|shorts|live|v)\/([\w-]{11})/))) id = m[1];
       else id = u.searchParams.get("v") || "";
       if (/^[\w-]{11}$/.test(id)) {
-        return { ...base, provider: "youtube", id, start: parseStart(u.searchParams.get("t") || u.searchParams.get("start")) };
+        return { ...base, provider: "youtube", id, start: parseStart(u.searchParams.get("t") || u.searchParams.get("start")), shorts: /^\/shorts\//.test(path) };
       }
     }
     if (/(^|\.)vimeo\.com$/.test(host)) {

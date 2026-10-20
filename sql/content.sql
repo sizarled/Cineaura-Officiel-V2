@@ -484,7 +484,8 @@ create or replace function public._content_card(c public.content, p_reason text)
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'id', c.content_id, 'title', c.title, 'description', left(c.description, 280),
-    'thumb', c.thumb_url, 'provider', c.provider, 'tags', to_jsonb(c.tags), 'language', c.language,
+    'thumb', c.thumb_url, 'provider', c.provider, 'portrait', coalesce(c.portrait, false),
+    'tags', to_jsonb(c.tags), 'language', c.language,
     'age', c.age_rating, 'visibility', c.visibility, 'country', c.country,
     'publish_at', c.publish_at, 'created_at', c.created_at,
     'views', c.views, 'likes', c.likes, 'dislikes', c.dislikes, 'comments', c.comments, 'minutes', c.watch_minutes,
@@ -584,6 +585,7 @@ create or replace function public.content_create(p_member text, d jsonb) returns
 language plpgsql security definer set search_path = public as $$
 declare
   m public.members; cid text; url text; title text; descr text; vis text; age int; lang text; prov text; thumb text;
+  is_portrait boolean;
   tags text[]; people text[]; cty text; pub timestamptz; pid text; pname text; recent int; i int := 0; u text;
 begin
   m := public._content_viewer(p_member);
@@ -608,6 +610,8 @@ begin
   if prov not in ('youtube', 'vimeo', 'dailymotion', 'facebook', 'drive', 'tiktok', 'file', 'hls', 'link') then prov := 'link'; end if;
   thumb := btrim(coalesce(d->>'thumb', ''));
   if thumb <> '' and (thumb !~* '^https://[^/?#[:space:]]+' or length(thumb) > 1000 or thumb ~ '[[:space:]<>"`]') then thumb := ''; end if;
+  -- a portrait (vertical) video: ticked by the publisher, or a Shorts / TikTok link
+  is_portrait := coalesce((d->>'portrait')::boolean, false) or prov = 'tiktok' or lower(url) like '%/shorts/%';
   -- tags: lower case, no "#", 1 to 30 characters, 12 at most
   select coalesce(array_agg(t order by n), '{}') into tags from (
     select distinct on (t) t, n from (
@@ -662,12 +666,12 @@ begin
   end loop;
   insert into public.content (content_id, owner_id, owner_username, video_url, provider, thumb_url, title, description,
                               tags, language, age_rating, visibility, excl_followers, excl_premium, excl_countries,
-                              country, playlist_id, publish_at)
+                              country, playlist_id, publish_at, portrait)
   values (cid, m.member_id, m.username, url, prov, thumb, title, descr, tags, lang, age, vis,
           vis = 'exclusive' and coalesce((d->>'followers')::boolean, false),
           vis = 'exclusive' and coalesce((d->>'premium')::boolean, false),
           case when vis = 'exclusive' then cty else '' end,
-          upper(coalesce(m.country, '')), pid, pub);
+          upper(coalesce(m.country, '')), pid, pub, is_portrait);
   if vis = 'private' then
     foreach u in array people loop
       insert into public.content_access (content_id, username) values (cid, u) on conflict do nothing;

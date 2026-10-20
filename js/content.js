@@ -56,6 +56,10 @@
     ext: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>',
+    play: '<path d="M7 4.5L19 12L7 19.5V4.5Z"/>',
+    chev_up: '<path d="M6 15l6-6 6 6"/>',
+    chev_down: '<path d="M6 9l6 6 6-6"/>',
   };
   const icon = (k, size = 18) =>
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON[k]}</svg>`;
@@ -495,6 +499,8 @@
     document.title = `${c.title} — CineAura`;
     state.info = c.url ? V.parseVideo(c.url) : null;
     const needCode = gated();
+    // a portrait (vertical) video stands centered on the page, 9:16 (sql/content_portrait.sql)
+    $("#vw-main")?.classList.toggle("vw-portrait", Boolean(c.portrait));
     const href = V.contentHref(c.id);
     const chips = [
       Number(c.age) > 3 ? chip(V.ageLabel(c.age), "is-age") : "",
@@ -774,7 +780,10 @@
   ];
   const TOP_LIMIT = 50;
   const OFFERS_AFTER = 12; // the offers row comes after this many videos
-  const hub = { key: "minutes", cache: {}, seq: 0 };
+  const hub = { key: "minutes", cache: {}, seq: 0, scope: "site", ytKey: null };
+  // the vertical (portrait) viewer: TikTok-style stage over the portrait videos,
+  // the "watch once" toggle on: at the end of a video the next one takes over
+  const vsh = { items: [], i: 0, once: false, seq: 0, listening: false, hls: null };
 
   function statHtml(key, item) {
     if (key === "likes") return `${icon("up", 14)}<span>${esc(t("vid.hub.statLikes", { n: V.fmtCount(item.likes) }))}</span>`;
@@ -796,7 +805,77 @@
       <span class="eyebrow">${esc(t("nav.videos"))}</span>
       <h1>${esc(t("vid.hub.title"))}</h1>
       <p class="muted">${esc(t("vid.hub.lead"))}</p>`;
-    if (form) hero.appendChild(form);
+    // Where the box looks: on the site (it opens Search.html), or on YouTube — those
+    // results show under the hero and each one plays here, no redirect.
+    if (form) {
+      const scope = document.createElement("div");
+      scope.className = "follow-tabs vh-scope";
+      scope.setAttribute("role", "tablist");
+      scope.innerHTML = `
+        <button type="button" role="tab" class="follow-tab active" data-scope="site" aria-selected="true">${icon("ext", 15)}<span>${esc(t("vid.scope.site"))}</span></button>
+        <button type="button" role="tab" class="follow-tab" data-scope="yt" aria-selected="false" tabindex="-1">${icon("play", 15)}<span>${esc(t("vid.scope.youtube"))}</span></button>`;
+      scope.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-scope]");
+        if (!b || b.dataset.scope === hub.scope) return;
+        hub.scope = b.dataset.scope;
+        scope.querySelectorAll("[data-scope]").forEach((x) => {
+          const on = x.dataset.scope === hub.scope;
+          x.classList.toggle("active", on);
+          x.setAttribute("aria-selected", String(on));
+          x.tabIndex = on ? 0 : -1;
+        });
+        $("#vw-q")?.focus();
+      });
+      hero.appendChild(scope);
+      hero.appendChild(form);
+      form.addEventListener("submit", (e) => {
+        if (hub.scope !== "yt") return;
+        e.preventDefault();
+        ytSearch(form.querySelector("#vw-q")?.value || "");
+      });
+    }
+    // YouTube results (a YouTube search of the box goes through the edge function
+    // supabase/functions/youtube-search — it holds the API key)
+    const yt = document.createElement("section");
+    yt.className = "vh-yt";
+    yt.id = "vh-yt";
+    yt.hidden = true;
+    yt.innerHTML = `
+      <div class="vh-top-head">
+        <h2 id="vh-yt-h"></h2>
+        <button class="btn btn-sm btn-ghost vh-yt-close" type="button" id="vh-yt-close">${icon("close", 15)}<span>${esc(t("vid.yt.close"))}</span></button>
+      </div>
+      <ol class="vgrid vh-yt-grid" id="vh-yt-grid" aria-labelledby="vh-yt-h"></ol>`;
+    yt.querySelector("#vh-yt-close").addEventListener("click", () => {
+      yt.hidden = true;
+    });
+    // the portrait videos: a centered 9:16 stage with the up/down flip buttons
+    const shorts = document.createElement("section");
+    shorts.className = "vsh";
+    shorts.id = "vsh";
+    shorts.hidden = true;
+    shorts.innerHTML = `
+      <div class="vh-top-head vsh-head">
+        <h2 id="vsh-h">${esc(t("vid.shorts.title"))}</h2>
+        <label class="vsh-once" for="vsh-once">
+          <input type="checkbox" id="vsh-once" />
+          <span>${esc(t("vid.shorts.once"))}</span>
+        </label>
+      </div>
+      <div class="vsh-row">
+        <button class="vsh-nav" type="button" id="vsh-up" disabled aria-label="${esc(t("vid.shorts.prev"))}">${icon("chev_up", 22)}</button>
+        <div class="vsh-stage">
+          <div class="vsh-frame" id="vsh-frame" aria-live="polite"></div>
+          <div class="vsh-info">
+            <h3 class="vsh-title" id="vsh-title"></h3>
+            <div class="vsh-bar">
+              <span class="vsh-count" id="vsh-count" dir="ltr"></span>
+              <a class="vsh-open" id="vsh-open" href="./Content.html">${icon("ext", 14)}<span>${esc(t("vid.shorts.open"))}</span></a>
+            </div>
+          </div>
+        </div>
+        <button class="vsh-nav" type="button" id="vsh-down" aria-label="${esc(t("vid.shorts.next"))}">${icon("chev_down", 22)}</button>
+      </div>`;
     const top = document.createElement("section");
     top.className = "vh-top";
     top.setAttribute("aria-labelledby", "vh-top-h");
@@ -809,7 +888,8 @@
       </div>
       <p class="muted vh-note" id="vh-note"></p>
       <ol class="vgrid vh-grid" id="vh-grid" role="tabpanel" aria-live="polite"></ol>`;
-    layout?.replaceWith(hero, top);
+    layout?.replaceWith(hero, yt, shorts, top);
+    loadShorts();
     const tabs = top.querySelector(".vh-tabs");
     tabs.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-top]");
@@ -869,7 +949,8 @@
 
   function drawTop(key) {
     const grid = $("#vh-grid");
-    const items = hub.cache[key] || [];
+    // landscape videos only — the portrait ones live in the vertical viewer above
+    const items = (hub.cache[key] || []).filter((x) => !x.portrait);
     if (!items.length) {
       grid.innerHTML = `<li class="glass vs-none vh-none">
           <p><b>${esc(t("vid.hub.none"))}</b></p>
@@ -884,6 +965,280 @@
     grid.innerHTML = cards.join("");
     V.observeCards(grid);
     window.CineAuraOffers?.mount($("#vh-offers"), { limit: 5, layout: "row" });
+  }
+
+  // ---------------------------------------------------------------- YouTube search (the scope chip)
+  // The box asked for YouTube: results from the edge function, each one watchable
+  // right here (an embedded YouTube player — the viewer never leaves the page).
+  async function ytSearch(qRaw) {
+    const q = String(qRaw || "").trim().slice(0, 120);
+    const panel = $("#vh-yt");
+    const grid = $("#vh-yt-grid");
+    const head = $("#vh-yt-h");
+    if (!panel || !grid || !head) return;
+    if (!q) {
+      $("#vw-q")?.focus();
+      return;
+    }
+    panel.hidden = false;
+    head.textContent = t("vid.yt.title", { q });
+    grid.setAttribute("aria-busy", "true");
+    grid.innerHTML = `<li class="vh-wait"><div class="loader" style="display:grid"><div class="spinner"></div></div></li>`;
+    let out = null;
+    try {
+      const res = await fetch(`${C.SUPABASE_URL}/functions/v1/youtube-search`, {
+        method: "POST",
+        headers: {
+          apikey: C.SUPABASE_KEY,
+          Authorization: `Bearer ${C.SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ q, limit: 18 }),
+      });
+      out = await res.json();
+    } catch {
+      out = null;
+    }
+    grid.removeAttribute("aria-busy");
+    if (!out || typeof out !== "object") {
+      grid.innerHTML = `<li class="glass vs-none"><p>${esc(t("vid.yt.upstream"))}</p></li>`;
+      return;
+    }
+    if (out.ok !== true) {
+      const key = out.reason === "not_configured" ? "vid.yt.noKey"
+        : out.reason === "quota" ? "vid.yt.quota"
+        : out.reason === "missing" ? "vid.yt.none" : "vid.yt.upstream";
+      grid.innerHTML = `<li class="glass vs-none"><p>${esc(t(key, { q }))}</p></li>`;
+      return;
+    }
+    const items = Array.isArray(out.items) ? out.items : [];
+    if (!items.length) {
+      grid.innerHTML = `<li class="glass vs-none"><p>${esc(t("vid.yt.none", { q }))}</p></li>`;
+      return;
+    }
+    head.textContent = t("vid.yt.count", { n: items.length, q });
+    grid.innerHTML = items
+      .map(
+        (x) => `<li class="vh-item">
+        <button class="vcard vhy-card" type="button" data-ytid="${esc(x.id)}" data-yttitle="${esc(x.title || "")}">
+          <span class="vthumb">
+            ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" />` : `<span class="vthumb-ph" aria-hidden="true">▶</span>`}
+            <span class="vthumb-play" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5L13 8L4 13.5V2.5Z"/></svg></span>
+          </span>
+          <span class="vcard-body">
+            <b class="vcard-title">${esc(x.title || "")}</b>
+            <span class="vcard-meta"><bdi>${esc(x.channel || "YouTube")}</bdi>${x.at ? ` · ${esc(V.timeAgo(x.at))}` : ""}</span>
+          </span>
+        </button>
+      </li>`,
+      )
+      .join("");
+    grid.querySelectorAll("[data-ytid]").forEach((b) =>
+      b.addEventListener("click", () => openYtModal(b.dataset.ytid, b.dataset.yttitle)),
+    );
+  }
+
+  function closeYtModal() {
+    if (hub.ytKey) document.removeEventListener("keydown", hub.ytKey, true);
+    hub.ytKey = null;
+    $("#vhy-modal")?.remove();
+  }
+
+  function openYtModal(id, title) {
+    if (!/^[A-Za-z0-9_-]{11}$/.test(String(id || ""))) return;
+    closeYtModal();
+    const box = document.createElement("div");
+    box.className = "vhy-modal";
+    box.id = "vhy-modal";
+    box.innerHTML = `<div class="vhy-backdrop" data-ytclose></div>
+      <div class="glass vhy-box" role="dialog" aria-modal="true" aria-label="${esc(title || "YouTube")}">
+        <button class="btn btn-sm btn-ghost vhy-close" type="button" data-ytclose aria-label="${esc(t("vid.yt.close"))}">${icon("close", 15)}</button>
+        <iframe class="vhy-frame" src="https://www.youtube-nocookie.com/embed/${esc(id)}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
+            title="${esc(title || "")}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        ${title ? `<p class="vhy-title">${esc(title)}</p>` : ""}
+      </div>`;
+    box.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ytclose]")) closeYtModal();
+    });
+    hub.ytKey = (e) => {
+      if (e.key === "Escape") closeYtModal();
+    };
+    document.addEventListener("keydown", hub.ytKey, true);
+    document.body.appendChild(box);
+  }
+
+  // ---------------------------------------------------------------- the vertical (portrait) viewer
+  // Centered 9:16 stage over the portrait videos of the hub, the ▲/▼ buttons flip
+  // between them; "watch once" on: at the end the next video takes over, off: the
+  // same video starts again (TikTok style). The link of the *shown* video comes
+  // with content_get only, so a 13+ video never leaks its link here — its gate
+  // sends the viewer to the video's page and its watch code.
+  async function loadShorts() {
+    const box = $("#vsh");
+    if (!box) return;
+    const res = await V.call("content_search", { p_member: V.memberId(), p_sort: "minutes", p_limit: TOP_LIMIT });
+    if (!res.ok) return; // the grid below carries the error; the stage simply stays away
+    vsh.items = (Array.isArray(res.data?.items) ? res.data.items : []).filter((x) => x.portrait && !x.locked && !x.suspended);
+    if (!vsh.items.length) return;
+    box.hidden = false;
+    box.querySelector("#vsh-once").addEventListener("change", (e) => {
+      vsh.once = Boolean(e.target.checked);
+    });
+    box.querySelector("#vsh-up").addEventListener("click", () => goShort(-1));
+    box.querySelector("#vsh-down").addEventListener("click", () => goShort(1));
+    showShort(0);
+  }
+
+  function goShort(d) {
+    if (!vsh.items.length) return;
+    if (d < 0) showShort(Math.max(0, vsh.i - 1));
+    else showShort((vsh.i + 1) % vsh.items.length); // down flips around in a circle
+  }
+
+  function shortGateHtml(it) {
+    return `${posterHtml(it)}
+      <div class="vw-gate" role="note">
+        <span class="vw-gate-ico">${icon("lock", 26)}</span>
+        <h2>${esc(t("vid.lockTitle.age", { n: Number(it.age) || 13 }))}</h2>
+        <p>${esc(t("vid.shorts.lockedText"))}</p>
+        <div class="vw-gate-actions"><a class="btn btn-lg btn-primary" href="${V.contentHref(it.id)}">${esc(t("vid.shorts.open"))}</a></div>
+      </div>`;
+  }
+
+  // YouTube's end event (0), only from the stage's own iframe — the YouTube modal
+  // is another iframe on this page and must not flip the stage.
+  function vshListenYouTube(frame) {
+    const ping = () => {
+      try {
+        frame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+      } catch {
+        /* not ready yet */
+      }
+    };
+    frame.addEventListener("load", () => {
+      ping();
+      setTimeout(ping, 800);
+      setTimeout(ping, 2500);
+    });
+    if (vsh.listening) return;
+    vsh.listening = true;
+    window.addEventListener("message", (e) => {
+      let host = "";
+      try {
+        host = new URL(e.origin).hostname;
+      } catch {
+        return;
+      }
+      if (!/(^|\.)youtube(-nocookie)?\.com$/.test(host)) return;
+      const f = $("#vsh-frame iframe");
+      if (!f || e.source !== f.contentWindow) return;
+      let data = e.data;
+      try {
+        if (typeof data === "string") data = JSON.parse(data);
+      } catch {
+        return;
+      }
+      const st = data?.event === "onStateChange" ? data.info : data?.info?.playerState;
+      if (st === 0) shortEnded();
+    });
+  }
+
+  // A video ended: "watch once" sends the stage to the next vertical video (or to
+  // the end note after the last one); otherwise it simply starts again.
+  function shortEnded() {
+    if (vsh.once) {
+      if (vsh.i < vsh.items.length - 1) return goShort(1);
+      const frame = $("#vsh-frame");
+      if (frame) {
+        frame.innerHTML = `<div class="vsh-end" role="status">
+          <p>${esc(t("vid.shorts.end"))}</p>
+          <button class="btn btn-sm btn-ghost" type="button" data-vsh-restart>${esc(t("vid.shorts.restart"))}</button>
+        </div>`;
+        frame.querySelector("[data-vsh-restart]")?.addEventListener("click", () => showShort(0));
+      }
+      return;
+    }
+    const v = $("#vsh-frame video");
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+      return;
+    }
+    const f = $("#vsh-frame iframe");
+    if (f) {
+      try {
+        f.contentWindow.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [0, true] }), "*");
+        f.contentWindow.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+      } catch {
+        /* the player ignores the stage safely */
+      }
+    }
+  }
+
+  async function showShort(i) {
+    if (!vsh.items.length) return;
+    vsh.i = Math.max(0, Math.min(i, vsh.items.length - 1));
+    const it = vsh.items[vsh.i];
+    const frame = $("#vsh-frame");
+    if (!frame) return;
+    const tag = (vsh.seq += 1);
+    const title = $("#vsh-title");
+    if (title) title.textContent = it.title || "";
+    const count = $("#vsh-count");
+    if (count) count.textContent = t("vid.shorts.counter", { i: vsh.i + 1, n: vsh.items.length });
+    const open = $("#vsh-open");
+    if (open) open.href = V.contentHref(it.id);
+    const up = $("#vsh-up");
+    if (up) up.disabled = vsh.i === 0;
+    frame.setAttribute("aria-busy", "true");
+    frame.innerHTML = `<div class="loader vsh-wait" style="display:grid"><div class="spinner"></div></div>`;
+    if (it._try === undefined) {
+      const g = await V.call("content_get", { p_id: it.id, p_member: V.memberId() });
+      it._try = true;
+      it._url = g.ok && g.data?.ok ? String(g.data.content?.url || "") : "";
+      if (it._url) it._info = V.parseVideo(it._url);
+    }
+    if (tag !== vsh.seq) return; // the stage moved on while the link arrived
+    frame.removeAttribute("aria-busy");
+    if (!it._url || !it._info) {
+      frame.innerHTML = shortGateHtml(it);
+      return;
+    }
+    const info = it._info;
+    if (info.provider === "file" || info.provider === "hls") {
+      frame.innerHTML = `<video class="vsh-el" controls playsinline preload="metadata" muted ${it.thumb ? `poster="${esc(it.thumb)}"` : ""}></video>`;
+      const video = frame.querySelector("video");
+      video.addEventListener("ended", shortEnded);
+      if (info.provider === "hls" && !video.canPlayType("application/vnd.apple.mpegurl")) {
+        try {
+          const Hls = await loadHls();
+          if (tag !== vsh.seq) return;
+          if (Hls.isSupported()) {
+            vsh.hls?.destroy();
+            vsh.hls = new Hls({ enableWorker: true });
+            vsh.hls.loadSource(info.url);
+            vsh.hls.attachMedia(video);
+          } else {
+            video.src = info.url;
+          }
+        } catch {
+          video.src = info.url;
+        }
+      } else {
+        video.src = info.url;
+      }
+      video.play().catch(() => {});
+    } else {
+      let src = V.embedSrc(info, { autoplay: true }) || "";
+      // the vertical stage starts muted — autoplay with sound needs a tap anyway
+      if (info.provider === "youtube" && !/[?&]mute=/.test(src)) src += "&mute=1";
+      frame.innerHTML = `<iframe class="vsh-el" src="${esc(src)}" title="${esc(it.title || "")}"
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture; clipboard-write; web-share"
+          allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+      const f = frame.querySelector("iframe");
+      if (info.provider === "youtube") vshListenYouTube(f);
+    }
   }
 
   async function boot() {

@@ -82,6 +82,7 @@
       playlistName: "",
       when: "now",
       later: "",
+      portrait: false,
     };
   }
 
@@ -183,6 +184,10 @@
               <input id="vc-thumb" type="url" inputmode="url" maxlength="1000" dir="ltr" placeholder="https://…/picture.jpg" value="${esc(d.thumb)}" />
               <p class="vs-hint">${esc(t("vid.f.thumbHint"))}</p>
             </div>
+            <!-- A vertical video is shown centered on Content.html with the up/down
+                 flip buttons; a Shorts or TikTok link checks this automatically. -->
+            <label class="lang-chip" for="vc-portrait"><input type="checkbox" id="vc-portrait" ${d.portrait ? "checked" : ""} /> ${esc(t("vid.f.portrait"))}</label>
+            <p class="vs-hint">${esc(t("vid.f.portraitHint"))}</p>
 
             <label class="field-label" for="vc-title">${esc(t("vid.f.title"))}</label>
             <input id="vc-title" maxlength="150" value="${esc(d.title)}" placeholder="${esc(t("vid.f.titlePh"))}" />
@@ -291,6 +296,7 @@
     d.people = val("#vc-people");
     d.when = pane.querySelector('input[name="vc-when"]:checked')?.value || "now";
     d.later = val("#vc-later");
+    d.portrait = Boolean(pane.querySelector("#vc-portrait")?.checked);
     return d;
   }
 
@@ -328,6 +334,11 @@
       } else {
         hint.textContent = t("vid.f.urlOk", { provider: V.provLabel(v.provider) });
         hint.classList.add("is-ok");
+        // a Shorts / TikTok link is a vertical video by definition
+        if (v.provider === "tiktok" || v.shorts) {
+          const cb = $("#vc-portrait");
+          if (cb) cb.checked = true;
+        }
       }
       $("#vc-thumb-wrap").hidden = !ownThumbAllowed(v);
       preview();
@@ -682,6 +693,7 @@
     const body = {
       url: v.url,
       provider: v.provider,
+      portrait: Boolean(d.portrait),
       thumb,
       title: d.title.trim(),
       description: d.description.trim(),
