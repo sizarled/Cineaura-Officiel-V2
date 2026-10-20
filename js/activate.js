@@ -111,6 +111,13 @@
     return p && Number(p.price_points) > 0 ? Number(p.price_points) : null;
   }
 
+  // The money price the Panel set (Panel > Plans → sql/plans.sql); the hard
+  // price in PLANS only lasts until the catalog answers.
+  function moneyPrice(plan, fallback) {
+    const p = state.mpcat?.plans?.find((x) => x.plan === plan);
+    return p && p.price_usd_cents != null ? `$${Number(p.price_usd_cents) / 100}` : fallback;
+  }
+
   // One tap: the same atomic spend + plan hand-over the dashboard shop uses.
   async function buyWithPoints(plan, alertBox) {
     const price = pointsPrice(plan);
@@ -407,7 +414,7 @@
             return `
             <div class="plan-card up-card">
               <strong>${name}</strong>
-              <p class="muted">${p.price} · ${p.duration}</p>
+              <p class="muted">${moneyPrice(name, p.price)} · ${p.duration}</p>
               ${pts ? `<p class="up-pts">${t("ptsShop.price", { n: pts })}</p>` : ""}
               ${pts ? `<button class="btn btn-sm btn-primary up-buy" data-plan="${name}" type="button">${t("act.payPoints", { n: pts })}</button>` : ""}
               <button class="btn btn-sm btn-ghost up-code" data-plan="${name}" type="button">${t("act.useCode")}</button>
@@ -493,7 +500,7 @@
           ${Object.entries(PLANS).map(([name, p]) => `
             <button class="plan-card ${name === current ? "on" : ""}" data-plan="${name}" type="button">
               <strong>${name}</strong>
-              <p class="muted">${p.price} · ${p.duration}</p>
+              <p class="muted">${moneyPrice(name, p.price)} · ${p.duration}</p>
             </button>`).join("")}
         </div>
         <div class="stack">

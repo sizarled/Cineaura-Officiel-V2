@@ -1,11 +1,10 @@
--- Buy a membership with POINTS (no Patreon, no money code) — the user's price
--- rule is simply equality with the monthly money price: a month of a plan
--- costs as many points as its dollar price × the withdrawal rate (points per
--- 1 unit of the currency — 100 by default: 1 point = 1 cent). Silver $5/month,
--- Gold $10/month, Diamond $20/month — so one month is 500 / 1000 / 2000 points,
--- one plan bought at a time, stacking onto the one still running — unless the
--- owner pins custom prices in panel_settings.membership_points_prices
--- (JSON, e.g. {"Silver": 450, "Gold": 900, "Diamond": 1800}).
+-- Buy a membership with POINTS (no Patreon, no money code) — prices follow
+-- Panel > Plans (sql/plans.sql): its points price, its months, and its pricing
+-- system (a money-only plan leaves this shop entirely). Without that table the
+-- rule is equality with the monthly money price × the withdrawal rate (100
+-- points = $1 by default), Silver $5/month, Gold $10, Diamond $20 — 500 /
+-- 1000 / 2000 points — and an owner override may sit in
+-- panel_settings.membership_points_prices (JSON, e.g. {"Silver":450,...}).
 --
 -- Buy flow (Dashboard → Points → "Buy a membership with points"): the member
 -- taps a plan → membership_buy_with_points() spends check-and-deduct inside the
@@ -42,16 +41,37 @@ create policy "MembershipPurchases select" on public.membership_purchases for se
 revoke insert, update, delete on public.membership_purchases from anon, authenticated;
 
 -- ── 3 · the price of a plan in points ────────────────────────────────────────
+-- Panel > Plans (sql/plans.sql) is the authority: its explicit points price
+-- wins; a plan priced "money only" is not sold with points at all (null).
+-- Without the table: the old override in panel_settings, else equality with
+-- the monthly money price × the withdrawal rate.
 create or replace function public.membership_point_price(p_plan text) returns int
 language plpgsql stable security definer set search_path = public as $$
 declare
   v_override int;
   v_cents int;
+  v_plan public.plans;
   v_rate int := 100; -- points per 1 unit of the currency (withdraw_settings)
 begin
   -- money floor, mirroring the prices on the activation page
   v_cents := case p_plan when 'Silver' then 500 when 'Gold' then 1000 when 'Diamond' then 2000 else -1 end;
   if v_cents < 0 then return null; end if;
+
+  -- the shared rate (used by both the table and the fallback paths)
+  if to_regclass('public.withdraw_settings') is not null then
+    select rate into v_rate from public.withdraw_settings where id = 1 limit 1;
+    v_rate := greatest(1, coalesce(v_rate, 100));
+  end if;
+
+  -- Panel > Plans says the price (sql/plans.sql)
+  if to_regclass('public.plans') is not null then
+    select * into v_plan from public.plans where plan = p_plan limit 1;
+    if found then
+      if v_plan.mode = 'money' then return null; end if;
+      if v_plan.price_points is not null then return v_plan.price_points; end if;
+      return ceil(v_plan.price_usd_cents::numeric / 100.0 * v_rate)::int;
+    end if;
+  end if;
 
   -- owner override in Panel settings (guard: the column may not exist yet)
   begin
@@ -79,6 +99,7 @@ declare
   v_pts jsonb;
   v_available bigint := 0;
   v_mem record;
+  v_list jsonb;
 begin
   if to_regprocedure('public._points(text)') is null then
     return jsonb_build_object('ok', false, 'reason', 'setup');
@@ -89,6 +110,24 @@ begin
   select membership_type, membership_expires_at, status
     into v_mem from public.members where member_id = p_member limit 1;
 
+  -- Panel > Plans (sql/plans.sql): its price, months and pricing system; a plan
+  -- priced money-only leaves the points shop. Without the table the historic set.
+  if to_regclass('public.plans') is not null then
+    select coalesce(jsonb_agg(jsonb_build_object('plan', p.plan, 'months', p.months,
+                                                 'price_usd_cents', p.price_usd_cents,
+                                                 'price_points', public.membership_point_price(p.plan),
+                                                 'mode', p.mode) order by p.sort, p.plan), '[]'::jsonb)
+      into v_list
+      from public.plans p
+     where p.plan in ('Silver', 'Gold', 'Diamond') and p.mode <> 'money';
+  else
+    v_list := jsonb_build_array(
+      jsonb_build_object('plan', 'Silver',  'months', 1,  'price_usd_cents', 500,  'price_points', public.membership_point_price('Silver'),  'mode', 'both'),
+      jsonb_build_object('plan', 'Gold',    'months', 1,  'price_usd_cents', 1000, 'price_points', public.membership_point_price('Gold'),    'mode', 'both'),
+      jsonb_build_object('plan', 'Diamond', 'months', 1,  'price_usd_cents', 2000, 'price_points', public.membership_point_price('Diamond'), 'mode', 'both')
+    );
+  end if;
+
   return jsonb_build_object(
     'ok', true,
     'available', v_available,
@@ -97,11 +136,7 @@ begin
       'active', v_mem.membership_expires_at is not null and v_mem.membership_expires_at > now() and lower(btrim(coalesce(v_mem.status, ''))) = 'active',
       'expires_at', v_mem.membership_expires_at
     ),
-    'plans', jsonb_build_array(
-      jsonb_build_object('plan', 'Silver',  'months', 1,  'price_usd_cents', 500,  'price_points', public.membership_point_price('Silver')),
-      jsonb_build_object('plan', 'Gold',    'months', 1,  'price_usd_cents', 1000, 'price_points', public.membership_point_price('Gold')),
-      jsonb_build_object('plan', 'Diamond', 'months', 1,  'price_usd_cents', 2000, 'price_points', public.membership_point_price('Diamond'))
-    )
+    'plans', v_list
   );
 end $$;
 
@@ -114,6 +149,9 @@ declare
   v_pts jsonb;
   v_avail bigint;
   v_plan jsonb;
+  v_ok_plan boolean;
+  v_plan_months int;
+  v_price_cents int;
 begin
   if to_regprocedure('public._points(text)') is null
      or to_regprocedure('public._spend_prize(text,int,text,text)') is null
@@ -123,6 +161,16 @@ begin
 
   v_months := case p_plan when 'Silver' then 1 when 'Gold' then 1 when 'Diamond' then 1 else -1 end;
   if v_months < 0 then return jsonb_build_object('ok', false, 'reason', 'plan'); end if;
+  -- Panel > Plans (sql/plans.sql): the months and dollar price it says, and a
+  -- money-only plan is never sold with points
+  if to_regclass('public.plans') is not null then
+    select p.mode <> 'money', p.months, p.price_usd_cents into v_ok_plan, v_plan_months, v_price_cents
+      from public.plans p where p.plan = p_plan limit 1;
+    if found then
+      if not v_ok_plan then return jsonb_build_object('ok', false, 'reason', 'plan'); end if;
+      v_months := greatest(1, coalesce(v_plan_months, v_months));
+    end if;
+  end if;
   v_price := public.membership_point_price(p_plan);
   if v_price is null or v_price < 0 then return jsonb_build_object('ok', false, 'reason', 'price'); end if;
 
@@ -142,7 +190,7 @@ begin
 
   insert into public.membership_purchases (member_id, plan, months, points, price_usd_cents, expires_at)
   values (p_member, p_plan, v_months, v_price,
-          case p_plan when 'Silver' then 500 when 'Gold' then 1000 else 2000 end,
+          coalesce(v_price_cents, case p_plan when 'Silver' then 500 when 'Gold' then 1000 else 2000 end),
           (v_plan->>'expires_at')::timestamptz);
 
   return jsonb_build_object(
