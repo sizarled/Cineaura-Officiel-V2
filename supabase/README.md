@@ -1,10 +1,40 @@
 # Patreon code delivery — setup
 
 The page `codeactivation.html` asks a buyer for his Patreon account, walks him
-through Patreon's own OAuth sign-in, confirms the paid membership of your
-campaign with Patreon's API, and hands him one unused activation code
+through Patreon's own OAuth sign-in, confirms the paid **membership (tier)** of
+your campaign with Patreon's API, and hands him one unused activation code
 (membership) or points serial. The same Patreon account coming back later gets
 the same code again — the stock cannot be farmed by re-verifying.
+
+## 0 · What Patreon's API can and cannot verify — read this first
+
+Patreon's public API exposes **memberships/tiers** (the recurring
+subscriptions), members, posts, campaigns and member webhooks. It does **not**
+expose **shop storefront one-time product purchases** — that is the official,
+current answer from Patreon ([their staff, 2025](https://www.patreondevelopers.com/t/inquiry-about-retrieving-shop-products-via-patreon-api/10109);
+confirmed again in
+[2026](https://www.patreondevelopers.com/t/how-to-get-sales-one-time-purchases-gifts-data-from-api/11371)).
+So this page **cannot check a "Golden membership activation code · 6 months"
+shop listing purchase**, and never will — that endpoint simply does not exist.
+
+Sell codes in a way the API *can* verify:
+
+- **Membership codes (Silver / Gold / Diamond, any duration) → sell as
+  Patreon tiers.** A paid tier shows up in `identity?include=memberships` as
+  `active_patron` with the entitled tier — exactly what `patreon-claim`
+  verifies. One tier can even serve a fixed-duration code: the buyer pays the
+  first charge, cancels whenever, and the claims journal below guarantees he
+  only ever receives the code once (re-subscribing never hands a second).
+- **Points serials and any truly one-time items → easiest honest path is the
+  product content itself.** Generate unique serials in SQL
+  (`point_codes_generate(20, 500, 'Patreon - 500 points')`) and paste each
+  serial into its own shop listing (one listing = one code, Patreon even
+  tracks limited quantity), or put the serials block in the product's
+  post-purchase description. The buyer reads the code right after buying and
+  redeems it on CineAura — no verification page needed for these.
+
+If later Patreon opens an Orders API, this same edge function grows it behind
+the door: the claims journal and the stock plumbing stay exactly as they are.
 
 ## 1 · Database
 
