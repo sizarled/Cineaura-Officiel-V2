@@ -3321,3 +3321,8 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
 .mp-active { margin: 2px 0 6px; font-size: .78rem; color: var(--green, #90cea1); }
 .mp-plan .mp-buy { margin-top: 8px; }
 .mp-missing { margin-top: 14px; }
+
+/* ── Activation page: premium upgrade cards with in-card actions ── */
+.plan-card.up-card { display: grid; gap: 6px; align-content: start; justify-items: center; }
+.plan-card.up-card .up-pts { margin: 0; font-weight: 700; color: var(--cyan, #38bdf8); }
+.plan-card.up-card .btn { margin-top: 4px; width: 100%; }

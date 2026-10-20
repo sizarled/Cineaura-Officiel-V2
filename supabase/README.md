@@ -157,3 +157,12 @@ is 500 points and a $20 Diamond is 2,000.
 
 Run `sql/membership_points.sql` in the SQL editor after those two files — the
 site picks the new section up with no further change.
+
+**The activation page itself sells the upgrade.** `activate.html` applies the
+gate both sides: the very first activation of an account is **Free only**
+(`account_code_redeem` refuses activate-mode codes above Free with
+`reason: 'first_free'` — rerun `sql/packages.sql` to ship it). Once activated,
+the "Activate" tile on the page turns into **Upgrade**, Free never shows
+again, and the three premium plans are sold right on the page — the same
+points-buy the dashboard uses, one tap — alongside the classic code path.
+Reactivation stays available for every plan, Free included.

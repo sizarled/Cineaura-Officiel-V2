@@ -140,8 +140,8 @@ $$;
 -- A code of activation.sql (one use) is used up here too.
 --   -> { ok: true, plan, months, duration, expires_at, mode, extended, legacy }
 --      { ok: false, reason: member | banned | locked | invalid | not_found (left) | used | used_mine |
---        other | expired | mode (for: activate | reactivate) | audience (why: country | language |
---        level | age | membership) }
+--        other | expired | mode (for: activate | reactivate) | first_free (activate-mode codes must
+--        be Free) | audience (why: country | language | level | age | membership) }
 -- A membership given to a member for some months: the same plan still running gets the months
 -- added to it. -> { expires_at, duration, extended }
 create or replace function public._account_set_plan(p_member text, p_plan text, p_months int) returns jsonb
@@ -272,6 +272,13 @@ begin
       else n end;
     v_months := least(greatest(v_months, 1), 120);
     v_legacy := true;
+  end if;
+
+  -- The FIRST activation of an account is Free only: Silver / Gold / Diamond
+  -- are upgrades (the page turns the choice over) bought with points
+  -- (sql/membership_points.sql) or handed to reactivation codes.
+  if v_mode = 'activate' and v_plan <> 'Free' then
+    return jsonb_build_object('ok', false, 'reason', 'first_free');
   end if;
 
   if not v_legacy then

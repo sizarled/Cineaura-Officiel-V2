@@ -4366,4 +4366,14 @@
  "ptsShop.noPoints": "Pas assez de points : le prix est de {p} points et vous en avez {a}.",
  "ptsShop.missing": "La boutique d’adhésions par points n’est pas encore active — lancez d’abord sql/membership_points.sql.",
  "ptsShop.fail": "L’achat a échoué cette fois. Réessayez dans un instant."
+,
+ "act.firstFreeNote": "La première activation est toujours Free. Silver, Gold et Diamond se débloquent juste après — en mises à niveau payées avec vos points.",
+ "act.upgrade": "Mise à niveau",
+ "act.upgradeLead": "Votre compte est activé — passez à un plan premium avec des points ou un code d’amélioration.",
+ "act.upgradeChoose": "Choisissez un plan premium : payez en un geste avec des points, ou utilisez un code.",
+ "act.payPoints": "Payer {n} points",
+ "act.useCode": "Utiliser un code",
+ "act.needPoints": "Ce plan coûte {p} points et vous en avez {a}. Gagnez des points dans Tableau de bord → Points — les codes Patreon s’y échangent aussi.",
+ "act.err.firstFree": "La première activation d’un compte est Free. Activez Free d’abord, puis passez à un plan premium.",
+ "act.buyFail": "L’achat a échoué cette fois. Réessayez dans un instant."
 };

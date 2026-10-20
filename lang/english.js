@@ -4377,4 +4377,14 @@
  "ptsShop.noPoints": "Not enough points: the price is {p} points and you have {a}.",
  "ptsShop.missing": "The points membership shop is not live yet on this site — run sql/membership_points.sql first.",
  "ptsShop.fail": "The purchase failed this time. Try again in a moment."
+,
+ "act.firstFreeNote": "The first activation is always Free. Silver, Gold and Diamond unlock right after — as upgrades paid with your points.",
+ "act.upgrade": "Upgrade",
+ "act.upgradeLead": "Your account is activated — step up to a premium plan with points or an upgrade code.",
+ "act.upgradeChoose": "Pick a premium plan: pay with points in one tap, or redeem a code.",
+ "act.payPoints": "Pay {n} points",
+ "act.useCode": "Use a code",
+ "act.needPoints": "This plan takes {p} points and you have {a}. Get points in Dashboard → Points — Patreon codes are redeemed there too.",
+ "act.err.firstFree": "The first activation of an account is Free. Activate Free first, then upgrade to a premium plan.",
+ "act.buyFail": "The purchase failed this time. Try again in a moment."
 };

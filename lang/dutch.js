@@ -4367,4 +4367,14 @@
  "ptsShop.noPoints": "Niet genoeg punten: de prijs is {p} punten en je hebt er {a}.",
  "ptsShop.missing": "De puntenwinkel voor lidmaatschappen is nog niet live — voer eerst sql/membership_points.sql uit.",
  "ptsShop.fail": "De aankoop is deze keer mislukt. Probeer het zo opnieuw."
+,
+ "act.firstFreeNote": "De eerste activering is altijd Free. Silver, Gold en Diamond openen direct daarna — als upgrades die je met je punten betaalt.",
+ "act.upgrade": "Upgrade",
+ "act.upgradeLead": "Je account is geactiveerd — stap met punten of een upgradecode over naar een premiumplan.",
+ "act.upgradeChoose": "Kies een premiumplan: betaal met één tik met punten, of wissel een code in.",
+ "act.payPoints": "Betaal {n} punten",
+ "act.useCode": "Gebruik een code",
+ "act.needPoints": "Dit plan kost {p} punten en je hebt er {a}. Verdien punten via Dashboard → Punten — Patreon-codes wissel je daar óók in.",
+ "act.err.firstFree": "De eerste activering van een account is Free. Activeer eerst Free en upgrade daarna naar een premiumplan.",
+ "act.buyFail": "De aankoop is deze keer mislukt. Probeer het zo opnieuw."
 };

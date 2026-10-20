@@ -4369,4 +4369,14 @@
  "ptsShop.noPoints": "Punti insufficienti: il prezzo è {p} punti e tu ne hai {a}.",
  "ptsShop.missing": "Il negozio di abbonamenti a punti non è ancora attivo — esegui prima sql/membership_points.sql.",
  "ptsShop.fail": "L’acquisto è fallito questa volta. Riprova fra un attimo."
+,
+ "act.firstFreeNote": "La prima attivazione è sempre Free. Silver, Gold e Diamond si sbloccano subito dopo — come upgrade pagati con i tuoi punti.",
+ "act.upgrade": "Upgrade",
+ "act.upgradeLead": "Il tuo account è attivato — passa a un piano premium con i punti o con un codice di upgrade.",
+ "act.upgradeChoose": "Scegli un piano premium: paga con un tocco usando i punti, oppure usa un codice.",
+ "act.payPoints": "Paga {n} punti",
+ "act.useCode": "Usa un codice",
+ "act.needPoints": "Questo piano richiede {p} punti e tu ne hai {a}. Ottieni punti in Dashboard → Punti — i codici Patreon si riscattano lì.",
+ "act.err.firstFree": "La prima attivazione di un account è Free. Attiva prima Free, poi passa a un piano premium.",
+ "act.buyFail": "L’acquisto è fallito questa volta. Riprova fra un attimo."
 };
