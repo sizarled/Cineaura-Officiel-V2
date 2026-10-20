@@ -4,11 +4,20 @@
 -- Run in the Supabase SQL editor AFTER points.sql, prize_secure.sql, point_levels.sql and
 -- market.sql, and BEFORE panel_admin.sql (safe to run again).
 --
--- Who may withdraw — both conditions:
---   1. the account level is LV3 or higher (1,000 points earned: sql/point_levels.sql);
---   2. the account is old enough for its membership (counted from signing up):
---        Free 12 months · Silver 6 months · Gold 3 months · Diamond 1 month
---      A paid membership counts while it runs; once it has ended the account waits like a Free one.
+-- Who may withdraw — these conditions (2026-10-20 rules):
+--   1. the account LEVEL is LV5 or higher (100,000 points earned: sql/point_levels.sql).
+--      The points decide the base level and the MEMBERSHIP is the ceiling:
+--      Free LV2 · Silver LV5 · Gold LV8 · Diamond LV10 (account_level()).
+--   2. the membership decides whether money may leave, by RENEWALS (reactivations):
+--        Free — may never withdraw
+--        Silver — the account must be reactivated as Silver 12 times
+--        Gold — 6 times · Diamond — once
+--      One plan keeps its own history: learn the count on the CURRENT plan
+--      (a Silver after a Gold starts at 0 as Silver), and the count waits:
+--      come back to Gold and Gold's own tally stands already there.
+--   3. the least points of a request follow the level:
+--        LV5 5,000 PT · LV6 10,000 · LV7 20,000 · LV8 40,000 · LV9 80,000 · LV10+ 160,000
+--      (and never below the Panel's min_points, when that floor stands higher).
 --   And the account is active: activated, not banned, no temporary ban.
 --
 -- The money goes by bank transfer (the account holder, the bank, the IBAN or account number, the
@@ -159,10 +168,75 @@ create or replace function public._wd_plan(m public.members) returns text langua
               then initcap(lower(btrim(m.membership_type))) else 'Free' end
 $$;
 
--- The age (in months) each membership needs: Free 12, Silver 6, Gold 3, Diamond 1.
-create or replace function public._wd_months(p_plan text) returns int language sql immutable as $$
-  select case p_plan when 'Diamond' then 1 when 'Gold' then 3 when 'Silver' then 6 else 12 end
+-- The level a membership lets the account reach: Free LV2 · Silver LV5 ·
+-- Gold LV8 · Diamond LV10. The points decide the base level
+-- (sql/point_levels.sql); the plan is the ceiling the level may reach.
+create or replace function public.level_cap(p_plan text) returns int language sql immutable as $$
+  select case initcap(lower(btrim(coalesce(p_plan, '')))) when 'Diamond' then 10 when 'Gold' then 8 when 'Silver' then 5 else 2 end
 $$;
+
+-- How many RENEWALS (reactivations) a plan asks before its member may take
+-- money out: Silver 12 · Gold 6 · Diamond 1. Free — no withdrawal at all.
+create or replace function public._wd_turns_needed(p_plan text) returns int language sql immutable as $$
+  select case initcap(lower(btrim(coalesce(p_plan, '')))) when 'Diamond' then 1 when 'Gold' then 6 when 'Silver' then 12 else null end
+$$;
+
+-- How many times this account reactivated AS p_plan. The renewals live in two
+-- journals: the activation rows with kind 'reactivate' (every account code
+-- path writes one, sql/packages.sql) and the memberships bought with points
+-- (sql/membership_points.sql). Every plan keeps its own tally — the count
+-- reads on the CURRENT plan and never erases when the plan changes.
+create or replace function public._wd_reactivations(p_member text, p_plan text) returns int
+language plpgsql stable security definer set search_path = public as $$
+declare n int := 0; x int;
+begin
+  if to_regclass('public.activation') is not null then
+    select count(*) into x from public.activation
+     where member_id = p_member and coalesce(kind, '') = 'reactivate'
+       and initcap(lower(btrim(coalesce(membership_type, '')))) = initcap(lower(btrim(coalesce(p_plan, ''))));
+    n := n + coalesce(x, 0);
+  end if;
+  if to_regclass('public.membership_purchases') is not null then
+    select count(*) into x from public.membership_purchases
+     where member_id = p_member and plan = initcap(lower(btrim(coalesce(p_plan, ''))));
+    n := n + coalesce(x, 0);
+  end if;
+  return n;
+end $$;
+
+-- The least points of a request at this level:
+--   LV5 5,000 · LV6 10,000 · LV7 20,000 · LV8 40,000 · LV9 80,000 · LV10+ 160,000
+create or replace function public._wd_min_for_level(p_level int) returns int language sql immutable as $$
+  select case
+    when coalesce(p_level, 0) >= 10 then 160000
+    when coalesce(p_level, 0) >= 5 then 5000 * (2 ^ (p_level - 5))::int
+    else 0
+  end
+$$;
+
+-- A member's level, capped by the membership. The raw level comes from the
+-- points EARNED (points_level); the plan's ceiling caps what it counts as
+-- (multipliers, audience rules, withdrawals show it).
+--   -> { level, raw, cap, capped, plan, plan_active, earned }
+create or replace function public.account_level(p_member text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  pts jsonb; earned bigint; raw int := 0; m record; plan text; cap int;
+begin
+  pts := public._points(btrim(coalesce(p_member, '')));
+  earned := coalesce((pts->>'earned')::bigint, 0);
+  if to_regprocedure('public.points_level(bigint)') is not null then raw := public.points_level(earned); end if;
+  select membership_type, membership_expires_at, status into m
+    from public.members where member_id = btrim(coalesce(p_member, '')) limit 1;
+  plan := case when initcap(lower(btrim(coalesce(m.membership_type, '')))) in ('Silver', 'Gold', 'Diamond')
+                    and (m.membership_expires_at is null or m.membership_expires_at > now())
+                    and lower(btrim(coalesce(m.status, ''))) = 'active'
+               then initcap(lower(btrim(m.membership_type))) else 'Free' end;
+  cap := case plan when 'Diamond' then 10 when 'Gold' then 8 when 'Silver' then 5 else 2 end;
+  return jsonb_build_object(
+    'level', least(raw, cap), 'raw', raw, 'cap', cap, 'capped', raw > cap,
+    'plan', plan, 'plan_active', plan <> 'Free', 'earned', earned);
+end $$;
 
 -- An IBAN (2 letters, 2 digits, 11 to 30 letters or digits): true when its check digits are right,
 -- false when they are wrong; null when the number is not an IBAN (an account number, a RIB…).
@@ -255,21 +329,26 @@ $$;
 
 -- Where a member stands (Dashboard > Withdraw, and each request):
 --   { ok (may withdraw), account: ok | disabled | banned | blocked, blocked_until,
---     level, level_name, need_level, level_ok, earned, need_earned,
---     plan (the one that counts), plan_type, plan_ended, months, created_at, eligible_at, age_days, age_ok,
+--     level (capped), level_name, raw_level, cap, capped, need_level (5), level_ok,
+--     earned, need_earned (100,000),
+--     plan (the one that counts), plan_type, plan_ended, membership_ok,
+--     turns, need_turns, turns_ok, min_points (least at this level),
 --     available, spent }
 create or replace function public._wd_check(m public.members) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
-  pts jsonb; earned bigint; lv int := 0; v_plan text; v_months int; due timestamptz; acct text := 'ok'; temp_to timestamptz;
+  pts jsonb; earned bigint; raw int := 0; lv int := 0; cap int := 2; v_plan text; v_need int; v_turns int := 0;
+  acct text := 'ok'; temp_to timestamptz;
   st text := lower(btrim(coalesce(m.status, '')));
 begin
   pts := public._points(m.member_id);
   earned := coalesce((pts->>'earned')::bigint, 0);
-  if to_regprocedure('public.points_level(bigint)') is not null then lv := public.points_level(earned); end if;
+  if to_regprocedure('public.points_level(bigint)') is not null then raw := public.points_level(earned); end if;
   v_plan := public._wd_plan(m);
-  v_months := public._wd_months(v_plan);
-  due := coalesce(m.created_at, now()) + make_interval(months => v_months);
+  cap := public.level_cap(v_plan);
+  lv := least(raw, cap);
+  v_need := public._wd_turns_needed(v_plan);
+  if v_need is not null then v_turns := public._wd_reactivations(m.member_id, v_plan); end if;
   if st = 'banned' then
     acct := 'banned';
   elsif st <> 'active' then
@@ -279,15 +358,16 @@ begin
     if temp_to is not null and temp_to > now() then acct := 'blocked'; end if;
   end if;
   return jsonb_build_object(
-    'ok', acct = 'ok' and lv >= 3 and due <= now(),
+    'ok', acct = 'ok' and v_plan <> 'Free' and lv >= 5 and v_need is not null and v_turns >= v_need,
     'account', acct, 'blocked_until', case when acct = 'blocked' then temp_to end,
     'level', lv, 'level_name', case when lv >= 10 then 'LV Max' else 'LV' || lv end,
-    'need_level', 3, 'level_ok', lv >= 3, 'earned', earned, 'need_earned', 1000,
+    'raw_level', raw, 'cap', cap, 'capped', raw > cap,
+    'need_level', 5, 'level_ok', lv >= 5, 'earned', earned, 'need_earned', 100000,
     'plan', v_plan, 'plan_type', coalesce(initcap(lower(nullif(btrim(m.membership_type), ''))), 'Free'),
     'plan_ended', v_plan = 'Free' and initcap(lower(btrim(coalesce(m.membership_type, '')))) in ('Silver', 'Gold', 'Diamond'),
-    'months', v_months, 'created_at', m.created_at, 'eligible_at', due,
-    'age_days', greatest(0, floor(extract(epoch from (now() - coalesce(m.created_at, now()))) / 86400))::int,
-    'age_ok', due <= now(),
+    'membership_ok', v_plan <> 'Free',
+    'turns', v_turns, 'need_turns', v_need, 'turns_ok', v_need is not null and v_turns >= v_need,
+    'min_points', public._wd_min_for_level(lv),
     'available', coalesce((pts->>'available')::bigint, 0), 'spent', coalesce((pts->>'spent')::bigint, 0));
 end $$;
 
@@ -363,7 +443,8 @@ begin
   return jsonb_build_object('ok', true,
     'settings', public._wd_settings_json(s),
     'check', public._wd_check(m),
-    'plans', jsonb_build_object('Free', 12, 'Silver', 6, 'Gold', 3, 'Diamond', 1),
+    'plans', jsonb_build_object('Free', null, 'Silver', 12, 'Gold', 6, 'Diamond', 1),
+    'caps', jsonb_build_object('Free', 2, 'Silver', 5, 'Gold', 8, 'Diamond', 10),
     'open', (select public._wd_json(w, false) from public.withdrawals w
               where w.member_id = m.member_id and w.status in ('pending', 'processing') order by w.created_at desc limit 1),
     'saved', jsonb_build_object(
@@ -395,7 +476,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   m public.members; s public.withdraw_settings; chk jsonb; n_fails int; first_fail timestamptz; d jsonb; clean jsonb;
   v_method text; v_saved boolean; v_amount numeric(12,2); v_fee numeric(12,2); v_net numeric(12,2); pts jsonb; wid text;
-  open_id text;
+  open_id text; v_min int;
 begin
   select * into m from public.members where member_id = btrim(coalesce(p_member, ''));
   if not found then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
@@ -423,11 +504,14 @@ begin
   select * into s from public.withdraw_settings where id = 1;
   if not found or not s.enabled then return jsonb_build_object('ok', false, 'reason', 'closed'); end if;
   if not (chk->>'level_ok')::boolean then
-    return jsonb_build_object('ok', false, 'reason', 'level', 'level', (chk->>'level')::int, 'need', 3);
+    return jsonb_build_object('ok', false, 'reason', 'level', 'level', (chk->>'level')::int, 'need', 5);
   end if;
-  if not (chk->>'age_ok')::boolean then
-    return jsonb_build_object('ok', false, 'reason', 'age', 'eligible_at', chk->'eligible_at', 'plan', chk->>'plan',
-                              'months', (chk->>'months')::int);
+  if not (chk->>'membership_ok')::boolean then
+    return jsonb_build_object('ok', false, 'reason', 'membership', 'plan', chk->>'plan');
+  end if;
+  if not (chk->>'turns_ok')::boolean then
+    return jsonb_build_object('ok', false, 'reason', 'turns', 'plan', chk->>'plan',
+                              'turns', (chk->>'turns')::int, 'need', (chk->>'need_turns')::int);
   end if;
 
   v_method := lower(btrim(coalesce(p_method, '')));
@@ -444,8 +528,9 @@ begin
   clean := public._wd_clean(v_method, d, s);
   if not (clean->>'ok')::boolean then return clean; end if;
 
-  if p_points is null or p_points < s.min_points then
-    return jsonb_build_object('ok', false, 'reason', 'min', 'min', s.min_points);
+  v_min := greatest(s.min_points, coalesce((chk->>'min_points')::int, 0));
+  if p_points is null or p_points < v_min then
+    return jsonb_build_object('ok', false, 'reason', 'min', 'min', v_min);
   end if;
   if s.max_points > 0 and p_points > s.max_points then
     return jsonb_build_object('ok', false, 'reason', 'max', 'max', s.max_points);
@@ -474,8 +559,9 @@ begin
   insert into public.withdrawals (id, member_id, points, rate, currency, amount, fee, net, method, agency, details, checks)
   values (wid, m.member_id, p_points, s.rate, s.currency, v_amount, v_fee, v_net, v_method,
           case when v_method = 'agency' then clean->'details'->>'agency' else '' end, clean->'details',
-          jsonb_build_object('level', (chk->>'level')::int, 'plan', chk->>'plan', 'months', (chk->>'months')::int,
-                             'age_days', (chk->>'age_days')::int, 'available', coalesce((pts->>'available')::bigint, 0)));
+          jsonb_build_object('level', (chk->>'level')::int, 'cap', (chk->>'cap')::int, 'plan', chk->>'plan',
+                             'turns', (chk->>'turns')::int, 'need_turns', (chk->>'need_turns')::int,
+                             'min_points', v_min, 'available', coalesce((pts->>'available')::bigint, 0)));
   update public.profiles set points_spent = coalesce(points_spent, 0) + p_points where member_id = m.member_id;
   insert into public.point_spends (member_id, amount, prize_title, mode) values (m.member_id, p_points, wid, 'withdraw');
   -- the details for the next time (the ones remembered stay as they are when they were used)
@@ -534,7 +620,8 @@ begin
       'avatar', coalesce((select p.avatar_url from public.profiles p where p.member_id = m.member_id), '')) end,
     'now', case when m.member_id is null then null else
       (select jsonb_build_object('ok', c->'ok', 'account', c->'account', 'level', c->'level', 'level_name', c->'level_name',
-                                 'plan', c->'plan', 'months', c->'months', 'age_days', c->'age_days', 'available', c->'available')
+                                 'cap', c->'cap', 'plan', c->'plan', 'turns', c->'turns', 'need_turns', c->'need_turns',
+                                 'available', c->'available')
          from (select public._wd_check(m) as c) z) end,
     'name_match', public._wd_name_match(payee, m.full_name));
 end $$;
@@ -689,12 +776,15 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------ 6. who may call what
+-- _wd_months is gone (the account-age rule is retired — the renewals count now)
+drop function if exists public._wd_months(text);
 do $$
 declare f text;
 begin
   foreach f in array array[
     'public._wd_staff(text)', 'public._wd_int(text)', 'public._wd_line(text)', 'public._wd_name_ok(text)',
-    'public._wd_plan(public.members)', 'public._wd_months(text)', 'public._wd_iban_ok(text)', 'public._wd_name_match(text, text)',
+    'public._wd_plan(public.members)', 'public._wd_turns_needed(text)', 'public._wd_reactivations(text, text)',
+    'public._wd_min_for_level(int)', 'public._wd_iban_ok(text)', 'public._wd_name_match(text, text)',
     'public._wd_clean(text, jsonb, public.withdraw_settings)', 'public._wd_mask(text, jsonb)', 'public._wd_check(public.members)',
     'public._wd_settings_json(public.withdraw_settings)', 'public._wd_json(public.withdrawals, boolean)',
     'public._wd_notify(text, text, text, text)', 'public._wd_refund(public.withdrawals)', 'public._wd_stats()',
@@ -706,7 +796,8 @@ begin
     'public.withdraw_info()', 'public.withdraw_me(text)', 'public.withdraw_request(text, text, int, text, jsonb, boolean)',
     'public.withdraw_cancel(text, text)', 'public.withdraw_forget(text, text)',
     'public.withdraw_admin_list(text, text, text, int, int)', 'public.withdraw_admin_action(text, text, text, text, text, boolean)',
-    'public.withdraw_admin_settings(text)', 'public.withdraw_admin_settings_save(text, jsonb)']
+    'public.withdraw_admin_settings(text)', 'public.withdraw_admin_settings_save(text, jsonb)',
+    'public.account_level(text)', 'public.level_cap(text)']
   loop
     execute format('revoke all on function %s from public', f);
     execute format('grant execute on function %s to anon, authenticated', f);

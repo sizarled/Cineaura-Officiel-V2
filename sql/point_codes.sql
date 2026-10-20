@@ -249,7 +249,8 @@ end $$;
 create or replace function public._points_code_give(p_member text, p_code text, p_country text default '', p_auto boolean default false)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
-  c public.point_codes; v_user text; before_earned bigint; after_earned bigint; lv_before int; lv_after int; total bigint; cty text := '';
+  c public.point_codes; v_user text; before_earned bigint; after_earned bigint; lv_before int; lv_after int; total bigint; cty text := '' ;
+  v_cap int := 10;
 begin
   select * into c from public.point_codes where code = p_code;
   select username into v_user from public.members where member_id = p_member;
@@ -260,6 +261,9 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'member');
   end if;
   before_earned := coalesce((public._points(p_member)->>'earned')::bigint, 0);
+  if to_regprocedure('public.account_level(text)') is not null then
+    v_cap := coalesce((public.account_level(p_member)->>'cap')::int, 10);
+  end if;
   if to_regprocedure('public._watch_country(text)') is not null then cty := coalesce(public._watch_country(p_country), ''); end if;
   insert into public.point_code_uses (code, member_id, points, country) values (c.code, p_member, c.points, cty);
   -- the expressions read the row before the change: the last use marks it used
@@ -273,8 +277,9 @@ begin
    where member_id = p_member
   returning code_points into total;
   after_earned := before_earned + c.points;
-  lv_before := public.points_level(before_earned);
-  lv_after := public.points_level(after_earned);
+  -- the base level from the points, with the membership as ceiling (sql/withdrawals.sql)
+  lv_before := least(public.points_level(before_earned), v_cap);
+  lv_after := least(public.points_level(after_earned), v_cap);
   if to_regclass('public.notifications') is not null then
     insert into public.notifications (member_id, kind, title, body, href)
     values (p_member, case when p_auto then 'points_gift' else 'points_code' end,
@@ -504,10 +509,15 @@ language sql stable security definer set search_path = public as $$
     end)
 $$;
 
--- The account level of a member (0 = LV0 … 10 = LV Max).
+-- The account level of a member (0 = LV0 … 10 = LV Max). The points decide the
+-- base level; the membership is the ceiling (sql/withdrawals.sql: Free LV2,
+-- Silver LV5, Gold LV8, Diamond LV10 — the level stops there until the plan steps up).
 create or replace function public._pack_level(p_member text) returns int
 language plpgsql stable security definer set search_path = public as $$
 begin
+  if to_regprocedure('public.account_level(text)') is not null then
+    return coalesce((public.account_level(p_member)->>'level')::int, 0);
+  end if;
   if to_regprocedure('public.points_level(bigint)') is null then return 0; end if;
   return public.points_level(coalesce((public._points(p_member)->>'earned')::bigint, 0));
 end $$;

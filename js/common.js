@@ -4149,6 +4149,29 @@
     };
   }
 
+  // The membership is the level's ceiling (2026-10-20 spec; sql/withdrawals.sql
+  // account_level): Free LV2 · Silver LV5 · Gold LV8 · Diamond LV10. The points
+  // decide the base level and keep accumulating either way.
+  const LEVEL_CAPS = { Free: 2, Silver: 5, Gold: 8, Diamond: 10 };
+  // The plan of a member row (type + expiry): the paid plan while it runs, else Free.
+  function accountPlan(plan, expiresAt) {
+    const p = String(plan || "").trim().toLowerCase();
+    const good = { silver: "Silver", gold: "Gold", diamond: "Diamond" }[p] || "Free";
+    if (good === "Free") return "Free";
+    const active = !expiresAt || new Date(expiresAt).getTime() > Date.now();
+    return active ? good : "Free";
+  }
+  // levelInfo() with the membership as the ceiling: same shape plus
+  // { rawLevel, rawName, cap, capped, plan } (mirrors sql account_level()).
+  function accountLevelInfo(earned, plan, expiresAt) {
+    const info = levelInfo(earned);
+    const p = accountPlan(plan, expiresAt);
+    const cap = LEVEL_CAPS[p] ?? LEVEL_CAPS.Free;
+    const level = Math.min(info.level, cap);
+    const named = level === info.level ? info : { ...info, level, name: levelName(level), multiplier: levelMultiplier(level) };
+    return { ...named, rawLevel: info.level, rawName: info.name, cap, capped: info.level > cap, plan: p };
+  }
+
   /* ════════════════════════════════════════════════════════════════════
      LV-gated permissions — 2026-10-19 spec (cumulative, client-side guard;
      server must enforce the same POINT_LEVELS thresholds via RLS / RPC):
@@ -4158,10 +4181,14 @@
        LV2 (100 PT) + join challenge-mode prizes
        LV3 (1K PT) + join prize/lottery-mode prizes (includes gift)
        LV4 (10K PT) + buy in market
-       LV5 (100K PT) + sell in market (open store + publish products)
+       LV5 (100K PT) + sell in market (open store + publish products) + withdraw points
        LV6 (1M PT) + auction buy
        LV7 (10M PT) + auction sell
-     Each LV includes all previous. POINT_LEVELS defines the thresholds; see
+     Each LV includes all previous. AND the membership is the level's CEILING
+     (2026-10-20 spec, sql/withdrawals.sql account_level): Free LV2 · Silver LV5 ·
+     Gold LV8 · Diamond LV10 — points keep accumulating, the level waits for the
+     plan to step up (LEVEL_CAPS / accountLevelInfo below).
+     POINT_LEVELS defines the thresholds; see
      levelInfo()/pointLevel(). Do not trust client alone — Supabase policies /
      sql/market.sql, sql/prize*.sql, sql/content.sql should repeat the check.
      ════════════════════════════════════════════════════════════════════ */
@@ -4189,11 +4216,12 @@
     // LV2 — challenge prizes
     challenge: 2, join_challenge: 2,
     // LV3 — lottery / prize mode
-    lottery: 3, join_lottery: 3, prize: 3, gift: 3, join_prize: 3, withdraw: 3,
+    lottery: 3, join_lottery: 3, prize: 3, gift: 3, join_prize: 3,
     // LV4 — market buy
     buy: 4, buy_market: 4, purchase: 4, market_buy: 4,
-    // LV5 — market sell
-    sell: 5, sell_market: 5, store_open: 5, market_sell: 5,
+    // LV5 — market sell + withdraw points (2026-10-20; sql/withdrawals.sql needs LV5)
+    sell: 5, sell_market: 5, store_open: 5, market_sell: 5, withdraw: 5,
+    withdraw_points: 5, withdraw_money: 5,
     // LV6 / LV7 — auction
     auction: 6, auction_buy: 6, auction_purchase: 6,
     auction_sell: 7, auction_sale: 7,
@@ -4282,8 +4310,17 @@
     try {
       const mp = await memberPoints(sess.member_id);
       const have = Number(mp?.earned || 0);
-      if (pointLevel(have) >= min) return true;
-      toast(levelGateMessage(feature, have));
+      // the membership caps the level (LEVEL_CAPS — the server gates the same way)
+      const mem = await membership().catch(() => null);
+      const plan = mem?.premium ? String(mem.type || "Free") : "Free";
+      const cap = LEVEL_CAPS[plan] ?? LEVEL_CAPS.Free;
+      const rawLv = pointLevel(have);
+      if (Math.min(rawLv, cap) >= min) return true;
+      if (rawLv >= min && cap < min) {
+        toast(t("level.err.cap", { plan: tr(plan), cap: levelName(cap), need: levelName(min) }));
+      } else {
+        toast(levelGateMessage(feature, have));
+      }
       return false;
     } catch {
       // offline: don't block
@@ -4426,7 +4463,17 @@
     const earned = breakdown.reduce((sum, r) => sum + r.points, 0);
     const spent = Math.max(0, Number(prof.points_spent || 0));
     const levels = parts.watchPoints != null;
-    const level = levelInfo(earned);
+    let level = levelInfo(earned);
+    // the membership is the level's ceiling (LEVEL_CAPS — sql account_level): the badge,
+    // the multiplier and the rates speak of the capped level, like the server gates
+    let levelCap = null;
+    if (memberId && getSession()?.member_id === memberId) {
+      const mem = await membership().catch(() => null);
+      const plan = mem?.premium ? String(mem.type || "Free") : "Free";
+      const cap = LEVEL_CAPS[plan] ?? LEVEL_CAPS.Free;
+      levelCap = { plan, cap, raw: level.level, rawName: level.name, capped: level.level > cap };
+      if (levelCap.capped) level = { ...level, level: cap, name: levelName(cap), multiplier: levelMultiplier(cap) };
+    }
     const country = levels ? readGeo()?.cc || "" : "";
     if (levels) {
       const watch = breakdown.find((r) => r.key === "minutes");
@@ -4449,6 +4496,10 @@
       balanceTier: balanceTier(Math.max(0, earned - spent)),
       levels,
       level,
+      // LEVEL_CAPS applied to the signed-in member (null for everyone else)
+      levelCap,
+      rawLevel: levelCap?.raw ?? level.level,
+      levelCapped: Boolean(levelCap?.capped),
       country,
       tier: country ? watchTier(country) : null,
     };
@@ -5507,6 +5558,9 @@
     levelMultiplier,
     levelName,
     levelInfo,
+    LEVEL_CAPS,
+    accountPlan,
+    accountLevelInfo,
     compactPoints,
     levelHtml,
     pointRowHtml,

@@ -19,11 +19,12 @@
   window.CineAura.siteLink?.("patreon_plans").then((url) => {
     PATREON_URL = url;
   });
+  // 2026-10-20: plans are MONTHLY (every premium plan buys one month, renewed each month)
   const PLANS = {
     Free: { months: 1, duration: "1 month", price: "$0" },
-    Silver: { months: 3, duration: "3 months", price: "$5" },
-    Gold: { months: 6, duration: "6 months", price: "$10" },
-    Diamond: { months: 12, duration: "12 months", price: "$20" },
+    Silver: { months: 1, duration: "1 month", price: "$5" },
+    Gold: { months: 1, duration: "1 month", price: "$10" },
+    Diamond: { months: 1, duration: "1 month", price: "$20" },
   };
 
   const state = {

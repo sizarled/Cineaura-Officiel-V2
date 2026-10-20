@@ -1,8 +1,9 @@
 -- Buy a membership with POINTS (no Patreon, no money code) — the user's price
--- rule is simply equality with the money price: a plan costs as many points as
--- its dollar price × the withdrawal rate (points per 1 unit of the currency —
--- 100 by default: 1 point = 1 cent). Silver ($5 / 3 months) = 500 points,
--- Gold ($10 / 6 months) = 1000, Diamond ($20 / 12 months) = 2000 — unless the
+-- rule is simply equality with the monthly money price: a month of a plan
+-- costs as many points as its dollar price × the withdrawal rate (points per
+-- 1 unit of the currency — 100 by default: 1 point = 1 cent). Silver $5/month,
+-- Gold $10/month, Diamond $20/month — so one month is 500 / 1000 / 2000 points,
+-- one plan bought at a time, stacking onto the one still running — unless the
 -- owner pins custom prices in panel_settings.membership_points_prices
 -- (JSON, e.g. {"Silver": 450, "Gold": 900, "Diamond": 1800}).
 --
@@ -19,7 +20,7 @@
 -- ── 1 · optional owner-set prices (null/absent → money price × rate) ─────────
 alter table public.panel_settings add column if not exists membership_points_prices jsonb;
 comment on column public.panel_settings.membership_points_prices is
-  'Optional plan point prices, e.g. {"Silver":450,"Gold":900,"Diamond":1800}. Absent or a missing key falls back to the money price (Silver $5 · Gold $10 · Diamond $20) times the withdrawal rate.';
+  'Optional plan point prices per month, e.g. {"Silver":450,"Gold":900,"Diamond":1800}. Absent or a missing key falls back to the monthly money price (Silver $5 · Gold $10 · Diamond $20) times the withdrawal rate.';
 
 -- ── 2 · the purchase journal ─────────────────────────────────────────────────
 create table if not exists public.membership_purchases (
@@ -97,9 +98,9 @@ begin
       'expires_at', v_mem.membership_expires_at
     ),
     'plans', jsonb_build_array(
-      jsonb_build_object('plan', 'Silver',  'months', 3,  'price_usd_cents', 500,  'price_points', public.membership_point_price('Silver')),
-      jsonb_build_object('plan', 'Gold',    'months', 6,  'price_usd_cents', 1000, 'price_points', public.membership_point_price('Gold')),
-      jsonb_build_object('plan', 'Diamond', 'months', 12, 'price_usd_cents', 2000, 'price_points', public.membership_point_price('Diamond'))
+      jsonb_build_object('plan', 'Silver',  'months', 1,  'price_usd_cents', 500,  'price_points', public.membership_point_price('Silver')),
+      jsonb_build_object('plan', 'Gold',    'months', 1,  'price_usd_cents', 1000, 'price_points', public.membership_point_price('Gold')),
+      jsonb_build_object('plan', 'Diamond', 'months', 1,  'price_usd_cents', 2000, 'price_points', public.membership_point_price('Diamond'))
     )
   );
 end $$;
@@ -120,7 +121,7 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'setup');
   end if;
 
-  v_months := case p_plan when 'Silver' then 3 when 'Gold' then 6 when 'Diamond' then 12 else -1 end;
+  v_months := case p_plan when 'Silver' then 1 when 'Gold' then 1 when 'Diamond' then 1 else -1 end;
   if v_months < 0 then return jsonb_build_object('ok', false, 'reason', 'plan'); end if;
   v_price := public.membership_point_price(p_plan);
   if v_price is null or v_price < 0 then return jsonb_build_object('ok', false, 'reason', 'price'); end if;

@@ -265,7 +265,7 @@ begin
     if v_plan not in ('Free', 'Silver', 'Gold', 'Diamond') then v_plan := 'Free'; end if;
     n := nullif(substring(coalesce(v_act_dur, '') from '[0-9]+'), '')::int;
     v_months := case
-      when n is null then case v_plan when 'Silver' then 3 when 'Gold' then 6 when 'Diamond' then 12 else 1 end
+      when n is null then 1 -- monthly plans: an undated legacy code gives one month
       when v_act_dur ~* 'year' then n * 12
       when v_act_dur ~* 'week' then greatest(1, round(n * 7 / 30.0)::int)
       when v_act_dur ~* 'day' then greatest(1, ceil(n / 30.0)::int)

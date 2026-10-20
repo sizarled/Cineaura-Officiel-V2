@@ -3449,7 +3449,7 @@
       return `
         <div class="mp-plan ${same ? "is-active" : ""}">
           <h3 class="mp-name">${escapeHtml(t(`membership.${plan.toLowerCase()}`) === `membership.${plan.toLowerCase()}` ? plan : t(`membership.${plan.toLowerCase()}`))}</h3>
-          <p class="mp-dur">${escapeHtml(t("ptsShop.term", { m: p.months }))}</p>
+          <p class="mp-dur">${escapeHtml(t(Number(p.months) === 1 ? "ptsShop.term1" : "ptsShop.term", { m: p.months }))}</p>
           <p class="mp-money">${escapeHtml(money)}</p>
           <p class="mp-price">${escapeHtml(t("ptsShop.price", { n: price }))}</p>
           ${cat.membership?.active && same
@@ -3680,7 +3680,9 @@
   }
 
   // ---------- Withdraw: points exchanged for real money (js/withdraw.js, sql/withdrawals.sql) ----------
-  // LV3 and an account old enough for its membership (Free 12 months, Silver 6, Gold 3, Diamond 1);
+  // LV5+ (the membership is the level's ceiling) and enough renewals of the current paid
+  // membership (Silver 12, Gold 6, Diamond 1; Free never); the least a request asks for
+  // follows the level (LV5 5,000 PT … LV10 160,000).
   // a bank transfer or a money transfer agency such as Western Union.
   async function viewWithdraw(main) {
     const W = window.CineAuraWithdraw;
