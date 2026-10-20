@@ -4430,8 +4430,20 @@
     "pc.unbanned": "Il ban è stato revocato.",
     "pc.loadFail": "La revisione non si è caricata. Riprova.",
     "ca.banned": "Questo account Patreon è stato segnalato nella revisione degli acquirenti e non può più ricevere un codice. Se pensi sia un errore, contatta il supporto.",
-    "ca.campaign": "Non hai ancora acquistato? È in vendita su patreon.com/cw/Workora — compra lì, poi torna con il tuo account."
-
+    "ca.campaign": "Non hai ancora acquistato? È in vendita su patreon.com/cw/Workora — compra lì, poi torna con il tuo account.",
+    "up.folder": "I file della tua cartella",
+    "up.folderHint": "Tutto ciò che c'è nella TUA cartella sul server video del sito, diviso nei cinque cassetti del sito. Cancellare qui rimuove il file stesso — link, prodotti o post che lo usano smettono di funzionare.",
+    "up.folderLoading": "Lettura della tua cartella…",
+    "up.folderFailed": "Impossibile leggere la cartella ora. Aggiorna per riprovare.",
+    "up.folderEmpty": "Questo cassetto è vuoto.",
+    "up.folderFiles": "{n} file",
+    "up.folderAllEmpty": "La tua cartella è completamente vuota al momento.",
+    "up.folderDelAsk": "Eliminare questo file dalla tua cartella? Ogni link, prodotto o post che lo usa smetterà di funzionare.",
+    "up.folders.market": "Mercato",
+    "up.folders.movies": "Film",
+    "up.folders.tv": "Serie",
+    "up.folders.videos": "I tuoi video",
+    "up.folders.posts": "Post"
 ,
  "act.firstFreeNote": "La prima attivazione è sempre Free. Silver, Gold e Diamond si sbloccano subito dopo — come upgrade pagati con i tuoi punti.",
  "act.upgrade": "Upgrade",

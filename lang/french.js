@@ -4427,8 +4427,20 @@
     "pc.unbanned": "Le bannissement est levé.",
     "pc.loadFail": "La revue n'a pas pu être chargée. Réessayez.",
     "ca.banned": "Ce compte Patreon a été signalé lors de la revue des acheteurs et ne peut plus recevoir de code. Si vous pensez qu'il s'agit d'une erreur, contactez le support.",
-    "ca.campaign": "Pas encore acheté ? C'est en vente sur patreon.com/cw/Workora — achetez-y, puis revenez avec votre compte."
-
+    "ca.campaign": "Pas encore acheté ? C'est en vente sur patreon.com/cw/Workora — achetez-y, puis revenez avec votre compte.",
+    "up.folder": "Les fichiers de votre dossier",
+    "up.folderHint": "Tout ce que contient VOTRE dossier sur le serveur vidéo du site, rangé selon les cinq tiroirs du site. Supprimer ici enlève le fichier lui-même — liens, produits ou publications qui l'utilisent cessent de fonctionner.",
+    "up.folderLoading": "Lecture de votre dossier…",
+    "up.folderFailed": "Le dossier n'a pas pu être lu. Rafraîchissez pour réessayer.",
+    "up.folderEmpty": "Ce tiroir est vide.",
+    "up.folderFiles": "{n} fichiers",
+    "up.folderAllEmpty": "Votre dossier est entièrement vide pour l'instant.",
+    "up.folderDelAsk": "Supprimer ce fichier de votre dossier ? Tout lien, produit ou publication qui l'utilise s'arrêtera de fonctionner.",
+    "up.folders.market": "Marché",
+    "up.folders.movies": "Films",
+    "up.folders.tv": "Séries",
+    "up.folders.videos": "Vos vidéos",
+    "up.folders.posts": "Publications"
 ,
  "act.firstFreeNote": "La première activation est toujours Free. Silver, Gold et Diamond se débloquent juste après — en mises à niveau payées avec vos points.",
  "act.upgrade": "Mise à niveau",

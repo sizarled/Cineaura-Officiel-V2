@@ -291,6 +291,21 @@
   border-radius: 8px;
 }
 
+#up-browse .item-row {
+  grid-template-columns: 1fr auto;
+}
+
+#up-browse .up-browse-head {
+  border-bottom: 2px solid var(--line);
+  padding-top: 14px;
+}
+
+#up-browse .up-browse-head strong {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

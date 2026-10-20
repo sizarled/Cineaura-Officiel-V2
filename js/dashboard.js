@@ -1643,7 +1643,10 @@
         <button class="btn btn-sm btn-primary" id="up-go" type="button" ${ST ? "" : "disabled"}>${t("dash.nav.upload")}</button>
       </div>
       <h2 style="margin:22px 0 10px">${t("up.mine")}</h2>
-      <div id="up-list"></div>`;
+      <div id="up-list"></div>
+      <h2 style="margin:22px 0 10px">${t("up.folder")}</h2>
+      <p class="muted">${t("up.folderHint")}</p>
+      <div id="up-browse"></div>`;
 
     const $ = (s) => main.querySelector(s);
     /* The metadata quality of a film / an episode is one of the palette: the
@@ -1860,6 +1863,70 @@
       toast(t("up.delDone"));
       viewUpload(main);
     };
+
+    /* ── browse the files of the member's OWN folder (Streamtape Users/{id}) ──
+       The walk itself never descends into another member's folder; deleting a
+       row removes the storage file and its site record (js/streamtape.js). */
+    const browseEl = $("#up-browse");
+    const prettySize = (bytes) => {
+      const n = Number(bytes) || 0;
+      if (n >= 1073741824) return `${(n / 1073741824).toFixed(2)} GB`;
+      if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
+      if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+      return `${n} B`;
+    };
+    const drawBrowse = (data) => {
+      if (!browseEl || !browseEl.isConnected) return;
+      if (!data?.ok) {
+        browseEl.innerHTML = `<p class="empty">${t("up.folderFailed")}</p>`;
+        return;
+      }
+      let total = 0;
+      browseEl.innerHTML = data.groups
+        .map((g) => {
+          total += g.files.length;
+          const rows = g.files
+            .map((f) => `
+              <div class="item-row" data-upb-row>
+                <a href="${escapeHtml(f.pageUrl)}" target="_blank" rel="noopener">
+                  <strong>${escapeHtml(f.name || f.id)}</strong>
+                  <div class="muted">${prettySize(f.size)}</div>
+                </a>
+                <button class="btn btn-sm btn-ghost" data-upb-del="${escapeHtml(f.id)}" type="button">${t("common.remove")}</button>
+              </div>`)
+            .join("");
+          return `
+            <div class="up-browse-group" data-upb-group="${escapeHtml(g.folder)}">
+              <div class="item-row up-browse-head">
+                <strong>${t(`up.folders.${g.key}`)}</strong>
+                <span class="muted" data-upb-count="${escapeHtml(g.folder)}">${t("up.folderFiles", { n: g.files.length })}</span>
+              </div>
+              ${rows || `<p class="empty" data-upb-empty="${escapeHtml(g.folder)}">${t("up.folderEmpty")}</p>`}
+            </div>`;
+        })
+        .join("");
+      if (total === 0) {
+        browseEl.insertAdjacentHTML("beforeend", `<p class="muted">${t("up.folderAllEmpty")}</p>`);
+      }
+    };
+    const loadBrowse = async () => {
+      if (!ST || !browseEl) return;
+      browseEl.innerHTML = `<p class="muted">${t("up.folderLoading")}</p>`;
+      drawBrowse(await ST.browseMemberFolders(state.member.member_id));
+    };
+    browseEl?.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-upb-del]");
+      if (!btn) return;
+      const fileId = btn.dataset.upbDel;
+      if (!window.confirm(t("up.folderDelAsk"))) return;
+      btn.disabled = true;
+      const ok = await ST.dropMyFile(state.member.member_id, fileId);
+      if (!browseEl.isConnected) return;
+      if (ok) toast(t("up.delDone"));
+      else toast(t("up.fail"));
+      loadBrowse();
+    });
+    loadBrowse();
   }
 
   async function viewReports(main) {

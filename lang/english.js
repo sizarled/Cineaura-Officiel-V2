@@ -4438,8 +4438,20 @@
     "pc.unbanned": "The ban is lifted.",
     "pc.loadFail": "The review could not be loaded. Try again.",
     "ca.banned": "This Patreon account was flagged in the buyers review and can no longer get a code. If you believe this is a mistake, contact support.",
-    "ca.campaign": "Not bought yet? It is sold at patreon.com/cw/Workora — buy there, then come back with your account."
-
+    "ca.campaign": "Not bought yet? It is sold at patreon.com/cw/Workora — buy there, then come back with your account.",
+    "up.folder": "Your folder's files",
+    "up.folderHint": "Everything inside YOUR hub folder on the site's video server, by the five drawers the site uses. Deleting here removes the file itself — links, products or posts using it stop playing.",
+    "up.folderLoading": "Reading your folder…",
+    "up.folderFailed": "The folder could not be read right now. Refresh to try again.",
+    "up.folderEmpty": "This drawer is empty.",
+    "up.folderFiles": "{n} files",
+    "up.folderAllEmpty": "Your folder is completely empty for now.",
+    "up.folderDelAsk": "Delete this file from your folder? Every link, product or post using it stops playing.",
+    "up.folders.market": "Market",
+    "up.folders.movies": "Movies",
+    "up.folders.tv": "Series",
+    "up.folders.videos": "Videos",
+    "up.folders.posts": "Posts"
 ,
  "act.firstFreeNote": "The first activation is always Free. Silver, Gold and Diamond unlock right after — as upgrades paid with your points.",
  "act.upgrade": "Upgrade",

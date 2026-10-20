@@ -327,6 +327,53 @@
     return true;
   }
 
+  /* ── browsing the member's own folder (Dashboard > Upload) ───────── */
+
+  const fileEntry = (f) => {
+    const id = String(f?.linkid ?? f?.link_id ?? f?.linkID ?? f?.id ?? "");
+    return {
+      id,
+      name: String(f?.name || ""),
+      size: Number(f?.size) || 0,
+      pageUrl: id ? `https://streamtape.com/v/${id}` : "",
+    };
+  };
+
+  /* What is actually in the member's five folders, right now:
+     -> { ok, groups: [{ key, folder, id, files: [fileEntry], error }] }
+     The walk never leaves Users/{memberId}: the tree itself stops there. */
+  async function browseMemberFolders(memberId) {
+    const tree = await ensureMemberTree(memberId);
+    if (!tree.ok) return { ok: false, msg: tree.msg || "", groups: [] };
+    const groups = [];
+    for (const key of Object.keys(FOLDER_KEY)) {
+      const id = tree.map[key];
+      const list = await listFolder(id);
+      groups.push({
+        key,
+        folder: FOLDER_KEY[key],
+        id,
+        files: list.ok ? list.files.map(fileEntry).filter((f) => f.id) : [],
+        error: list.ok ? "" : String(list.msg || ""),
+      });
+    }
+    return { ok: true, groups };
+  }
+
+  /* Delete one file the browse list shows — registry or not: the storage file
+     first, then every registry row that names it for this member. */
+  async function dropMyFile(memberId, fileId) {
+    if (!fileId) return false;
+    const del = await deleteFile(fileId);
+    try {
+      await C().supabaseRequest(
+        `/rest/v1/media_uploads?file_id=eq.${encodeURIComponent(String(fileId))}&owner_id=eq.${encodeURIComponent(String(memberId))}`,
+        { method: "DELETE" }
+      );
+    } catch { /* the row is a bonus: the file is gone anyway */ }
+    return del.ok;
+  }
+
   /* ── url helpers ───────────────────────────────────────────────────── */
 
   function fileIdFromUrl(url) {
@@ -349,6 +396,8 @@
     uploadNamed,
     renameFile,
     deleteFile,
+    browseMemberFolders,
+    dropMyFile,
     registerUpload,
     movieQualityTaken,
     tvQualityTaken,

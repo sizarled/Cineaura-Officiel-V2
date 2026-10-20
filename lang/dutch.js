@@ -4428,8 +4428,20 @@
     "pc.unbanned": "De verbanning is opgeheven.",
     "pc.loadFail": "De controle kon niet worden geladen. Probeer het opnieuw.",
     "ca.banned": "Dit Patreon-account is in de koperscontrole gemarkeerd en kan geen code meer krijgen. Denk je dat dit een vergissing is, neem dan contact op met de support.",
-    "ca.campaign": "Nog niet gekocht? Te koop op patreon.com/cw/Workora — koop daar en kom terug met je account."
-
+    "ca.campaign": "Nog niet gekocht? Te koop op patreon.com/cw/Workora — koop daar en kom terug met je account.",
+    "up.folder": "De bestanden van jouw map",
+    "up.folderHint": "Alles in JOUW map op de videoserver van de site, geordend naar de vijf laden van de site. Verwijderen verwijdert het bestand zelf — links, producten of berichten die het gebruiken werken niet meer.",
+    "up.folderLoading": "Je map wordt gelezen…",
+    "up.folderFailed": "De map kon niet worden gelezen. Vernieuw om opnieuw te proberen.",
+    "up.folderEmpty": "Deze lade is leeg.",
+    "up.folderFiles": "{n} bestanden",
+    "up.folderAllEmpty": "Je map is op dit moment helemaal leeg.",
+    "up.folderDelAsk": "Dit bestand uit je map verwijderen? Elke link, elk product of bericht dat het gebruikt speelt daarna niet meer af.",
+    "up.folders.market": "Markt",
+    "up.folders.movies": "Films",
+    "up.folders.tv": "Series",
+    "up.folders.videos": "Jouw video's",
+    "up.folders.posts": "Berichten"
 ,
  "act.firstFreeNote": "De eerste activering is altijd Free. Silver, Gold en Diamond openen direct daarna — als upgrades die je met je punten betaalt.",
  "act.upgrade": "Upgrade",

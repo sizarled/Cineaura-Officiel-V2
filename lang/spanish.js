@@ -4432,8 +4432,20 @@
     "pc.unbanned": "El baneo se ha levantado.",
     "pc.loadFail": "No se pudo cargar la revisión. Inténtalo de nuevo.",
     "ca.banned": "Esta cuenta de Patreon fue señalada en la revisión de compradores y ya no puede recibir un código. Si crees que es un error, contacta con soporte.",
-    "ca.campaign": "¿Aún no lo has comprado? Está a la venta en patreon.com/cw/Workora — cómpralo allí y vuelve con tu cuenta."
-
+    "ca.campaign": "¿Aún no lo has comprado? Está a la venta en patreon.com/cw/Workora — cómpralo allí y vuelve con tu cuenta.",
+    "up.folder": "Los archivos de tu carpeta",
+    "up.folderHint": "Todo lo que hay dentro de TU carpeta en el servidor de vídeo del sitio, ordenado por los cinco cajones del sitio. Borrar aquí elimina el propio archivo — enlaces, productos o publicaciones que lo usan dejan de funcionar.",
+    "up.folderLoading": "Leyendo tu carpeta…",
+    "up.folderFailed": "No se pudo leer la carpeta ahora. Actualiza para reintentarlo.",
+    "up.folderEmpty": "Este cajón está vacío.",
+    "up.folderFiles": "{n} archivos",
+    "up.folderAllEmpty": "Tu carpeta está completamente vacía por ahora.",
+    "up.folderDelAsk": "¿Borrar este archivo de tu carpeta? Todo enlace, producto o publicación que lo use dejará de reproducirse.",
+    "up.folders.market": "Mercado",
+    "up.folders.movies": "Películas",
+    "up.folders.tv": "Series",
+    "up.folders.videos": "Tus vídeos",
+    "up.folders.posts": "Publicaciones"
 ,
  "act.firstFreeNote": "La primera activación siempre es Free. Silver, Gold y Diamond se desbloquean justo después — como mejoras pagadas con tus puntos.",
  "act.upgrade": "Mejora",

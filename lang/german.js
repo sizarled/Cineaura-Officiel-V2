@@ -4429,8 +4429,20 @@
     "pc.unbanned": "Der Bann ist aufgehoben.",
     "pc.loadFail": "Die Prüfung konnte nicht geladen werden. Bitte erneut versuchen.",
     "ca.banned": "Dieses Patreon-Konto wurde in der Käuferprüfung markiert und kann keinen Code mehr erhalten. Wenn du das für einen Fehler hältst, wende dich an den Support.",
-    "ca.campaign": "Noch nicht gekauft? Verkauft wird auf patreon.com/cw/Workora — kaufe dort und komm mit deinem Konto zurück."
-
+    "ca.campaign": "Noch nicht gekauft? Verkauft wird auf patreon.com/cw/Workora — kaufe dort und komm mit deinem Konto zurück.",
+    "up.folder": "Die Dateien deines Ordners",
+    "up.folderHint": "Alles in DEINEM Ordner auf dem Video-Server der Seite, nach den fünf Fächern der Seite geordnet. Löschen hier entfernt die Datei selbst — Links, Produkte oder Beiträge, die sie nutzen, funktionieren nicht mehr.",
+    "up.folderLoading": "Dein Ordner wird gelesen…",
+    "up.folderFailed": "Der Ordner konnte gerade nicht gelesen werden. Zum erneuten Versuch aktualisieren.",
+    "up.folderEmpty": "Dieses Fach ist leer.",
+    "up.folderFiles": "{n} Dateien",
+    "up.folderAllEmpty": "Dein Ordner ist im Moment komplett leer.",
+    "up.folderDelAsk": "Diese Datei aus deinem Ordner löschen? Jeder Link, jedes Produkt oder jeder Beitrag, der sie nutzt, funktioniert danach nicht mehr.",
+    "up.folders.market": "Markt",
+    "up.folders.movies": "Filme",
+    "up.folders.tv": "Serien",
+    "up.folders.videos": "Deine Videos",
+    "up.folders.posts": "Beiträge"
 ,
  "act.firstFreeNote": "Die erste Aktivierung ist immer Free. Silver, Gold und Diamond schalten sich direkt danach frei — als Upgrades, die du mit Punkten zahlst.",
  "act.upgrade": "Upgrade",
