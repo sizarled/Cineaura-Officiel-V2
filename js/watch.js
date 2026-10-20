@@ -2160,15 +2160,34 @@
       return toast(t(reg.reason === "sql" ? "up.needSql" : reg.reason === "dup" ? "up.dupTitle" : "up.fail"));
     }
 
-    // The upload becomes an ordinary watch link of this title: same perks,
-    // same lists, same counters — its platform badge reads StreamTape.
-    const linkRow = { ...linkBaseRow(meta), watch_url: up.pageUrl };
-    if (mediaType === "tv") {
-      linkRow.season = se.season;
-      linkRow.episode = se.episode;
+    // The upload becomes ordinary links of this title — same perks, same
+    // lists, same counters; its platform badge reads StreamTape. The site's
+    // rule is that an uploaded video is READ THROUGH THE EMBED ADDRESS
+    // (https://streamtape.com/e/{id}) for watching, and through the page
+    // address (https://streamtape.com/v/{id}) for downloading, so both rows
+    // are published: one "watch" row on the /e/ URL and one "download" row
+    // on the /v/ URL. The title column always carries the real TMDB name,
+    // never the raw storage name of the file — when the page title was still
+    // loading we re-ask TMDB before publishing.
+    let title = linkBaseRow(meta).title;
+    if (!title) {
+      try {
+        const info = await tmdb(`/${mediaType}/${Number(mediaId)}`, "");
+        title = info?.title || info?.name || "";
+      } catch { /* TMDB unreachable: the id says enough */ }
+      if (!title) title = mediaType === "tv" ? `#${mediaId} S${se.season}E${se.episode}` : `#${mediaId}`;
     }
+    const linkBase = { ...linkBaseRow(meta), title };
     const table = mediaType === "tv" ? "tvlink" : "movielink";
-    const result = await publishWatchLink(table, linkRow, ["watch"]);
+    const watchRow = { ...linkBase, watch_url: up.embedUrl };
+    if (mediaType === "tv") {
+      watchRow.season = se.season;
+      watchRow.episode = se.episode;
+    }
+    const result = await publishWatchLink(table, watchRow, ["watch"]);
+    try {
+      await publishWatchLink(table, { ...watchRow, watch_url: up.pageUrl, link_kind: "download" }, ["download"]);
+    } catch { /* the download row is a bonus: its failure never fails the upload */ }
     button.disabled = false;
     if (!result.ok) {
       await ST.dropFileUpload(session.member_id, up.fileId);

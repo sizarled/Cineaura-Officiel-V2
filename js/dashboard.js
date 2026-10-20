@@ -1729,7 +1729,12 @@
         button.disabled = false;
         return toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
       }
-      const reg = await ST.registerUpload({
+      /* The upload's own thumbnail: inside Home/Thumbnails there is an image
+         file that carries the very same name — it is grafted to the registry
+         row so every surface of the site can show the video's picture. */
+      let thumb = null;
+      try { thumb = await ST.thumbFor(base.replace(/\.[a-z0-9]+$/i, "")); } catch { /* no Thumbnails folder: fine */ }
+      const regOk = await ST.registerUpload({
         owner_id: state.member.member_id,
         owner_username: state.member.username,
         folder,
@@ -1744,15 +1749,17 @@
         ref_id: kind === "market" ? String(product.id) : "",
         ordinal: kind === "market" ? product.__ordinal : null,
         size_bytes: file.size || 0,
+        ...(thumb ? { thumb_url: thumb.pageUrl, thumb_file_id: thumb.fileId } : {}),
       });
-      if (!reg.ok) {
+      if (!regOk.ok) {
         try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
         prog.hidden = true;
         button.disabled = false;
-        return toast(t(reg.reason === "sql" ? "up.needSql" : reg.reason === "dup" ? "up.dupTitle" : "up.fail"));
+        return toast(t(regOk.reason === "sql" ? "up.needSql" : regOk.reason === "dup" ? "up.dupTitle" : "up.fail"));
       }
-      /* The link heads of a film or an episode: the upload is published as a
-         watch link of its title, playable everywhere on the site at once. */
+      /* A film or an episode becomes ordinary links of its title right away:
+         watching reads the /e/ embed address, downloading the /v/ page
+         address — both rows published, title from TMDB. */
       if (kind !== "market") {
         let title = "";
         try {
@@ -1763,8 +1770,8 @@
           tmdb_id: tmdbId,
           member_id: state.member.member_id,
           username: state.member.username,
-          watch_url: up.pageUrl,
-          title: title || `TMDB ${tmdbId}`,
+          watch_url: up.embedUrl,
+          title: title || `#${tmdbId}`,
           quality,
           original_language: "",
           has_subtitles: false,
@@ -1778,6 +1785,9 @@
           row.episode = episode;
         }
         await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", row, ["watch"]);
+        try {
+          await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", { ...row, watch_url: up.pageUrl, link_kind: "download" }, ["download"]);
+        } catch { /* the download row is a bonus: its failure never fails the upload */ }
       } else if (product && !(product.video_url || "")) {
         await supabaseRequest(`/rest/v1/market_products?id=eq.${restValue(product.id)}`, {
           method: "PATCH",
@@ -1802,9 +1812,12 @@
               .map((r) => {
                 const chip = r.folder === "market" ? t("nav.market") : r.folder === "tv" ? t("common.series") : r.folder === "movies" ? t("common.movie") : r.folder;
                 const when = String(r.created_at || "").slice(0, 10);
+                const thumb = r.thumb_url
+                  ? `<img class="up-thumb" src="${escapeHtml(r.thumb_url)}" alt="" loading="lazy" onerror="this.remove()" />`
+                  : `<span class="up-thumb up-thumb-none" title="${t("up.noThumb")}">✦</span>`;
                 return `
           <div class="item-row">
-            <div></div>
+            ${thumb}
             <a href="${escapeHtml(r.page_url || "")}" target="_blank" rel="noopener">
               <strong>${escapeHtml(r.name || r.file_id)}</strong>
               <div class="muted">${escapeHtml(chip)} · ${Number(r.size_bytes || 0) ? `${(Number(r.size_bytes) / 1048576).toFixed(1)} MB · ` : ""}${when}</div>
@@ -1823,8 +1836,14 @@
       btn.disabled = true;
       const table = row.folder === "tv" ? "tvlink" : row.folder === "movies" ? "movielink" : "";
       if (table) {
+        /* The upload was published twice — the /e/ embed row for watching and
+           the /v/ page row for downloading: both leave with their file. */
+        const urls = [row.page_url, row.embed_url].filter(Boolean);
+        const filt = urls.length === 1
+          ? `watch_url=eq.${encodeURIComponent(urls[0])}`
+          : `watch_url=in.(${urls.map((u) => encodeURIComponent(u)).join(",")})`;
         await supabaseRequest(
-          `/rest/v1/${table}?watch_url=eq.${encodeURIComponent(row.page_url)}&member_id=eq.${restValue(state.member.member_id)}`,
+          `/rest/v1/${table}?${filt}&member_id=eq.${restValue(state.member.member_id)}`,
           { method: "DELETE" }
         );
       }

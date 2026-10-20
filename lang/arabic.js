@@ -4380,4 +4380,7 @@
  "Nothing uploaded yet.": "لا شيء مرفوعًا بعد.",
  "Removed — the file is gone from your folder.": "أُزيل — صار الملف ذاهبًا من مجلدك.",
  "Choose the video quality.": "اختر جودة الفيديو."
+,
+ "market.videoTitle": "فيديو المنتج",
+ "up.noThumb": "لا مصغّرة له بعد"
 };

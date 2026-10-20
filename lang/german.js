@@ -4314,4 +4314,7 @@
  "Nothing uploaded yet.": "Noch nichts hochgeladen.",
  "Removed — the file is gone from your folder.": "Entfernt — die Datei ist aus deinem Ordner verschwunden.",
  "Choose the video quality.": "Wähle die Videoqualität."
+,
+ "market.videoTitle": "Produktvideo",
+ "up.noThumb": "Noch kein Vorschaubild"
 };

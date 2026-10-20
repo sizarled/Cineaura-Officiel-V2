@@ -4312,4 +4312,7 @@
  "Nothing uploaded yet.": "Rien de téléversé pour l’instant.",
  "Removed — the file is gone from your folder.": "Supprimé — le fichier a quitté votre dossier.",
  "Choose the video quality.": "Choisissez la qualité de la vidéo."
+,
+ "market.videoTitle": "Vidéo du produit",
+ "up.noThumb": "Pas encore de miniature"
 };

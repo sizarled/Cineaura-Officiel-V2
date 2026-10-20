@@ -141,11 +141,19 @@
       else others.push(ch);
     });
     // Also handle #hero section special (id hero)
-    // Re-append in order
-    order.forEach(id=>{
-      const el=byId[id];
-      if(el) main.appendChild(el);
-    });
+    // Re-append in order — but only when the sequence truly differs (text
+    // selection dies the moment a node is re-parented, even into place).
+    const desired=order.filter(id=>byId[id]);
+    if(!sequenceMatches(main, desired, (ch)=>{
+      if(ch.id && order.includes(ch.id)) return ch.id;
+      if(ch.classList.contains("trust") && order.includes("trust")) return "trust";
+      return null;
+    })){
+      order.forEach(id=>{
+        const el=byId[id];
+        if(el) main.appendChild(el);
+      });
+    }
     // Ensure trust handled (it is a div not section, class trust)
     // If order contains trust but not found as id, find .trust
     if(order.includes("trust")){
@@ -168,10 +176,17 @@
     if(playerWrap) map["player-wrap"]=playerWrap;
     // also handle shortcut ids
     [...root.children].forEach(ch=>{ if(ch.id && ch.id.startsWith("shortcut-")) map[ch.id]=ch; });
-    order.forEach(id=>{
-      const el=map[id];
-      if(el) root.appendChild(el);
-    });
+    // Only move when the order differs (moving a node kills text selection).
+    const wanted=order.filter(id=>map[id]);
+    if(!sequenceMatches(root, wanted, (ch)=>{
+      if(ch.classList && ch.classList.contains("player-wrap") && order.includes("player-wrap")) return "player-wrap";
+      return (ch.id && map[ch.id]===ch && order.includes(ch.id)) ? ch.id : null;
+    })){
+      order.forEach(id=>{
+        const el=map[id];
+        if(el) root.appendChild(el);
+      });
+    }
   }
   function applyGenericOrder(containerSel, order, idAttr){
     const cont=document.querySelector(containerSel);
@@ -183,10 +198,17 @@
       if(key && order.includes(key)) map[key]=ch;
       if(ch.id && ch.id.startsWith("shortcut-")) map[ch.id]=ch;
     });
-    order.forEach(id=>{
-      const el=map[id];
-      if(el) cont.appendChild(el);
-    });
+    // Only move when the order differs (moving a node kills text selection).
+    const wanted=order.filter(id=>map[id]);
+    if(!sequenceMatches(cont, wanted, (ch)=>{
+      const key=ch.id || ch.getAttribute(idAttr)||"";
+      return (key && map[key]===ch && order.includes(key)) ? key : null;
+    })){
+      order.forEach(id=>{
+        const el=map[id];
+        if(el) cont.appendChild(el);
+      });
+    }
   }
 
   function injectSideShortcuts(page, cfg){
@@ -282,12 +304,25 @@
     });
     const unlisted=extras.filter(el=> el.hasAttribute("data-section") || el.hasAttribute("data-sec"));
     const others=extras.filter(el=> !unlisted.includes(el));
-    const frag=document.createDocumentFragment();
-    if(byKey.overview) frag.appendChild(byKey.overview);
-    unlisted.forEach(el=> frag.appendChild(el));
-    finalOrder.forEach(k=>{ if(k!=="overview" && byKey[k]) frag.appendChild(byKey[k]); });
-    others.forEach(el=> frag.appendChild(el));
-    nav.appendChild(frag);
+    // Skip everything when the nav already matches the desired sequence —
+    // re-parenting a button collapses any text selection inside the page.
+    const desired=(byKey.overview?["overview"]:[])
+      .concat(unlisted.map((el)=> el.getAttribute("data-section")||el.getAttribute("data-sec")||el.dataset.sec||el.dataset.section||""))
+      .concat(finalOrder.filter((k)=> k!=="overview" && byKey[k]))
+      .concat(others.map(()=> null));
+    const current=[...nav.children].map((el)=>{
+      if(others.includes(el)) return null;
+      return el.getAttribute("data-section")||el.getAttribute("data-sec")||el.dataset.sec||el.dataset.section||null;
+    });
+    const same= desired.length===current.length && desired.every((k,i)=> k===current[i]);
+    if(!same){
+      const frag=document.createDocumentFragment();
+      if(byKey.overview) frag.appendChild(byKey.overview);
+      unlisted.forEach(el=> frag.appendChild(el));
+      finalOrder.forEach((k)=>{ if(k!=="overview" && byKey[k]) frag.appendChild(byKey[k]); });
+      others.forEach((el)=> frag.appendChild(el));
+      nav.appendChild(frag);
+    }
     // inject shortcuts after reordering
     try{ const cfg=loadConfig(); injectSideShortcuts("dashboard", cfg); }catch{}
   }
@@ -297,10 +332,30 @@
     if(!nav) return;
     const map={};
     [...nav.querySelectorAll("button[data-sec]")].forEach(b=> map[b.dataset.sec]=b);
-    order.forEach(k=>{ const el=map[k]; if(el) nav.appendChild(el); });
+    // No-op when the nav already matches — re-parenting kills text selection.
+    const current=[...nav.querySelectorAll("button[data-sec]")].map(b=> b.dataset.sec);
+    const wanted=order.filter(k=> map[k]);
+    const same= wanted.length===current.length && wanted.every((k,i)=> k===current[i]);
+    if(!same){
+      order.forEach(k=>{ const el=map[k]; if(el) nav.appendChild(el); });
+    }
     try{ const cfg=loadConfig(); injectSideShortcuts("profile", cfg); }catch{}
   }
 
+  /* Selection-safe DOM moves: removing and re-appending a node collapses any
+     text selection anchored in it. Before any reorder, compare the current
+     sequence with the target one and touch the DOM only when it differs. */
+  function sequenceMatches(container, desired, keyOf){
+    if(!container) return false;
+    const keys=[];
+    for(const ch of container.children){
+      const k=keyOf(ch);
+      if(k!=null) keys.push(k);
+    }
+    if(keys.length!==desired.length) return false;
+    for(let i=0;i<desired.length;i++){ if(keys[i]!==desired[i]) return false; }
+    return true;
+  }
   function applyHidden(cfg, page){
     // Respect hidden sections saved via editor: hide them outside edit mode
     try{
@@ -308,7 +363,7 @@
       if(!hidden || !hidden.length) return;
       hidden.forEach(id=>{
         const el=document.getElementById(id);
-        if(el) { el.hidden=true; el.style.display="none"; }
+        if(el && !el.hidden) { el.hidden=true; el.style.display="none"; }
       });
     }catch{}
   }

@@ -213,10 +213,53 @@
      quality only once site-wide, the ascending ordinals of the products — are
      rows here, unique-indexed in the database. */
 
+  /* The video's own picture lives under Home/Thumbnails: an image file that
+     carries the very same name as the video file (without its extension).
+     Returns { fileId, pageUrl } or null when the folder or the file is not
+     there yet. */
+  let thumbs = null;
+  async function thumbFor(baseName) {
+    const stem = String(baseName || "").replace(/\.[a-z0-9]+$/i, "").trim();
+    if (!stem) return null;
+    if (thumbs === null) {
+      thumbs = [];
+      try {
+        const root = await apiCall("/file/listfolder", {});
+        if (!root.ok) return null;
+        const folders = Array.isArray(root.data?.folders) ? root.data.folders : [];
+        const hit = folders.find((f) => /^thumbnails$/i.test(String(f.name || "").trim()));
+        if (!hit) return null;
+        thumbs = await folderFiles(String(hit.id));
+      } catch {
+        thumbs = null;
+        return null;
+      }
+    }
+    const low = stem.toLowerCase();
+    const file = (thumbs || []).find((f) => String(f.name || "").replace(/\.[a-z0-9]+$/i, "").toLowerCase() === low);
+    if (!file) return null;
+    return { fileId: String(file.linkid || file.link_id || file.linkID || ""), pageUrl: `https://streamtape.com/v/${file.linkid || file.link_id || file.linkID}`, name: file.name };
+  }
+
   async function registerUpload(row) {
+    /* A registry row can also carry the video's thumbnail: drop those two
+       columns gracefully when the graved-table version has not run yet. */
+    const payload = { ...row };
+    try {
+      if (payload.thumb_url || payload.thumb_file_id) {
+        const probe = await C().supabaseRequest("/rest/v1/media_uploads?select=thumb_url&limit=1");
+        if (probe?.data?.code === "PGRST204" || probe?.data?.code === "42703" || !probe.ok) {
+          delete payload.thumb_url;
+          delete payload.thumb_file_id;
+        }
+      }
+    } catch {
+      delete payload.thumb_url;
+      delete payload.thumb_file_id;
+    }
     const res = await C().supabaseRequest("/rest/v1/media_uploads", {
       method: "POST",
-      body: JSON.stringify(row),
+      body: JSON.stringify(payload),
       headers: { Prefer: "return=representation" },
     });
     if (res.ok) return { ok: true, data: Array.isArray(res.data) ? res.data[0] : res.data };
@@ -314,5 +357,6 @@
     dropFileUpload,
     fileIdFromUrl,
     toEmbedUrl,
+    thumbFor,
   };
 })();

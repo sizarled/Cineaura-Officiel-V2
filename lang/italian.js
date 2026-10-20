@@ -4315,4 +4315,7 @@
  "Nothing uploaded yet.": "Niente di caricato per ora.",
  "Removed — the file is gone from your folder.": "Rimosso — il file è sparito dalla tua cartella.",
  "Choose the video quality.": "Scegli la qualità del video."
+,
+ "market.videoTitle": "Video del prodotto",
+ "up.noThumb": "Nessuna miniatura"
 };

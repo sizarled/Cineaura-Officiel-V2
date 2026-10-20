@@ -47,6 +47,11 @@ create unique index if not exists media_uploads_tv_unique
 create unique index if not exists media_uploads_market_ord_unique
   on public.media_uploads (ref_id, ordinal) where folder = 'market' and ref_id <> '';
 
+-- the video's own picture, matched from Home/Thumbnails by the same name
+alter table public.media_uploads add column if not exists thumb_url text not null default '';
+alter table public.media_uploads add column if not exists thumb_file_id text not null default '';
+comment on column public.media_uploads.thumb_url is 'Thumbnail image of the video, matched from the Home/Thumbnails Streamtape folder by the same file name';
+
 alter table public.media_uploads enable row level security;
 drop policy if exists "MediaUploads select" on public.media_uploads;
 create policy "MediaUploads select" on public.media_uploads for select to anon, authenticated using (true);

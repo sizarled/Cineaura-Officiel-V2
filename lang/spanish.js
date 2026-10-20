@@ -4317,4 +4317,7 @@
  "Nothing uploaded yet.": "Nada subido todavía.",
  "Removed — the file is gone from your folder.": "Eliminado — el archivo ya no está en tu carpeta.",
  "Choose the video quality.": "Elige la calidad del vídeo."
+,
+ "market.videoTitle": "Vídeo del producto",
+ "up.noThumb": "Aún sin miniatura"
 };

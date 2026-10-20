@@ -3284,3 +3284,8 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
 .mkt-st { margin-top: 6px; }
 .mkt-st .stvideo-box { margin-top: 8px; }
 .mkt-more-videos .mkt-video { margin-top: 10px; }
+
+/* Round 37 — the upload's own thumbnail on the My-uploads list and the
+   product video's main picture (grafted from Home/Thumbnails by name). */
+.up-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line, #2b3570); flex-shrink: 0; }
+.up-thumb-none { display: grid; place-items: center; color: var(--muted, #9aa3c7); font-size: 1.1rem; background: rgba(56,189,248,.08); }

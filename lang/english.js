@@ -4323,4 +4323,7 @@
  "Nothing uploaded yet.": "Nothing uploaded yet.",
  "Removed — the file is gone from your folder.": "Removed — the file is gone from your folder.",
  "Choose the video quality.": "Choose the video quality."
+,
+ "market.videoTitle": "Product video",
+ "up.noThumb": "No thumbnail yet"
 };

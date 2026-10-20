@@ -4313,4 +4313,7 @@
  "Nothing uploaded yet.": "Nog niets geüpload.",
  "Removed — the file is gone from your folder.": "Verwijderd — het bestand is uit je map weg.",
  "Choose the video quality.": "Kies de videokwaliteit."
+,
+ "market.videoTitle": "Video van het product",
+ "up.noThumb": "Nog geen miniatuur"
 };

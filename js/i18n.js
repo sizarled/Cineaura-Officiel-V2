@@ -865,6 +865,8 @@
     "up.empty": "Nothing uploaded yet.",
     "up.delDone": "Removed — the file is gone from your folder.",
     "up.needQuality": "Choose the video quality.",
+    "up.noThumb": "No thumbnail yet",
+    "market.videoTitle": "Product video",
     "mkt.f.videoUpload": "Upload the video as a file",
     "mkt.f.videoUploadHint": "Your video lands in your own Streamtape folder (Market) and becomes the product's video; every next upload gets the next ascending number.",
     "mkt.moreVideos": "{n} more video(s) of this product",
