@@ -57,6 +57,7 @@
                  placeholder="${t("ca.accountPh")}" dir="ltr" />
         </label>
         <button class="btn btn-primary" id="ca-go" type="button">${t("ca.verify")}</button>
+        <p class="ca-note"><a href="https://www.patreon.com/cw/Workora" target="_blank" rel="noopener noreferrer">${t("ca.campaign")}</a></p>
         <p class="ca-note">${t("ca.notePrivacy")}</p>
       </div>`;
     const input = document.getElementById("ca-account");
@@ -98,6 +99,7 @@
       not_configured: "ca.notConfigured",
       bad_state: "ca.badState",
       sql_missing: "ca.sqlMissing",
+      banned: "ca.banned",
       net: "ca.netFail",
     };
     const key = map[reason] || "ca.netFail";

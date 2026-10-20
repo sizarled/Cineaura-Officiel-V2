@@ -1,5 +1,7 @@
 -- Patreon → POINTS code delivery (codeactivation page)
--- Run in the Supabase SQL editor after point_codes.sql.
+-- Run in the Supabase SQL editor after point_codes.sql — and run
+-- sql/patreon_review.sql after it (the Panel > Patreon buyers review, which
+-- can ban a claim; this file's claim guard needs its columns).
 --
 -- The site sells ONE kind of thing on Patreon: points codes. The page at
 -- codeactivation.html asks the visitor for his Patreon account and walks him
@@ -76,9 +78,13 @@ declare
 begin
   -- The same Patreon identity always sees the same code — including codes
   -- handed out before the points-only switch (legacy kind='membership' rows
-  -- come back untouched from here).
+  -- come back untouched from here). A claim banned by the buyers review
+  -- (sql/patreon_review.sql) gets the "banned" answer and never a code again.
   select * into v_existing from public.patreon_claims where patreon_user_id = p_user for update;
   if found then
+    if to_regclass('public.patreon_buyers') is not null and v_existing.banned_at is not null then
+      return jsonb_build_object('ok', false, 'reason', 'banned');
+    end if;
     return jsonb_build_object(
       'ok', true, 'reused', true,
       'kind', v_existing.kind,
