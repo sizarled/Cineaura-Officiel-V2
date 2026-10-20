@@ -44,6 +44,17 @@
     AGE_TIERS,
     ageTier,
   } = C;
+  // The site's hosts: an uploaded link (StreamTape) also cleans up after
+  // itself — deleting it removes the file from the member's own folder.
+  const maybeDropUploadedFile = async (row) => {
+    try {
+      const ST = window.Streamtape;
+      if (!ST) return;
+      const r = typeof row === "string" ? JSON.parse(row || "{}") : row || {};
+      const fileId = ST.fileIdFromUrl(r.watch_url || "");
+      if (fileId) await ST.dropFileUpload(state.member.member_id, fileId);
+    } catch { /* best effort: the link itself is already gone */ }
+  };
 
   const PLAN = {
     Free: { maxCodes: 5, months: 1 },
@@ -1360,7 +1371,7 @@
               <div class="muted">${kindChipHtml(r, seen)} ${kind === "tv" ? `S${r.season} · E${r.episode} · ` : ""}${r.banned ? t("common.banned") + " · " : ""}${r.url_hidden ? "🔒 " + t("watch.urlHiddenChip") + " · " : ""}${escapeHtml(qualityLabel(r.quality) || r.quality || "—")} · ${escapeHtml(r.original_language || "—")} · ${r.has_subtitles ? (r.subtitle_languages === "all" ? t("dash.subsAll") : t("watch.subsYes", { langs: escapeHtml(r.subtitle_languages || "yes") })) : t("dash.noSubs")} · ${r.has_ads ? t("common.adsOn") : t("common.adsOff")} · ${Number(r.clicks || 0)} ${t("common.clicks")} · TMDB ${r.tmdb_id} · ${String(r.added_at || "").slice(0, 10)}</div>
             </a>
             <button class="btn btn-sm btn-ghost" data-toggle-url="${r.id}" data-kind="${kind}" data-hidden="${r.url_hidden ? "1" : "0"}" type="button">${r.url_hidden ? t("dash.showUrl") : t("dash.hideUrl")}</button>
-            <button class="btn btn-sm btn-ghost" data-del-link="${r.id}" data-kind="${kind}" type="button">${t("common.remove")}</button>
+            <button class="btn btn-sm btn-ghost" data-del-link="${r.id}" data-kind="${kind}" data-lk-row="${escapeHtml(JSON.stringify({ watch_url: r.watch_url || "" }))}" type="button">${t("common.remove")}</button>
           </div>`
             )
             .join("")
@@ -1548,6 +1559,7 @@
       if (!btn) return;
       const table = btn.dataset.kind === "tv" ? "tvlink" : "movielink";
       await supabaseRequest(`/rest/v1/${table}?id=eq.${btn.dataset.delLink}`, { method: "DELETE" });
+      await maybeDropUploadedFile(btn.dataset.lkRow || "");
       toast(t("dash.linkRemoved"));
       viewLinks(main);
     };

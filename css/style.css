@@ -3269,3 +3269,18 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
   .acct-due-txt { flex-basis: calc(100% - 34px); font-size: 13.5px; }
   .acct-due-acts { width: 100%; justify-content: flex-end; }
 }
+
+/* ── Round 35 · member video uploads (Streamtape) ────────────────── */
+/* The little progress meter every upload surface shares. */
+.up-prog { position: relative; height: 18px; margin-top: 8px; border-radius: 999px; background: var(--line, #2b3570); overflow: hidden; }
+.up-prog-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 999px; transition: width .2s ease; }
+.up-prog-n { position: absolute; inset: 0; display: grid; place-items: center; font-size: .72rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / .45); }
+
+/* The video a profile post carries: framed like the picture blocks of a post. */
+.post-video { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #000; margin: 8px 0 12px; }
+.post-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* Market: the seller's own video file control, under the video url field. */
+.mkt-st { margin-top: 6px; }
+.mkt-st .stvideo-box { margin-top: 8px; }
+.mkt-more-videos .mkt-video { margin-top: 10px; }

@@ -1498,9 +1498,21 @@
     );
   }
 
+  /* A post may carry one uploaded video (Posts folder on Streamtape): its
+     embed player sits right under the heading of the card. */
+  function postVideoHtml(p) {
+    if (!p.video_url) return "";
+    const V = window.CineAuraVideos;
+    const info = V?.parseVideo?.(p.video_url);
+    const src = info ? V.embedSrc(info, { autoplay: false }) : null;
+    if (!src) return "";
+    return `<div class="post-video"><iframe src="${escapeHtml(src)}" loading="lazy" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe></div>`;
+  }
+
   // Body of a post card: playlists keep the poster grid, recommendations /
   // lists / reviews get poster + title + year + genre + story + cast + trailer.
   function postContentHtml(p, items) {
+    const video = postVideoHtml(p);
     if (!RICH_KINDS.includes(p.kind)) {
       const media = items
         .map((it) => {
@@ -1510,7 +1522,7 @@
           return `<a href="${href}">${score ? `<span class="score">★ ${score}</span>` : ""}<img src="${img}" alt=""/><div class="muted">${escapeHtml(it.title)}</div></a>`;
         })
         .join("");
-      return `<p>${escapeHtml(p.body || "")}</p>
+      return `${video}<p>${escapeHtml(p.body || "")}</p>
         ${p.playlist_id ? `<p><a class="btn btn-sm btn-ghost" href="./Playlist.html?ID=${encodeURIComponent(p.playlist_id)}">${t("prof.openPl")}</a></p>` : ""}
         ${media ? `<div class="post-media">${media}</div>` : ""}`;
     }
@@ -1518,11 +1530,11 @@
     const compact = p.kind === "reclist" && items.length > 1;
     const blocks = items.map((it) => Rich.itemHtml(it, display, p.post_id, { compact })).join("");
     if (p.kind === "review") {
-      return `<div class="rich-list">${blocks}</div>
+      return `${video}<div class="rich-list">${blocks}</div>
         <div class="review-text">${escapeHtml(p.body || "")}</div>
         ${Rich.reviewListsHtml(p.pros, p.cons)}`;
     }
-    return `<p>${escapeHtml(p.body || "")}</p><div class="rich-list">${blocks}</div>`;
+    return `${video}<p>${escapeHtml(p.body || "")}</p><div class="rich-list">${blocks}</div>`;
   }
 
   function ownerToolsHtml(p) {
@@ -2488,6 +2500,13 @@
           <input id="c-title" placeholder="${isReview ? t("rev.titlePh") : multi ? t("prof.listTitle") : t("prof.recTitle")}" />
           <label class="field-label" for="c-body">${isReview ? t("rev.textLabel") : t("rich.textLabel")}</label>
           <textarea id="c-body" rows="${isReview ? 7 : 4}" placeholder="${isReview ? t("rev.textPh") : t("prof.writeRec")}"></textarea>
+          <label class="field-label" for="c-vid">${t("prof.postVideo")}</label>
+          <input id="c-vid" type="file" accept="video/*" />
+          <p class="muted addlink-hint">${t("prof.postVideoHint")}</p>
+          <div class="up-prog" id="c-video-prog" hidden>
+            <div class="up-prog-bar" id="c-video-bar"></div>
+            <span class="up-prog-n" id="c-video-n">0%</span>
+          </div>
           ${isReview ? `<div class="pc-grid">${pcCol("pros")}${pcCol("cons")}</div>` : ""}
           <fieldset class="display-opts">
             <legend>${t("rich.displayTitle")}</legend>
@@ -2682,6 +2701,9 @@
       extras.pros = d.pros.join("\n");
       extras.cons = d.cons.join("\n");
     }
+    // An optional video file of the member: uploads to Streamtape (Posts) on save.
+    const videoFile = $("#c-vid")?.files?.[0] || null;
+    if (videoFile) extras.videoFile = videoFile;
     await insertPost(kind, title, body, vis, "", d.items.map((it) => Rich.toItemRow(it)), extras);
   }
 
@@ -2693,6 +2715,42 @@
       return toast(t("prof.postDayFull", { cap: quota.cap, lv: quota.level }));
     }
     const postId = uid("P");
+    /* An attached video goes to the member's Streamtape Posts folder, named
+       "Post - {postId}"; its page url rides on the post and plays in the
+       feed. Registered in media_uploads so a deleted post deletes its file. */
+    if (extras.videoFile instanceof File) {
+      const file = extras.videoFile;
+      delete extras.videoFile;
+      const ST = window.Streamtape;
+      if (!ST) return toast(t("up.fail"));
+      const prog = $("#c-video-prog");
+      if (prog) prog.hidden = false;
+      const paint = (n) => {
+        const b = $("#c-video-bar");
+        const ne = $("#c-video-n");
+        if (b) b.style.width = `${n}%`;
+        if (ne) ne.textContent = `${n}%`;
+      };
+      const up = await ST.uploadNamed(state.me.member.member_id, "posts", file, ST.names.post(postId), paint);
+      if (prog) prog.hidden = true;
+      if (!up.ok) return toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+      const reg = await ST.registerUpload({
+        owner_id: state.me.member.member_id,
+        owner_username: state.me.member.username,
+        folder: "posts",
+        name: up.name,
+        file_id: up.fileId,
+        page_url: up.pageUrl,
+        embed_url: up.embedUrl,
+        ref_id: postId,
+        size_bytes: file.size || 0,
+      });
+      if (!reg.ok) {
+        try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
+        return toast(t(reg.reason === "sql" ? "up.needSql" : "up.fail"));
+      }
+      extras.video_url = up.pageUrl;
+    }
     const row = {
       post_id: postId,
       owner_id: state.me.member.member_id,
@@ -2719,6 +2777,8 @@
       // Reviews need the columns + kind from sql/post_reviews.sql; other posts
       // still publish without the display options on an older schema.
       if (kind === "review") return toast(t("rev.needSql"));
+      // A video post is only a video post with its video: no fallback without it.
+      if (extras.video_url) return toast(t("up.needSql"));
       saved = await supabaseRequest("/rest/v1/posts", { method: "POST", body: JSON.stringify(row) });
     }
     if (!saved.ok) return toast(t("prof.pubFail"));
@@ -2772,6 +2832,10 @@
     if (!res.ok) {
       toast(t("pm.delFail"));
       return false;
+    }
+    // An uploaded video of the post goes with it (Posts folder on Streamtape).
+    if (post.video_url && window.Streamtape) {
+      window.Streamtape.dropRefUploads("posts", post.post_id).catch(() => {});
     }
     await Promise.all(
       ["post_items", "post_access", "post_votes", "post_comments", "updates"].map((tb) =>

@@ -86,6 +86,12 @@
       m = path.match(/\/video\/(\d{8,25})/);
       if (m) return { ...base, provider: "tiktok", id: m[1] };
     }
+    // Streamtape (the site's own uploads, js/streamtape.js): /v/ is the page,
+    // /e/ the frameable player; both carry the same file id.
+    if (/(^|\.)streamtape\.(com|net)$/.test(host) || host === "streamta.pe") {
+      m = path.match(/\/[ve]\/([\w-]{6,40})/);
+      if (m) return { ...base, provider: "streamtape", id: m[1] };
+    }
     if (/\.m3u8$/i.test(path)) return { ...base, provider: "hls" };
     if (/\.(mp4|webm|ogg|ogv|mov|m4v)$/i.test(path)) return { ...base, provider: "file" };
     return { ...base, provider: "link" };
@@ -109,6 +115,8 @@
         return `https://drive.google.com/file/d/${info.id}/preview`;
       case "tiktok":
         return `https://www.tiktok.com/embed/v2/${info.id}`;
+      case "streamtape":
+        return `https://streamtape.com/e/${info.id}`;
       case "link":
         return info.url;
       default:

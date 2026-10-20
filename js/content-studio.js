@@ -167,6 +167,17 @@
             <label class="field-label" for="vc-url">${esc(t("vid.f.url"))}</label>
             <input id="vc-url" type="url" inputmode="url" maxlength="2000" autocomplete="off" dir="ltr" placeholder="https://www.youtube.com/watch?v=…" value="${esc(d.url)}" />
             <p class="vs-hint" id="vc-url-hint" aria-live="polite">${esc(t("vid.f.urlHint"))}</p>
+            <!-- Or the member's own video file: it uploads to the Streamtape
+                 Videos folder of their account and becomes this video's link. -->
+            <button class="btn btn-sm btn-ghost" type="button" id="vc-up-toggle" style="margin-top:8px">${esc(t("vid.f.orUpload"))}</button>
+            <div id="vc-up-box" hidden style="margin-top:8px">
+              <input id="vc-file" type="file" accept="video/*" />
+              <p class="vs-hint">${esc(t("vid.f.uploadHint"))}</p>
+              <div class="up-prog" id="vc-up-prog" hidden>
+                <div class="up-prog-bar" id="vc-up-bar"></div>
+                <span class="up-prog-n" id="vc-up-n">0%</span>
+              </div>
+            </div>
             <div id="vc-thumb-wrap" hidden>
               <label class="field-label" for="vc-thumb">${esc(t("vid.f.thumb"))} <small class="muted">${esc(t("dash.dev.optional"))}</small></label>
               <input id="vc-thumb" type="url" inputmode="url" maxlength="1000" dir="ltr" placeholder="https://…/picture.jpg" value="${esc(d.thumb)}" />
@@ -297,6 +308,11 @@
     const d = state.draft;
     const $ = (sel) => pane.querySelector(sel);
     const info = () => V.parseVideo(d.url);
+
+    $("#vc-up-toggle")?.addEventListener("click", () => {
+      const box = $("#vc-up-box");
+      if (box) box.hidden = !box.hidden;
+    });
 
     // --- link: what it is, and the optional picture when the provider has none
     const syncUrl = () => {
@@ -600,10 +616,37 @@
   async function publish(pane) {
     const d = readDraft(pane);
     alertMsg(pane, "");
-    const v = V.parseVideo(d.url);
+    /* A picked file beats the URL field: it uploads to the member's Streamtape
+       Videos folder with a temporary name; once content_create hands out the
+       video id, the file is renamed to "Video - {id}" and registered. */
+    const stFile = pane.querySelector("#vc-file")?.files?.[0] || null;
+    let v = null;
+    let pendingUp = null;
+    if (stFile) {
+      const ST = window.Streamtape;
+      if (!ST) return alertMsg(pane, t("up.fail"));
+      const prog = pane.querySelector("#vc-up-prog");
+      const bar = pane.querySelector("#vc-up-bar");
+      const nEl = pane.querySelector("#vc-up-n");
+      if (prog) prog.hidden = false;
+      const paint = (n) => {
+        if (bar) bar.style.width = `${n}%`;
+        if (nEl) nEl.textContent = `${n}%`;
+      };
+      paint(0);
+      const up = await ST.uploadNamed(me(), "videos", stFile, `Video - pending - ${Date.now()}`, paint);
+      if (prog) prog.hidden = true;
+      if (!up.ok) {
+        return alertMsg(pane, t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+      }
+      v = V.parseVideo(up.pageUrl);
+      pendingUp = { up, file: stFile, ST };
+    } else {
+      v = V.parseVideo(d.url);
+    }
     if (!v) {
       pane.querySelector("#vc-url").focus();
-      return alertMsg(pane, t("vid.f.urlBad"));
+      return alertMsg(pane, t(stFile ? "up.fail" : "vid.f.urlBad"));
     }
     if (!d.title.trim()) {
       pane.querySelector("#vc-title").focus();
@@ -656,10 +699,33 @@
     };
     const res = await V.call("content_create", { p_member: me(), d: body });
     if (!res.ok || res.data?.ok === false) {
+      // A failed publish after an upload drops the temporary file again.
+      if (pendingUp) {
+        try { await pendingUp.ST.deleteFile(pendingUp.up.fileId); } catch { /* best effort */ }
+      }
       btn.disabled = false;
       btn.textContent = t("vid.requestPublish");
       if (res.setup) return alertMsg(pane, t("vid.setup"));
       return alertMsg(pane, t(REASONS[res.data?.reason] || "vid.err.generic"));
+    }
+    if (pendingUp) {
+      const cid = res.data.id;
+      const ext = (String(pendingUp.up.name).match(/\.[A-Za-z0-9]{2,5}$/) || [".mp4"])[0];
+      const finalName = `${pendingUp.ST.names.video(cid)}${ext}`;
+      try {
+        await pendingUp.ST.renameFile(pendingUp.up.fileId, finalName);
+        await pendingUp.ST.registerUpload({
+          owner_id: me(),
+          owner_username: String(C.getSession()?.username || ""),
+          folder: "videos",
+          name: finalName,
+          file_id: pendingUp.up.fileId,
+          page_url: pendingUp.up.pageUrl,
+          embed_url: pendingUp.up.embedUrl,
+          ref_id: String(cid),
+          size_bytes: pendingUp.file.size || 0,
+        });
+      } catch { /* the video itself is published; the file stays linked by url */ }
     }
     state.published = { id: res.data.id, publish_at: res.data.publish_at };
     if (body.playlist_name) state.playlists = null;
@@ -922,6 +988,10 @@
       if (!yes) return;
       const res = await V.call("content_delete", { p_member: me(), p_id: row.id });
       if (!res.ok || res.data?.ok === false) return toast(t("vid.actFail"));
+      // An uploaded video of this content goes with it (Videos folder).
+      if (row.provider === "streamtape" && window.Streamtape) {
+        window.Streamtape.dropRefUploads("videos", String(row.id)).catch(() => {});
+      }
       toast(t("vid.deleted"));
       drawManage(pane);
       return;

@@ -195,8 +195,11 @@
   function setFrame(url) {
     const frame = $("#player-frame");
     const yt = youTubeEmbed(url);
+    // The site's own uploads live on Streamtape: their page url (/v/) becomes
+    // the frameable player (/e/) here, the same id.
+    const st = yt || (window.Streamtape ? window.Streamtape.toEmbedUrl(url) : url);
     frame.setAttribute("referrerpolicy", yt ? "strict-origin-when-cross-origin" : "no-referrer");
-    frame.src = yt || url;
+    frame.src = st || url;
   }
   function youTubeEmbed(raw) {
     let u;
@@ -1765,6 +1768,10 @@
               <input type="radio" name="al-mode" value="import" />
               <span>${t("watch.al.modeImport")}</span>
             </label>
+            <label class="kind-pick">
+              <input type="radio" name="al-mode" value="upload" />
+              <span>${t("watch.al.modeUpload")}</span>
+            </label>
           </div>
           ${
             mediaType === "tv"
@@ -1819,6 +1826,21 @@
               <span>${t("watch.al.importText")}</span>
               <textarea id="al-import" class="mono" rows="10" dir="ltr" spellcheck="false" placeholder="&lt;!--  ${escapeHtml((state.detail && (state.detail.name || state.detail.title)) || "Name")} -  S1 -  Ep1 [HD] --&gt;&#10;https://example.com/ep-1"></textarea>
             </label>
+          </div>
+          <!-- The site's own copy of the film / the episode goes from here:
+               the file uploads to the member's Streamtape folder and shows up
+               as an ordinary watch link — playable everywhere on the site. One
+               quality of one title uploads once for the whole site. -->
+          <div id="al-upload-box" hidden>
+            <p class="muted addlink-hint">${t("watch.al.uploadHint")}</p>
+            <label class="addlink-field">
+              <span>${t("watch.al.uploadFile")}</span>
+              <input id="al-file" type="file" accept="video/*" />
+            </label>
+            <div class="up-prog" id="al-up-prog" hidden>
+              <div class="up-prog-bar" id="al-up-bar"></div>
+              <span class="up-prog-n" id="al-up-n">0%</span>
+            </div>
           </div>
           <div class="addlink-field">
             <span>${t("watch.al.quality")}</span>
@@ -1900,6 +1922,8 @@
       if (bulkBox) bulkBox.hidden = m !== "bulk";
       const importBox = $("#al-import-box");
       if (importBox) importBox.hidden = m !== "import";
+      const uploadBox = $("#al-upload-box");
+      if (uploadBox) uploadBox.hidden = m !== "upload";
       const seRow = $("#al-se-row");
       if (seRow) seRow.hidden = m === "import";
       const seHint = $("#al-se-hint");
@@ -1915,6 +1939,7 @@
       const m = $('input[name="al-mode"]:checked')?.value || "single";
       if (m === "bulk") return submitBulkLinks();
       if (m === "import") return submitImportLinks();
+      if (m === "upload") return submitUploadLink();
       return submitNewLink();
     };
     $("#al-url").focus();
@@ -2050,6 +2075,109 @@
      Gold 15 · Diamond 20. The level decides the whole day: LV × 10 links. */
   async function linkBatchCap() {
     return membershipBatchCap(await membership());
+  }
+
+  /* Upload mode: the site's OWN copy of this film / this episode. The file
+     goes to the member's Streamtape folder (Movies, or TV with its season
+     and episode), then appears like any member watch link — its platform
+     badge simply says StreamTape. A title at one quality uploads once for
+     the whole site: the registry turns it away before the file moves. */
+  async function submitUploadLink() {
+    const session = getSession();
+    if (!session?.member_id) {
+      toast(t("watch.al.sign"));
+      return;
+    }
+    const ST = window.Streamtape;
+    if (!ST) return toast(t("up.fail"));
+    const file = $("#al-file")?.files?.[0];
+    if (!file) return toast(t("up.needFile"));
+    if (!/^(video\/|application\/(mp4|x-matroska|x-msvideo))/i.test(String(file.type || "")) && !/\.(mp4|mkv|avi|mov|webm|m4v|mpg|mpeg)$/i.test(String(file.name || ""))) {
+      return toast(t("up.needVideo"));
+    }
+    const meta = linkMetaFromForm();
+    const metaToast = linkMetaToast(meta);
+    if (metaToast) return toast(metaToast);
+    if (!meta.quality) return toast(t("dash.needQuality"));
+    if (!(await linkQuotaLeft(session))) return;
+    const se = mediaType === "tv" ? addLinkSeasonEpisode() : { season: 0, episode: 0 };
+    if (mediaType === "tv" && !se) return toast(t("watch.al.seBad"));
+    if (!(await C.guardFeature("links"))) return;
+    if (!(await C.guardLevel("publish_links"))) return;
+    const quota = await linkQuotaLeft(session);
+    if (!quota) return;
+
+    // The site-wide guard: this film / this episode at this quality exists?
+    const taken =
+      mediaType === "tv"
+        ? await ST.tvQualityTaken(Number(mediaId), se.season, se.episode, meta.quality)
+        : await ST.movieQualityTaken(meta.quality, Number(mediaId));
+    if (taken.length) return toast(t("up.dupTitle"));
+
+    const button = $("#al-save");
+    button.disabled = true;
+    const prog = $("#al-up-prog");
+    const bar = $("#al-up-bar");
+    const nEl = $("#al-up-n");
+    if (prog) prog.hidden = false;
+    const paint = (n) => {
+      if (bar) bar.style.width = `${n}%`;
+      if (nEl) nEl.textContent = `${n}%`;
+    };
+    paint(0);
+    const base =
+      mediaType === "tv"
+        ? ST.names.tv(Number(mediaId), se.season, se.episode, meta.quality)
+        : ST.names.movie(meta.quality, Number(mediaId));
+    const up = await ST.uploadNamed(session.member_id, mediaType, file, base, paint);
+    if (!up.ok) {
+      button.disabled = false;
+      if (prog) prog.hidden = true;
+      return toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+    }
+
+    // Registered before anything else: the registry owns the duplicate rule;
+    // a collision here means somebody else uploaded it in the meantime.
+    const row = {
+      owner_id: session.member_id,
+      owner_username: session.username || "",
+      folder: mediaType,
+      name: up.name,
+      file_id: up.fileId,
+      page_url: up.pageUrl,
+      embed_url: up.embedUrl,
+      quality: meta.quality,
+      tmdb_id: Number(mediaId),
+      season: mediaType === "tv" ? se.season : null,
+      episode: mediaType === "tv" ? se.episode : null,
+      size_bytes: file.size || 0,
+    };
+    const reg = await ST.registerUpload(row);
+    if (!reg.ok) {
+      try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
+      button.disabled = false;
+      if (prog) prog.hidden = true;
+      return toast(t(reg.reason === "sql" ? "up.needSql" : reg.reason === "dup" ? "up.dupTitle" : "up.fail"));
+    }
+
+    // The upload becomes an ordinary watch link of this title: same perks,
+    // same lists, same counters — its platform badge reads StreamTape.
+    const linkRow = { ...linkBaseRow(meta), watch_url: up.pageUrl };
+    if (mediaType === "tv") {
+      linkRow.season = se.season;
+      linkRow.episode = se.episode;
+    }
+    const table = mediaType === "tv" ? "tvlink" : "movielink";
+    const result = await publishWatchLink(table, linkRow, ["watch"]);
+    button.disabled = false;
+    if (!result.ok) {
+      await ST.dropFileUpload(session.member_id, up.fileId);
+      if (prog) prog.hidden = true;
+      return toast(t("dash.linkFail"));
+    }
+    closeAddLinkModal();
+    toast(t(result.added.length ? "up.done" : "dash.linkDup"));
+    afterLinksSaved([{ season: se.season, episode: se.episode }]);
   }
 
   async function linkQuotaLeft(session) {

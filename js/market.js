@@ -653,6 +653,7 @@
         </div>
         ${imgs.length > 1 ? `<div class="mkt-thumbs">${imgs.map((src, i) => `<button type="button" data-thumb="${i}" class="${i ? "" : "on"}" aria-label="${esc(t("mkt.photoN", { n: i + 1 }))}"><img src="${esc(src)}" alt="" loading="lazy" /></button>`).join("")}</div>` : ""}
         ${p.video_url ? M.videoHtml(p.video_url) : ""}
+        <div class="mkt-more-videos" data-more-videos></div>
       </div>`;
     const buyBtn = v.own
       ? `<button class="btn btn-lg btn-primary" type="button" data-edit-product>${ICON.edit}<span>${esc(t("mkt.editProduct"))}</span></button>`
@@ -760,6 +761,22 @@
     state.product = d;
     document.title = `${d.product.title} — ${t("mkt.pageTitle")}`;
     box.innerHTML = productHtml(d);
+    // The seller may have uploaded several videos for this product (Market
+    // folder, VID - product - n ascending): the first lives in video_url,
+    // the rest are listed here, in their upload order.
+    const moreVids = box.querySelector("[data-more-videos]");
+    if (moreVids && window.Streamtape) {
+      window.Streamtape.uploadsByRef("market", d.product.id)
+        .then((rows) => {
+          const extra = rows.filter((r) => (r.page_url || "") !== (d.product.video_url || ""));
+          if (extra.length) {
+            moreVids.innerHTML =
+              `<p class="muted" style="margin:10px 0 6px">${esc(t("mkt.moreVideos", { n: extra.length }))}</p>` +
+              extra.map((r) => M.videoHtml(r.page_url || r.embed_url || "")).join("");
+          }
+        })
+        .catch(() => { /* videos stay as they are */ });
+    }
     const list = sug.ok && Array.isArray(sug.data) ? sug.data : [];
     box.querySelector("[data-suggest]").innerHTML = list.length
       ? `<div class="mkt-grid">${list.map(M.cardHtml).join("")}</div>`
@@ -1147,6 +1164,10 @@
       const r = await M.call("market_product_status", { p_member: M.memberId(), p_id: p.id, p_status: to });
       st.disabled = false;
       if (!r.ok || !r.data?.ok) return C.toast(M.failText(r));
+      // A deleted product lets go of its uploaded videos (Market folder).
+      if (to === "deleted" && window.Streamtape) {
+        window.Streamtape.dropRefUploads("market", String(p.id)).catch(() => {});
+      }
       C.toast(t(to === "deleted" ? "mkt.deleted" : to === "hidden" ? "mkt.hiddenDone" : "mkt.shownDone"));
       refreshMe();
       route();

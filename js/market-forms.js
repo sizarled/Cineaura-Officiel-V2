@@ -794,6 +794,17 @@
         ${C.pictureFieldHtml({ label: t("mkt.f.pictures"), hint: t("mkt.f.picturesHint", { n: MAX_PICS }), values: images(p), max: MAX_PICS })}
         <label class="mkt-field"><span>${esc(t("mkt.f.video"))}</span>
           <input name="video_url" type="url" dir="ltr" maxlength="500" value="${esc(p.video_url || "")}" placeholder="https://www.youtube.com/watch?v=…" /></label>
+        <!-- The video may also be a file of the seller's own: it lands in the
+             member's Streamtape folder (Market), named VID - product - n with
+             n climbing per upload. Only for a product that already has an id. -->
+        <div class="mkt-st" data-stvideo>
+          <button class="btn btn-sm btn-ghost" type="button" data-st-toggle>${esc(t("mkt.f.videoUpload"))}</button>
+          <div class="stvideo-box" hidden>
+            <input type="file" accept="video/*" data-st-file ${editing && p.id ? "" : "disabled"} />
+            <p class="mkt-f-hint muted">${editing && p.id ? esc(t("mkt.f.videoUploadHint")) : esc(t("up.saveFirst"))}</p>
+            <div class="up-prog" hidden data-st-prog><div class="up-prog-bar" data-st-bar></div><span class="up-prog-n" data-st-n>0%</span></div>
+          </div>
+        </div>
         <p class="mkt-form-err" data-err role="alert"></p>
         <div class="mkt-form-acts">
           <button class="btn btn-ghost" type="button" data-close>${esc(t("common.cancel"))}</button>
@@ -828,6 +839,62 @@
       if (r3.ok && r3.data?.ok && !vipTouched && typeof r3.data.store?.vip === "string") form.pvip.value = r3.data.store.vip;
     });
     const pics = C.wirePictureField(form.querySelector("[data-pcf]"), { maxSide: 1600 });
+    // Optional video file of the seller: uploads immediately to the member's
+    // Streamtape Market folder and fills (or replaces) the video url field.
+    (() => {
+      const box = form.querySelector("[data-stvideo]");
+      if (!box) return;
+      const tgl = box.querySelector("[data-st-toggle]");
+      const inner = box.querySelector(".stvideo-box");
+      tgl?.addEventListener("click", () => { inner.hidden = !inner.hidden; });
+      const fileIn = box.querySelector("[data-st-file]");
+      if (!fileIn || fileIn.disabled || !window.Streamtape) return;
+      let doneByUpload = false;
+      fileIn.addEventListener("change", async () => {
+        const file = fileIn.files?.[0];
+        if (!file) return;
+        const ST = window.Streamtape;
+        const mine = await ST.uploadsByRef("market", p.id);
+        const ordinal = (mine.reduce((m, r) => Math.max(m, Number(r.ordinal) || 0), -1) + 1);
+        const prog = box.querySelector("[data-st-prog]");
+        const bar = box.querySelector("[data-st-bar]");
+        const nEl = box.querySelector("[data-st-n]");
+        prog.hidden = false;
+        const paint = (n) => { bar.style.width = `${n}%`; nEl.textContent = `${n}%`; };
+        paint(0);
+        fileIn.disabled = true;
+        const up = await ST.uploadNamed(M.memberId(), "market", file, ST.names.market(p.id, ordinal), paint);
+        fileIn.disabled = false;
+        if (!up.ok) {
+          prog.hidden = true;
+          C.toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+          fileIn.value = "";
+          return;
+        }
+        const reg = await ST.registerUpload({
+          owner_id: M.memberId(),
+          owner_username: String(C.getSession()?.username || ""),
+          folder: "market",
+          name: up.name,
+          file_id: up.fileId,
+          page_url: up.pageUrl,
+          embed_url: up.embedUrl,
+          ref_id: String(p.id),
+          ordinal,
+          size_bytes: file.size || 0,
+        });
+        prog.hidden = true;
+        if (!reg.ok) {
+          try { await ST.deleteFile(up.fileId); } catch { /* */ }
+          C.toast(t(reg.reason === "sql" ? "up.needSql" : reg.reason === "dup" ? "up.dupAgain" : "up.fail"));
+          fileIn.value = "";
+          return;
+        }
+        if (!form.video_url.value.trim() || doneByUpload) form.video_url.value = up.pageUrl;
+        doneByUpload = true;
+        C.toast(t("up.done"));
+      });
+    })();
     const err = form.querySelector("[data-err]");
     const catIn = form.querySelector("[data-cat-in]");
     const catChips = form.querySelector("[data-cat-chips]");
