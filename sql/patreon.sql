@@ -150,5 +150,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.patreon_claim(text, text, text, text, text, integer, integer) from public;
+-- Supabase's default privileges hand EXECUTE of every brand-new function to
+-- anon/authenticated — take it back explicitly (revoking from public alone
+-- does not, on this platform, touch those two roles).
+revoke execute on function public.patreon_claim(text, text, text, text, text, integer, integer) from public, anon, authenticated;
 grant execute on function public.patreon_claim(text, text, text, text, text, integer, integer) to service_role;
