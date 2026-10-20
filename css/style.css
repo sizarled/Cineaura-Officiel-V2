@@ -3289,3 +3289,22 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
    product video's main picture (grafted from Home/Thumbnails by name). */
 .up-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line, #2b3570); flex-shrink: 0; }
 .up-thumb-none { display: grid; place-items: center; color: var(--muted, #9aa3c7); font-size: 1.1rem; background: rgba(56,189,248,.08); }
+
+/* ── Patreon code activation page (codeactivation.html) ── */
+.ca-root { display: grid; place-items: center; min-height: 62vh; padding: 40px 16px 70px; }
+.ca-card { width: min(560px, 100%); padding: 34px 30px 28px; border-radius: 22px; text-align: center; background: color-mix(in srgb, var(--surface, #131b3d) 82%, transparent); border: 1px solid var(--line, #2b3570); box-shadow: 0 22px 60px rgb(0 0 0 / .35); }
+.ca-card h1 { font-size: clamp(1.45rem, 3vw, 2rem); margin: 8px 0 6px; }
+.ca-card .muted { line-height: 1.7; }
+.ca-field { display: grid; gap: 8px; text-align: start; margin: 22px 0 12px; font-weight: 600; }
+.ca-field input { min-height: 52px; padding: 12px 16px; font-size: 1.05rem; letter-spacing: .4px; border: 1px solid var(--line, #2b3570); border-radius: 14px; background: rgba(255,255,255,.04); color: inherit; }
+.ca-field input:focus { outline: 2px solid var(--cyan, #38bdf8); outline-offset: 1px; }
+.ca-note { margin: 16px 0 0; font-size: .86rem; line-height: 1.8; color: var(--muted, #9aa3c7); }
+.ca-spin { width: 46px; height: 46px; margin: 6px auto 16px; border-radius: 50%; border: 3px solid rgba(56,189,248,.25); border-top-color: var(--cyan, #38bdf8); animation: ca-spin .8s linear infinite; }
+@keyframes ca-spin { to { transform: rotate(360deg); } }
+.ca-code { margin: 22px auto 10px; padding: 18px 16px; width: min(430px, 100%); border: 1px dashed var(--cyan, #38bdf8); border-radius: 14px; background: rgba(56,189,248,.08); font-size: clamp(1.2rem, 3.4vw, 1.7rem); font-weight: 800; letter-spacing: 2px; word-break: break-all; user-select: all; }
+.ca-kind { margin: 4px 0 0; font-size: .95rem; font-weight: 600; color: var(--green, #90cea1); }
+.ca-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+.ca-ok-ic, .ca-err-ic { display: inline-grid; place-items: center; width: 54px; height: 54px; margin-bottom: 10px; border-radius: 50%; font-size: 1.5rem; font-weight: 800; }
+.ca-ok-ic { color: #052e16; background: var(--green, #90cea1); }
+.ca-err-ic { color: #2d0606; background: #f87171; }
+.btn.is-ok { background: var(--green, #90cea1); border-color: transparent; color: #052e16; }
