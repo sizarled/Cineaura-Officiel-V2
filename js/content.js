@@ -64,6 +64,13 @@
   const icon = (k, size = 18) =>
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON[k]}</svg>`;
 
+  // Content.html?yt=<id> — a YouTube video watched on this very page (Round 55):
+  // the same layout the member videos use. ytWatchHref is how every YouTube
+  // result (hub search, Suggested-on-YouTube rail) names that page.
+  const ytVideoId = String(params.get("yt") || "").trim();
+  const ytWatchHref = (id) => `./Content.html?yt=${encodeURIComponent(id)}`;
+  const ytw = { seq: 0 }; // async guard: a navigation while a fetch flies
+
   // ---------------------------------------------------------------- page states
   function showError(reason) {
     const known = ["not_found", "private", "scheduled", "gone", "setup", "load"];
@@ -838,7 +845,8 @@
       <p class="muted">${esc(t("vid.hub.lead"))}</p>`;
     // One box, one search, TWO sections under it: the site's videos first
     // ("Videos Members"), YouTube's below ("Video Youtube") — and a YouTube
-    // pick plays right here in #vw-player, the same player the site uses.
+    // pick opens this same page in its YouTube mood (Content.html?yt=<id>),
+    // the page where the member videos play.
     if (form) {
       hero.appendChild(form);
       form.addEventListener("submit", (e) => {
@@ -861,8 +869,10 @@
     mem.querySelector("#vh-mem-close").addEventListener("click", () => {
       mem.hidden = true;
     });
-    // "Video Youtube" — the edge function's results (it holds the API key);
-    // the picked video plays in the shared #vw-player with its YouTube record
+    // "Video Youtube" — the edge function's results (it holds the API key).
+    // A pick is a plain link to this same page in its YouTube mood
+    // (Content.html?yt=<id>): the shared player, the YouTube channel as
+    // publisher, title + description, YouTube suggestions beside it.
     const yt = document.createElement("section");
     yt.className = "vh-yt";
     yt.id = "vh-yt";
@@ -872,24 +882,10 @@
         <h2 id="vh-yt-h">${esc(t("vid.hub.youtube"))}</h2>
         <button class="btn btn-sm btn-ghost vh-yt-close" type="button" id="vh-yt-close">${icon("close", 15)}<span>${esc(t("vid.yt.close"))}</span></button>
       </div>
-      <div class="vw-player" id="vw-player" hidden></div>
-      <div class="glass vw-desc is-yt" id="vhy-meta" hidden></div>
       <p class="muted" id="vh-yt-note"></p>
       <ol class="vgrid vh-yt-grid" id="vh-yt-grid" aria-labelledby="vh-yt-h"></ol>`;
     yt.querySelector("#vh-yt-close").addEventListener("click", () => {
       yt.hidden = true;
-      yt.querySelector("#vw-player").innerHTML = "";
-      yt.querySelector("#vhy-meta").innerHTML = "";
-    });
-    // the more/less fold of the YouTube description, like the video page's
-    yt.addEventListener("click", (e) => {
-      const ytMore = e.target.closest("[data-yt-more]");
-      if (!ytMore) return;
-      const txt = ytMore.parentElement?.querySelector("[data-ytdesc]");
-      if (!txt) return;
-      const open = txt.classList.toggle("is-open");
-      ytMore.setAttribute("aria-expanded", String(open));
-      ytMore.textContent = t(open ? "vid.showLess" : "vid.showMore");
     });
     // the portrait videos: a centered 9:16 stage with the up/down flip buttons
     const shorts = document.createElement("section");
@@ -1084,50 +1080,158 @@
     }
     const items = Array.isArray(out.items) ? out.items : [];
     note.textContent = items.length ? t("vid.yt.count", { n: items.length, q }) : t("vid.yt.none", { q });
-    grid.innerHTML = items
-      .map(
-        (x) => `<li class="vh-item">
-        <button class="vcard vhy-card" type="button" data-ytid="${esc(x.id)}" data-yttitle="${esc(x.title || "")}">
-          <span class="vthumb">
-            ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" />` : `<span class="vthumb-ph" aria-hidden="true">▶</span>`}
-            <span class="vthumb-play" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5L13 8L4 13.5V2.5Z"/></svg></span>
-          </span>
-          <span class="vcard-body">
-            <b class="vcard-title">${esc(x.title || "")}</b>
-            <span class="vcard-meta"><bdi>${esc(x.channel || "YouTube")}</bdi>${x.at ? ` · ${esc(V.timeAgo(x.at))}` : ""}</span>
-          </span>
-        </button>
-      </li>`,
-      )
-      .join("");
-    grid.querySelectorAll("[data-ytid]").forEach((b) =>
-      b.addEventListener("click", () => playHubYouTube(b.dataset.ytid)),
-    );
+    grid.innerHTML = items.map((x) => `<li class="vh-item">${ytPickCardHtml(x)}</li>`).join("");
   }
 
-  /* A YouTube pick plays right here — in #vw-player, the very player the
-     embedded-link videos use on the video page — and its record (channel,
-     description, tags) lands under it. No modal, no redirect. */
-  function playHubYouTube(id) {
-    if (!/^[A-Za-z0-9_-]{11}$/.test(String(id || ""))) return;
-    const player = $("#vw-player");
-    if (!player) return;
-    player.innerHTML = `<iframe class="vw-frame" src="https://www.youtube-nocookie.com/embed/${esc(id)}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
-        title="YouTube" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-        allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
-    player.hidden = false;
-    const metaBox = $("#vhy-meta");
-    if (metaBox) {
-      metaBox.hidden = true;
-      metaBox.innerHTML = "";
-    }
-    V.fetchYouTubeMeta(id).then((res) => {
-      const box = $("#vhy-meta");
-      if (!box || player.hidden || !res.ok) return; // the player alone stays
-      box.innerHTML = V.youTubeMetaHtml(res.video);
-      box.hidden = false;
+  /* ---------------------------------------------------------------- YouTube watch
+     Content.html?yt=<id> — the SAME page the member videos play on, in its
+     YouTube mood (Round 55): the shared #vw-player, the video's title and
+     description straight from YouTube, the publisher block answered by the
+     YouTube channel (avatar + name, opens the channel), and beside it the
+     "Suggested on YouTube" rail — the edge function searched with the
+     video's own tags, else its title. Nothing is stored on the site here:
+     no views, no votes, no comments. Any failure is said honestly. */
+
+  /* One YouTube pick (hub result, rail suggestion): a real link, so open in a
+     new tab / copy works and nothing depends on in-page JS navigation. */
+  function ytPickCardHtml(x, { compact = false } = {}) {
+    const id = String(x?.id || "");
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return "";
+    return `<a class="vcard vhy-card${compact ? " vcard--compact" : ""}" href="${esc(ytWatchHref(id))}" data-ytid="${esc(id)}">
+      <span class="vthumb">
+        ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" />` : `<span class="vthumb-ph" aria-hidden="true">▶</span>`}
+        <span class="vthumb-play" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5L13 8L4 13.5V2.5Z"/></svg></span>
+      </span>
+      <span class="vcard-body">
+        <b class="vcard-title">${esc(x.title || "")}</b>
+        <span class="vcard-meta"><bdi>${esc(x.channel || "YouTube")}</bdi>${x.at ? ` · ${esc(V.timeAgo(x.at))}` : ""}</span>
+      </span>
+    </a>`;
+  }
+
+  async function renderYouTubeWatch(id) {
+    document.title = "YouTube — CineAura";
+    $("#vw-main").innerHTML = `<div class="vw-player"><div class="loader"><div class="spinner"></div></div></div>`;
+    const tag = ++ytw.seq;
+    const res = await V.fetchYouTubeMeta(id);
+    if (tag !== ytw.seq) return;
+    if (!res.ok) return showYtWatchError(res.reason);
+    const v = res.video || {};
+    const title = String(v.title || "").trim() || "YouTube";
+    document.title = `${title} — CineAura`;
+    const chId = String(v.channelId || "").trim();
+    const chUrl = chId ? `https://www.youtube.com/channel/${encodeURIComponent(chId)}` : "";
+    const chName = String(v.channel || "").trim() || "YouTube";
+    const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+    const desc = String(v.description || "").trim();
+    const long = desc.length > 420;
+    const tags = (Array.isArray(v.tags) ? v.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12);
+    const date = String(v.publishedAt || "");
+    // — same skeleton render() builds for a member video: player, title,
+    //   meta, publisher bar (here: the YouTube channel), description section —
+    $("#vw-main").innerHTML = `
+      <div class="vw-player is-playing" id="vw-player">
+        <iframe class="vw-frame" src="https://www.youtube-nocookie.com/embed/${esc(id)}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
+          title="${esc(title)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+      <h1 class="vw-title">${esc(title)}</h1>
+      <div class="vw-meta">
+        <span class="vw-chip">${esc(t("vid.prov.youtube"))}</span>
+        ${date ? `<span aria-hidden="true">·</span><time datetime="${esc(date)}" title="${esc(V.fullDate(date))}">${esc(V.timeAgo(date))}</time>` : ""}
+      </div>
+      <div class="vw-bar">
+        ${chUrl ? `<a class="vw-owner" href="${esc(chUrl)}" target="_blank" rel="noopener" aria-label="${esc(t("vid.yt.openChannel"))}">` : `<div class="vw-owner">`}
+          ${v.channelAvatar ? `<img src="${esc(String(v.channelAvatar))}" alt="" loading="lazy" />` : `<span class="vw-owner-ytph" aria-hidden="true">${esc(chName.slice(0, 1).toUpperCase())}</span>`}
+          <span class="vw-owner-txt">
+            <b>${esc(chName)}</b>
+            <small><bdi>${esc(t("vid.prov.youtube"))}</bdi> · ${esc(t("vid.yt.openChannel"))}</small>
+          </span>
+        ${chUrl ? `</a>` : `</div>`}
+        <div class="vw-actions">
+          <a class="btn btn-sm btn-ghost vw-btn" href="${esc(watchUrl)}" target="_blank" rel="noopener">${icon("ext", 16)}<span>${esc(t("vid.yt.openVideo"))}</span></a>
+        </div>
+      </div>
+      <section class="glass vw-desc is-yt" id="vw-desc">
+        <div class="vw-desc-text${long ? " is-long" : ""}" id="vw-desc-text">${desc ? linkify(desc) : `<span class="muted">${esc(t("vid.noDesc"))}</span>`}</div>
+        ${long ? `<button class="vw-more" type="button" id="vw-more" aria-expanded="false">${esc(t("vid.showMore"))}</button>` : ""}
+        ${tags.length ? `<div class="vw-tags vw-tags--yt">${tags.map((x) => `<span><bdi>#${esc(x)}</bdi></span>`).join("")}</div>` : ""}
+        <p class="vw-desc-foot muted">${date ? `${esc(t("vid.publishedOn", { date: V.fullDate(date) }))} · ` : ""}<a href="${esc(watchUrl)}" target="_blank" rel="noopener">${esc(t("vid.yt.openVideo"))}</a></p>
+      </section>`;
+    wireYtWatch();
+    ytSuggest(v, id, tag);
+    window.CineAuraOffers?.mount($("#vw-offers"), { limit: 5, layout: "side" });
+  }
+
+  function wireYtWatch() {
+    $("#vw-main").addEventListener("click", (e) => {
+      const more = e.target.closest("#vw-more");
+      if (!more) return;
+      const txt = $("#vw-desc-text");
+      if (!txt) return;
+      const open = txt.classList.toggle("is-open");
+      more.setAttribute("aria-expanded", String(open));
+      more.textContent = t(open ? "vid.showLess" : "vid.showMore");
     });
-    $("#vh-yt")?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }
+
+  // Beside the player: what YouTube suggests — the video's own tags steer the
+  // search (its title when YouTube lists no tags). The watch itself is never
+  // listed again among its suggestions.
+  async function ytSuggest(v, id, tag) {
+    const box = $("#vw-sugg");
+    if (!box) return;
+    const h2 = $("#vw-side-h");
+    if (h2) {
+      h2.removeAttribute("data-i18n"); // this rail answers YouTube, not the site's suggestions
+      h2.textContent = t("vid.yt.suggested");
+    }
+    box.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
+    const tags = (Array.isArray(v.tags) ? v.tags : []).map((x) => String(x || "").trim()).filter(Boolean);
+    const q = (tags.length ? tags.slice(0, 3).join(" ") : String(v.title || "")).trim().slice(0, 120) || String(v.channel || "").trim();
+    let out = null;
+    if (q) {
+      try {
+        const res = await fetch(`${C.SUPABASE_URL}/functions/v1/youtube-search`, {
+          method: "POST",
+          headers: {
+            apikey: C.SUPABASE_KEY,
+            Authorization: `Bearer ${C.SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ q, limit: 12 }),
+        });
+        out = await res.json();
+      } catch {
+        out = null;
+      }
+    }
+    if (tag !== ytw.seq) return;
+    if (!out || out.ok !== true) {
+      const key = out && out.reason === "not_configured" ? "vid.yt.noKey" : out && out.reason === "quota" ? "vid.yt.quota" : "vid.yt.upstream";
+      box.innerHTML = `<p class="muted">${esc(t(key))}</p>`;
+      return;
+    }
+    const items = (Array.isArray(out.items) ? out.items : []).filter((x) => x && x.id !== id).slice(0, 12);
+    box.innerHTML = items.length
+      ? items.map((x) => ytPickCardHtml(x, { compact: true })).join("")
+      : `<p class="muted">${esc(t("vid.yt.none", { q }))}</p>`;
+  }
+
+  function showYtWatchError(reason) {
+    const notFound = reason === "not_found" || reason === "missing";
+    const key = reason === "not_configured" ? "vid.yt.noKey" : reason === "quota" ? "vid.yt.quota" : notFound ? "vid.yt.notFound" : "vid.yt.upstream";
+    const title = t(`vid.err.page.${notFound ? "not_found" : "load"}`);
+    document.title = `${title} — CineAura`;
+    $("#vw-main").innerHTML = `
+      <div class="glass vw-error">
+        <span class="vw-error-ico">${icon("ext", 28)}</span>
+        <h1>${esc(title)}</h1>
+        <p class="muted">${esc(t(key))}</p>
+        <div class="vw-error-actions"><a class="btn btn-lg btn-primary" href="./Content.html">${esc(t("vid.browse"))}</a></div>
+      </div>`;
+    const side = $("#vw-side");
+    if (side) side.hidden = true;
   }
 
   // ---------------------------------------------------------------- the vertical (portrait) viewer
@@ -1305,6 +1409,8 @@
 
   async function boot() {
     C.setupChrome();
+    // a YouTube video is watched on this same page (Content.html?yt=<id>)
+    if (!state.id && /^[A-Za-z0-9_-]{11}$/.test(ytVideoId)) return renderYouTubeWatch(ytVideoId);
     if (!state.id) return renderHub();
     const res = await V.call("content_get", { p_id: state.id, p_member: V.memberId() });
     if (!res.ok) return showError(res.setup ? "setup" : "load");
