@@ -85,7 +85,8 @@ create table if not exists public.content (
   shares integer not null default 0,
   comments integer not null default 0,
   playlists integer not null default 0,
-  watch_minutes bigint not null default 0
+  watch_minutes bigint not null default 0,
+  downloads boolean not null default false
 );
 
 do $$
@@ -625,7 +626,6 @@ begin
   if prov not in ('youtube', 'vimeo', 'dailymotion', 'facebook', 'drive', 'tiktok', 'file', 'hls', 'link') then prov := 'link'; end if;
   -- a YouTube video lives once on the site, whatever shape its link comes in,
   -- whoever published it first — and only for as long as that video exists
-  -- (content_delete frees the link again)
   if prov = 'youtube' then
     select c.content_id into dup_id from public.content c
      where public._youtube_id(c.video_url) is not null
@@ -688,12 +688,13 @@ begin
   end loop;
   insert into public.content (content_id, owner_id, owner_username, video_url, provider, thumb_url, title, description,
                               tags, language, age_rating, visibility, excl_followers, excl_premium, excl_countries,
-                              country, playlist_id, publish_at, portrait)
+                              country, playlist_id, publish_at, portrait, downloads)
   values (cid, m.member_id, m.username, url, prov, thumb, title, descr, tags, lang, age, vis,
           vis = 'exclusive' and coalesce((d->>'followers')::boolean, false),
           vis = 'exclusive' and coalesce((d->>'premium')::boolean, false),
           case when vis = 'exclusive' then cty else '' end,
-          upper(coalesce(m.country, '')), pid, pub, is_portrait);
+          upper(coalesce(m.country, '')), pid, pub, is_portrait,
+          coalesce((d->>'downloads')::boolean, false));
   if vis = 'private' then
     foreach u in array people loop
       insert into public.content_access (content_id, username) values (cid, u) on conflict do nothing;
@@ -728,6 +729,62 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- Manage > row menu > Edit: the custom picture (a Streamtape-hosted video takes
+-- any https picture), who may watch (public / exclusive / private), the age
+-- rating and the downloads switch. The link and the text never pass through
+-- here. d: { thumb, downloads, age, visibility, followers, premium, countries,
+-- people[] } -> { ok, id } | { ok: false, reason }
+create or replace function public.content_update(p_member text, p_id text, d jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  c public.content; m public.members; vis text; age int; cty text; thumb text; people text[]; u text;
+begin
+  m := public._content_viewer(p_member);
+  if m.member_id is null then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
+  if public._content_blocked(m.member_id, 'posts') then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
+  select * into c from public.content where content_id = btrim(coalesce(p_id, '')) and owner_id = m.member_id for update;
+  if not found then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
+
+  thumb := btrim(coalesce(d->>'thumb', ''));
+  if thumb <> '' and (thumb !~* '^https://[^/?#[:space:]]+' or length(thumb) > 1000 or thumb ~ '[[:space:]<>"]') then
+    return jsonb_build_object('ok', false, 'reason', 'thumb');
+  end if;
+  age := coalesce(nullif(d->>'age', '')::int, 3);
+  if age not in (3, 6, 13, 16, 18) then return jsonb_build_object('ok', false, 'reason', 'age'); end if;
+  vis := coalesce(d->>'visibility', 'public');
+  if vis not in ('public', 'exclusive', 'private') then return jsonb_build_object('ok', false, 'reason', 'visibility'); end if;
+  cty := upper(regexp_replace(coalesce(d->>'countries', ''), '[^A-Za-z,]', '', 'g'));
+  select coalesce(array_agg(distinct x), '{}') into people from (
+    select lower(btrim(regexp_replace(x, '^@+', ''))) as x
+    from jsonb_array_elements_text(case when jsonb_typeof(d->'people') = 'array' then d->'people' else '[]'::jsonb end) as e(x)
+  ) s where x <> '' and char_length(x) <= 60;
+  if vis = 'private' and coalesce(array_length(people, 1), 0) = 0 then
+    return jsonb_build_object('ok', false, 'reason', 'people');
+  end if;
+  if coalesce(array_length(people, 1), 0) > 100 then return jsonb_build_object('ok', false, 'reason', 'people'); end if;
+
+  update public.content set
+    thumb_url = thumb,
+    downloads = coalesce((d->>'downloads')::boolean, false),
+    age_rating = age,
+    visibility = vis,
+    excl_followers = vis = 'exclusive' and coalesce((d->>'followers')::boolean, false),
+    excl_premium = vis = 'exclusive' and coalesce((d->>'premium')::boolean, false),
+    excl_countries = case when vis = 'exclusive' then cty else '' end
+  where content_id = c.content_id;
+
+  -- the private audience follows the new setting
+  if c.visibility = 'private' or vis = 'private' then
+    delete from public.content_access where content_id = c.content_id;
+  end if;
+  if vis = 'private' then
+    foreach u in array people loop
+      insert into public.content_access (content_id, username) values (c.content_id, u) on conflict do nothing;
+    end loop;
+  end if;
+  return jsonb_build_object('ok', true, 'id', c.content_id);
+end $$;
+
 -- Profile > Your content > Manage: every video of the member, newest first.
 create or replace function public.content_mine(p_member text) returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -738,6 +795,7 @@ language sql stable security definer set search_path = public as $$
     'country', c.country, 'publish_at', c.publish_at, 'created_at', c.created_at, 'scheduled', c.publish_at > now(),
     'views', c.views, 'impressions', c.impressions, 'clicks', c.clicks, 'likes', c.likes, 'dislikes', c.dislikes,
     'shares', c.shares, 'comments', c.comments, 'playlists_count', c.playlists, 'minutes', c.watch_minutes,
+    'downloads', c.downloads,
     'suspended', case when c.suspended_at is not null then jsonb_build_object('reason', c.suspended_reason, 'at', c.suspended_at) end,
     'people', coalesce((select jsonb_agg(a.username order by a.username) from public.content_access a where a.content_id = c.content_id), '[]'::jsonb),
     'playlists', coalesce((select jsonb_agg(jsonb_build_object('id', p.playlist_id, 'name', p.name) order by p.name)
@@ -774,7 +832,8 @@ begin
       'description', c.description, 'url', case when why = 'ok' and c.age_rating < 13 then c.video_url else null end,
       'code', c.age_rating >= 13,
       'shares', c.shares, 'playlists', c.playlists, 'excl_followers', c.excl_followers,
-      'excl_premium', c.excl_premium, 'excl_countries', c.excl_countries),
+      'excl_premium', c.excl_premium, 'excl_countries', c.excl_countries,
+      'downloads', c.downloads),
     'owner', jsonb_build_object('id', c.owner_id, 'username', coalesce(o.username, c.owner_username),
                                 'display_name', o.display_name, 'avatar_url', o.avatar_url, 'followers', o.followers),
     'my_vote', coalesce(v, 0));

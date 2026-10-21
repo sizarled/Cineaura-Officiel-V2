@@ -36,6 +36,7 @@
     private: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>',
     dup: '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5a1.5 1.5 0 0 0-1.5-1.5H5A1.5 1.5 0 0 0 3.5 5v9A1.5 1.5 0 0 0 5 15.5h3.5"/>',
+    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
     pl: '<path d="M4 6h11M4 11h11M4 16h7"/><path d="M17 13v7M13.5 16.5h7"/>',
     del: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
     up: '<path d="M7 11v9H4v-9zM7 11l4-7c1.7 0 2.6 1.2 2.2 2.8L12.6 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/>',
@@ -83,6 +84,8 @@
       when: "now",
       later: "",
       portrait: false,
+      // the publisher's own switch: a Download button on the watch page
+      downloads: false,
     };
   }
 
@@ -157,6 +160,18 @@
 
   async function drawCreate(pane) {
     const d = state.draft || (state.draft = blankDraft());
+    /* Landing from Content.html?yt=… — its "Import this video" button left the
+       link for the form: the import offer stands by it, one click fills the
+       title and the description, the member may also write everything by hand
+       (the video itself still passes content_create's one-link-once ban). */
+    let importUrl = "";
+    try {
+      importUrl = sessionStorage.getItem("cineaura_import_url") || "";
+      if (importUrl) sessionStorage.removeItem("cineaura_import_url");
+    } catch {
+      /* private mode: nothing to carry */
+    }
+    if (importUrl && !String(d.url || "").trim()) d.url = importUrl;
     pane.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
     const pls = await loadPlaylists();
     if (state.tab !== "create") return;
@@ -197,6 +212,9 @@
                  flip buttons; a Shorts or TikTok link checks this automatically. -->
             <label class="lang-chip" for="vc-portrait"><input type="checkbox" id="vc-portrait" ${d.portrait ? "checked" : ""} /> ${esc(t("vid.f.portrait"))}</label>
             <p class="vs-hint">${esc(t("vid.f.portraitHint"))}</p>
+
+            <label class="lang-chip" for="vc-dl"><input type="checkbox" id="vc-dl" ${d.downloads ? "checked" : ""} /> ${esc(t("vid.f.downloads"))}</label>
+            <p class="vs-hint">${esc(t("vid.f.downloadsHint"))}</p>
 
             <label class="field-label" for="vc-title">${esc(t("vid.f.title"))}</label>
             <input id="vc-title" maxlength="150" value="${esc(d.title)}" placeholder="${esc(t("vid.f.titlePh"))}" />
@@ -286,6 +304,7 @@
         <div class="vs-submit" id="vc-submit"></div>
       </form>`;
     wireCreate(pane);
+    if (importUrl) toast(t("vid.yt.importedToast"));
   }
 
   function readDraft(pane) {
@@ -306,6 +325,7 @@
     d.when = pane.querySelector('input[name="vc-when"]:checked')?.value || "now";
     d.later = val("#vc-later");
     d.portrait = Boolean(pane.querySelector("#vc-portrait")?.checked);
+    d.downloads = Boolean(pane.querySelector("#vc-dl")?.checked);
     return d;
   }
 
@@ -682,6 +702,8 @@
     playlist: "vid.err.playlist",
     // one YouTube video, one page on the site — whoever published it first
     dup_link: "vid.err.dupLink",
+    not_found: "vid.err.generic",
+    thumb: "vid.err.thumb",
     busy: "vid.err.generic",
   };
 
@@ -755,6 +777,7 @@
       url: v.url,
       provider: v.provider,
       portrait: Boolean(d.portrait),
+      downloads: Boolean(d.downloads),
       thumb,
       title: d.title.trim(),
       description: d.description.trim(),
@@ -823,6 +846,7 @@
       countries: String(row.countries || "").split(",").map((x) => x.trim()).filter(Boolean),
       people: (row.people || []).join(", "),
       playlist: row.playlists?.[0]?.id || "",
+      downloads: Boolean(row.downloads),
     });
     return d;
   }
@@ -975,6 +999,7 @@
     menu.setAttribute("role", "menu");
     menu.dataset.menuFor = row.id;
     menu.innerHTML = `
+      <button type="button" role="menuitem" data-act="edit">${icon("edit")}<span>${esc(t("vid.act.edit"))}</span></button>
       <button type="button" role="menuitem" data-act="link">${icon("link")}<span>${esc(t("vid.act.link"))}</span></button>
       <button type="button" role="menuitem" data-act="dup">${icon("dup")}<span>${esc(t("vid.act.dup"))}</span></button>
       <button type="button" role="menuitem" data-act="pl">${icon("pl")}<span>${esc(t("vid.act.pl"))}</span></button>
@@ -1005,7 +1030,100 @@
     menu.querySelector("button")?.focus();
   }
 
+  /* ---------------------------------------------------------------- edit
+     The row's pen (Round 57): the custom picture — a Streamtape-hosted video
+     takes any https picture too — who may watch (public for everyone /
+     exclusive / private), the age rating (6+ 13+ 16+ 18+ and below), and the
+     Download switch. The link and the text stay untouched here — publishing
+     answers those (and the one-link-once ban with them). */
+  function openEdit(row, pane) {
+    const cty = String(row.countries || "").trim();
+    const dlg = V.openDialog(
+      `<h2>${esc(t("vid.edit.title"))}</h2>
+       <p class="muted"><b>${esc(row.title)}</b></p>
+       <p class="vs-hint">${esc(t("vid.edit.note"))}</p>
+       <label class="field-label" for="ve-thumb">${esc(t("vid.f.thumb"))}</label>
+       <input id="ve-thumb" type="url" inputmode="url" maxlength="1000" dir="ltr" placeholder="https://…/picture.jpg" value="${esc(row.thumb || "")}" />
+       <p class="vs-hint">${esc(t("vid.f.thumbHint"))}</p>
+       <span class="field-label" id="ve-vis-l">${esc(t("pm.visibility"))}</span>
+       <div class="vs-vis" role="radiogroup" aria-labelledby="ve-vis-l">
+         ${V.VISIBILITIES.map(
+           (x) => `<label class="vs-vis-opt"><input type="radio" name="ve-vis" value="${x}" ${x === row.visibility ? "checked" : ""} />
+             <span><b>${icon(x)}${esc(V.visLabel(x))}</b><small>${esc(t(`vid.visHint.${x}`))}</small></span></label>`,
+         ).join("")}
+       </div>
+       <div id="ve-excl" ${row.visibility === "exclusive" ? "" : "hidden"}>
+         <label class="lang-chip"><input type="checkbox" id="ve-fol" ${row.followers ? "checked" : ""} /> ${esc(t("vid.f.exclFollowers"))}</label>
+         <label class="lang-chip"><input type="checkbox" id="ve-prem" ${row.premium ? "checked" : ""} /> ${esc(t("vid.f.exclPremium"))}</label>
+         ${cty ? `<p class="vs-hint">${esc(t("vid.edit.countriesKept", { countries: cty }))}</p>` : ""}
+       </div>
+       <div id="ve-priv" ${row.visibility === "private" ? "" : "hidden"}>
+         <label class="field-label" for="ve-people">${esc(t("vid.f.people"))}</label>
+         <input id="ve-people" maxlength="2000" placeholder="${esc(t("dash.peoplePh"))}" value="${esc((row.people || []).join(", "))}" />
+       </div>
+       <span class="field-label" id="ve-age-l">${esc(t("vid.f.age"))}</span>
+       <div class="vs-seg vs-seg--wrap" role="radiogroup" aria-labelledby="ve-age-l">
+         ${V.AGES.map((a) => `<label class="vs-seg-opt"><input type="radio" name="ve-age" value="${a}" ${a === Number(row.age) ? "checked" : ""} /><span>${a}+</span></label>`).join("")}
+       </div>
+       <label class="lang-chip"><input type="checkbox" id="ve-dl" ${row.downloads ? "checked" : ""} /> ${esc(t("vid.f.downloads"))}</label>
+       <p class="vs-hint">${esc(t("vid.f.downloadsHint"))}</p>
+       <div class="form-alert" id="ve-alert" role="alert"></div>
+       <div class="vdlg-actions">
+         <button class="btn btn-sm btn-primary" type="button" id="ve-save">${esc(t("common.save"))}</button>
+         <button class="btn btn-sm btn-ghost" type="button" data-close>${esc(t("common.cancel"))}</button>
+       </div>`,
+      { label: t("vid.edit.title") },
+    );
+    const q = (sel) => dlg.el.querySelector(sel);
+    const alert = (text) => {
+      const el = q("#ve-alert");
+      el.className = text ? "form-alert show error" : "form-alert";
+      el.textContent = text || "";
+    };
+    const syncVis = () => {
+      const v = dlg.el.querySelector('input[name="ve-vis"]:checked')?.value || "public";
+      q("#ve-excl").hidden = v !== "exclusive";
+      q("#ve-priv").hidden = v !== "private";
+    };
+    dlg.el.querySelectorAll('input[name="ve-vis"]').forEach((r) => r.addEventListener("change", syncVis));
+    q("#ve-save").addEventListener("click", async () => {
+      alert("");
+      const vis = dlg.el.querySelector('input[name="ve-vis"]:checked')?.value || "public";
+      const age = Number(dlg.el.querySelector('input[name="ve-age"]:checked')?.value || 3);
+      const thumb = q("#ve-thumb").value.trim();
+      if (thumb && !/^https:\/\/[^/?#\s]+/i.test(thumb)) return alert(t("vid.err.thumb"));
+      const people = q("#ve-people").value.split(/[,;\s]+/).map((x) => x.trim().replace(/^@+/, "")).filter(Boolean);
+      if (vis === "private" && !people.length) return alert(t("vid.err.people"));
+      const btn = q("#ve-save");
+      btn.disabled = true;
+      const res = await V.call("content_update", {
+        p_member: me(),
+        p_id: row.id,
+        d: {
+          thumb,
+          downloads: Boolean(q("#ve-dl")?.checked),
+          age,
+          visibility: vis,
+          followers: Boolean(q("#ve-fol")?.checked),
+          premium: Boolean(q("#ve-prem")?.checked),
+          // the excluded countries are not edited here — the current list goes back as it stands
+          countries: String(row.countries || ""),
+          people,
+        },
+      });
+      btn.disabled = false;
+      if (!res.ok || res.data?.ok === false) {
+        if (res.setup) return alert(t("vid.setup"));
+        return alert(t(REASONS[res.data?.reason] || "vid.err.generic"));
+      }
+      dlg.close();
+      toast(t("vid.edit.saved"));
+      if (state.tab === "manage") drawManage(pane);
+    });
+  }
+
   async function runAction(kind, row, pane) {
+    if (kind === "edit") return openEdit(row, pane);
     if (kind === "link") {
       const url = C.absoluteUrl(V.contentHref(row.id));
       const dlg = V.openDialog(

@@ -58,6 +58,7 @@
     edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     play: '<path d="M7 4.5L19 12L7 19.5V4.5Z"/>',
+    dl: '<path d="M12 3.5v10.5M7.5 10L12 14.5L16.5 10M4 20h16"/>',
     chev_up: '<path d="M6 15l6-6 6 6"/>',
     chev_down: '<path d="M6 9l6 6 6-6"/>',
   };
@@ -70,6 +71,18 @@
   const ytVideoId = String(params.get("yt") || "").trim();
   const ytWatchHref = (id) => `./Content.html?yt=${encodeURIComponent(id)}`;
   const ytw = { seq: 0 }; // async guard: a navigation while a fetch flies
+
+  // Round 57 — the site is free thanks to its sponsors (Adsterra): before the
+  // member video's VERY FIRST play — once per video per browser session — one
+  // tap on the direct link opens it in a new tab and playback starts at once.
+  // The same link also rests inside the page as labeled banner boxes.
+  const AD_LINK = "https://asiafilm.org/4/e476b83b0c777b7828ac79fef485bd1a";
+  const adDone = (id) => {
+    try { return sessionStorage.getItem(`cineaura_ad_${id}`) === "1"; } catch { return false; }
+  };
+  const markAdDone = (id) => {
+    try { sessionStorage.setItem(`cineaura_ad_${id}`, "1"); } catch { /* asked again next time */ }
+  };
 
   // ---------------------------------------------------------------- page states
   function showError(reason) {
@@ -158,6 +171,39 @@
         <span class="vw-play-orb"><svg width="30" height="30" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.2L13.2 8L4 13.8V2.2Z"/></svg></span>
         <span class="vw-play-txt">${esc(t("vid.play"))}</span>
       </button>`;
+  }
+
+  /* The sponsored step in front of the play button (Adsterra direct link):
+     the poster stands, over it the ask — one tap opens the link in a new tab
+     and startPlayback takes over at once. Ordered honestly: a lock beats all,
+     then the age confirm (a guest, 16+), then the watch code, then this. */
+  function adGateApplies(c) {
+    if (adDone(c.id)) return false;
+    const age = Number(c.age) || 3;
+    if (c.code === undefined && !V.memberId() && age >= 16 && !ageConfirmed(age)) return false;
+    return true;
+  }
+  function adGateHtml(c) {
+    return `${posterHtml(c)}
+      <div class="vw-gate vw-adgate" role="group" aria-labelledby="vw-adg-h">
+        <span class="vw-chip vw-adgate-chip">${esc(t("ads.label"))}</span>
+        <h2 id="vw-adg-h">${esc(t("vid.ad.preTitle"))}</h2>
+        <p>${esc(t("vid.ad.preText"))}</p>
+        <div class="vw-gate-actions">
+          <a class="btn btn-lg btn-primary" href="${esc(AD_LINK)}" target="_blank" rel="noopener sponsored nofollow" data-ad-play>${icon("ext", 16)}<span>${esc(t("vid.ad.preBtn"))}</span></a>
+        </div>
+      </div>`;
+  }
+  function idlePanelHtml(c) {
+    return adGateApplies(c) ? adGateHtml(c) : playerIdleHtml(c);
+  }
+  // the banner boxes of the same direct link, resting inside the page
+  function adBannerHtml(place) {
+    return `<aside class="vw-ad" data-ad="${esc(place)}" role="complementary" aria-label="${esc(t("ads.label"))}">
+      <span class="vw-chip vw-ad-chip">${esc(t("ads.label"))}</span>
+      <p class="vw-ad-txt">${esc(t("vid.ad.bannerText"))}</p>
+      <a class="btn btn-sm btn-ghost vw-ad-btn" href="${esc(AD_LINK)}" target="_blank" rel="noopener sponsored nofollow">${icon("ext", 15)}<span>${esc(t("ads.visit"))}</span></a>
+    </aside>`;
   }
 
   // ---------------------------------------------------------------- watch code (13+)
@@ -339,7 +385,7 @@
     const box = $("#vw-player");
     if (box) {
       box.classList.remove("is-gated");
-      box.innerHTML = playerIdleHtml(state.data.content);
+      box.innerHTML = idlePanelHtml(state.data.content);
     }
     const under = $(".vw-under");
     if (under) under.innerHTML = underHtml();
@@ -516,7 +562,8 @@
       c.country ? chip(V.regionLabel(c.country)) : "",
     ].join("");
     $("#vw-main").innerHTML = `
-      <div class="vw-player${needCode ? " is-gated" : ""}" id="vw-player">${access !== "ok" ? lockedHtml(c, access) : needCode ? codeGateHtml(c) : playerIdleHtml(c)}</div>
+      ${adBannerHtml("top")}
+      <div class="vw-player${needCode ? " is-gated" : ""}" id="vw-player">${access !== "ok" ? lockedHtml(c, access) : needCode ? codeGateHtml(c) : idlePanelHtml(c)}</div>
       <div class="vw-under">${underHtml()}</div>
       <h1 class="vw-title">${esc(c.title)}</h1>
       ${c.suspended ? `<div class="vw-suspended" role="status">${icon("lock", 16)}<p><b>${esc(t("vid.suspendedOwner"))}</b> ${esc(t("vid.suspendedWhy", { reason: c.suspended.reason || "" }))}</p></div>` : ""}
@@ -541,6 +588,7 @@
           </div>
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-share-btn" aria-expanded="false" aria-controls="vw-share">${icon("share", 16)}<span>${esc(t("share.title"))}</span></button>
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-pl-btn">${icon("pl", 16)}<span>${esc(t("vid.addToPl"))}</span></button>
+          ${c.downloads && state.info && ["file", "hls"].includes(state.info.provider) && c.url ? `<a class="btn btn-sm btn-ghost vw-btn" id="vw-dl" href="${esc(c.url)}" download target="_blank" rel="noopener">${icon("dl", 16)}<span>${esc(t("vid.download"))}</span></a>` : ""}
           ${mine ? `<a class="btn btn-sm btn-ghost vw-btn" href="./Profile.html#content/manage">${icon("edit", 16)}<span>${esc(t("vid.manage"))}</span></a>` : ""}
         </div>
       </div>
@@ -551,6 +599,7 @@
         ${Array.isArray(c.tags) && c.tags.length ? `<div class="vw-tags">${c.tags.map((x) => `<a href="${V.searchHref({ tag: x })}"><bdi>#${esc(x)}</bdi></a>`).join("")}</div>` : ""}
         <p class="vw-desc-foot muted">${esc(t("vid.publishedOn", { date: V.fullDate(c.publish_at) }))} · <a href="${V.searchHref({ owner: owner.username })}">${esc(t("vid.moreFrom", { name: owner.username }))}</a></p>
       </section>
+      ${adBannerHtml("desc")}
       <div class="vw-offers vw-offers--inline" id="vw-offers-m" hidden></div>
       <section class="vw-comments" id="comments" aria-labelledby="vw-com-h">
         <h2 id="vw-com-h">${esc(t("vid.comments"))} <span class="vw-count" id="vw-com-count">${access === "ok" ? esc(V.fmtNum(c.comments)) : ""}</span></h2>
@@ -609,8 +658,16 @@
         } catch {
           /* asked again next time */
         }
-        $("#vw-player").innerHTML = playerIdleHtml(state.data.content);
+        $("#vw-player").innerHTML = idlePanelHtml(state.data.content);
         $("#vw-player [data-play]")?.focus();
+        return;
+      }
+      // the sponsored step before the first play: the direct link opens in a
+      // new tab (the anchor itself), and the video starts right here at once
+      const adBtn = e.target.closest("[data-ad-play]");
+      if (adBtn) {
+        markAdDone(state.id);
+        startPlayback();
         return;
       }
       const voteBtn = e.target.closest("[data-vote]");
@@ -1149,6 +1206,7 @@
           </span>
         ${chUrl ? `</a>` : `</div>`}
         <div class="vw-actions">
+          ${V.memberId() ? `<a class="btn btn-sm btn-ghost vw-btn" href="./Profile.html#content" data-yt-import="${esc(watchUrl)}">${icon("pl", 16)}<span>${esc(t("vid.yt.importSelf"))}</span></a>` : ""}
           <a class="btn btn-sm btn-ghost vw-btn" href="${esc(watchUrl)}" target="_blank" rel="noopener">${icon("ext", 16)}<span>${esc(t("vid.yt.openVideo"))}</span></a>
         </div>
       </div>
@@ -1165,6 +1223,13 @@
 
   function wireYtWatch() {
     $("#vw-main").addEventListener("click", (e) => {
+      // "Import this video": the link waits for the studio, which opens right
+      // away (the anchor's own navigation) with the form half filled
+      const imp = e.target.closest("[data-yt-import]");
+      if (imp) {
+        try { sessionStorage.setItem("cineaura_import_url", imp.getAttribute("data-yt-import") || ""); } catch { /* the studio still opens */ }
+        return;
+      }
       const more = e.target.closest("#vw-more");
       if (!more) return;
       const txt = $("#vw-desc-text");
