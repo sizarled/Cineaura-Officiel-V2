@@ -1087,3 +1087,11 @@ html[dir="rtl"] .pc-back svg { transform: scaleX(-1); }
   padding-top: 4px;
   border-top: 1px solid var(--line);
 }
+
+/* ── Round 54 · the unified hub search: player + record inside "Video Youtube" ── */
+#vh-yt #vw-player { margin: 4px 0 12px; }
+#vh-yt #vhy-meta { margin: 0 0 12px; }
+#vh-yt-note,
+#vh-mem-note { margin: 0 0 10px; }
+#vh-yt-note:empty,
+#vh-mem-note:empty { display: none; }

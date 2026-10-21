@@ -811,7 +811,7 @@
   ];
   const TOP_LIMIT = 50;
   const OFFERS_AFTER = 12; // the offers row comes after this many videos
-  const hub = { key: "minutes", cache: {}, seq: 0, scope: "site", ytKey: null };
+  const hub = { key: "minutes", cache: {}, seq: 0 };
   // the vertical (portrait) viewer: TikTok-style stage over the portrait videos,
   // the "watch once" toggle on: at the end of a video the next one takes over
   const vsh = { items: [], i: 0, once: false, seq: 0, listening: false, hls: null };
@@ -836,49 +836,60 @@
       <span class="eyebrow">${esc(t("nav.videos"))}</span>
       <h1>${esc(t("vid.hub.title"))}</h1>
       <p class="muted">${esc(t("vid.hub.lead"))}</p>`;
-    // Where the box looks: on the site (it opens Search.html), or on YouTube — those
-    // results show under the hero and each one plays here, no redirect.
+    // One box, one search, TWO sections under it: the site's videos first
+    // ("Videos Members"), YouTube's below ("Video Youtube") — and a YouTube
+    // pick plays right here in #vw-player, the same player the site uses.
     if (form) {
-      const scope = document.createElement("div");
-      scope.className = "follow-tabs vh-scope";
-      scope.setAttribute("role", "tablist");
-      scope.innerHTML = `
-        <button type="button" role="tab" class="follow-tab active" data-scope="site" aria-selected="true">${icon("ext", 15)}<span>${esc(t("vid.scope.site"))}</span></button>
-        <button type="button" role="tab" class="follow-tab" data-scope="yt" aria-selected="false" tabindex="-1">${icon("play", 15)}<span>${esc(t("vid.scope.youtube"))}</span></button>`;
-      scope.addEventListener("click", (e) => {
-        const b = e.target.closest("[data-scope]");
-        if (!b || b.dataset.scope === hub.scope) return;
-        hub.scope = b.dataset.scope;
-        scope.querySelectorAll("[data-scope]").forEach((x) => {
-          const on = x.dataset.scope === hub.scope;
-          x.classList.toggle("active", on);
-          x.setAttribute("aria-selected", String(on));
-          x.tabIndex = on ? 0 : -1;
-        });
-        $("#vw-q")?.focus();
-      });
-      hero.appendChild(scope);
       hero.appendChild(form);
       form.addEventListener("submit", (e) => {
-        if (hub.scope !== "yt") return;
         e.preventDefault();
-        ytSearch(form.querySelector("#vw-q")?.value || "");
+        hubSearch(form.querySelector("#vw-q")?.value || "");
       });
     }
-    // YouTube results (a YouTube search of the box goes through the edge function
-    // supabase/functions/youtube-search — it holds the API key)
+    // "Videos Members" — the site's own search results (content_search)
+    const mem = document.createElement("section");
+    mem.className = "vh-yt vh-mem";
+    mem.id = "vh-mem";
+    mem.hidden = true;
+    mem.innerHTML = `
+      <div class="vh-top-head">
+        <h2 id="vh-mem-h">${esc(t("vid.hub.members"))}</h2>
+        <button class="btn btn-sm btn-ghost vh-yt-close" type="button" id="vh-mem-close">${icon("close", 15)}<span>${esc(t("vid.yt.close"))}</span></button>
+      </div>
+      <p class="muted" id="vh-mem-note"></p>
+      <ol class="vgrid vh-yt-grid" id="vh-mem-grid" aria-labelledby="vh-mem-h"></ol>`;
+    mem.querySelector("#vh-mem-close").addEventListener("click", () => {
+      mem.hidden = true;
+    });
+    // "Video Youtube" — the edge function's results (it holds the API key);
+    // the picked video plays in the shared #vw-player with its YouTube record
     const yt = document.createElement("section");
     yt.className = "vh-yt";
     yt.id = "vh-yt";
     yt.hidden = true;
     yt.innerHTML = `
       <div class="vh-top-head">
-        <h2 id="vh-yt-h"></h2>
+        <h2 id="vh-yt-h">${esc(t("vid.hub.youtube"))}</h2>
         <button class="btn btn-sm btn-ghost vh-yt-close" type="button" id="vh-yt-close">${icon("close", 15)}<span>${esc(t("vid.yt.close"))}</span></button>
       </div>
+      <div class="vw-player" id="vw-player" hidden></div>
+      <div class="glass vw-desc is-yt" id="vhy-meta" hidden></div>
+      <p class="muted" id="vh-yt-note"></p>
       <ol class="vgrid vh-yt-grid" id="vh-yt-grid" aria-labelledby="vh-yt-h"></ol>`;
     yt.querySelector("#vh-yt-close").addEventListener("click", () => {
       yt.hidden = true;
+      yt.querySelector("#vw-player").innerHTML = "";
+      yt.querySelector("#vhy-meta").innerHTML = "";
+    });
+    // the more/less fold of the YouTube description, like the video page's
+    yt.addEventListener("click", (e) => {
+      const ytMore = e.target.closest("[data-yt-more]");
+      if (!ytMore) return;
+      const txt = ytMore.parentElement?.querySelector("[data-ytdesc]");
+      if (!txt) return;
+      const open = txt.classList.toggle("is-open");
+      ytMore.setAttribute("aria-expanded", String(open));
+      ytMore.textContent = t(open ? "vid.showLess" : "vid.showMore");
     });
     // the portrait videos: a centered 9:16 stage with the up/down flip buttons
     const shorts = document.createElement("section");
@@ -919,7 +930,7 @@
       </div>
       <p class="muted vh-note" id="vh-note"></p>
       <ol class="vgrid vh-grid" id="vh-grid" role="tabpanel" aria-live="polite"></ol>`;
-    layout?.replaceWith(hero, yt, shorts, top);
+    layout?.replaceWith(hero, mem, yt, shorts, top);
     loadShorts();
     const tabs = top.querySelector(".vh-tabs");
     tabs.addEventListener("click", (e) => {
@@ -1001,18 +1012,49 @@
   // ---------------------------------------------------------------- YouTube search (the scope chip)
   // The box asked for YouTube: results from the edge function, each one watchable
   // right here (an embedded YouTube player — the viewer never leaves the page).
-  async function ytSearch(qRaw) {
+  // One search answers in two sections: the site's videos ("Videos Members")
+  // first, YouTube's ("Video Youtube") below. Both run together.
+  function hubSearch(qRaw) {
     const q = String(qRaw || "").trim().slice(0, 120);
-    const panel = $("#vh-yt");
-    const grid = $("#vh-yt-grid");
-    const head = $("#vh-yt-h");
-    if (!panel || !grid || !head) return;
     if (!q) {
       $("#vw-q")?.focus();
       return;
     }
+    const seq = (hub.seq += 1);
+    loadMemberResults(q, seq);
+    ytSearch(q, seq);
+  }
+
+  async function loadMemberResults(q, seq) {
+    const panel = $("#vh-mem");
+    const grid = $("#vh-mem-grid");
+    const note = $("#vh-mem-note");
+    if (!panel || !grid) return;
     panel.hidden = false;
-    head.textContent = t("vid.yt.title", { q });
+    note.textContent = "";
+    grid.setAttribute("aria-busy", "true");
+    grid.innerHTML = `<li class="vh-wait"><div class="loader" style="display:grid"><div class="spinner"></div></div></li>`;
+    const res = await V.call("content_search", { p_member: V.memberId(), p_q: q, p_sort: "minutes", p_limit: 24 });
+    if (seq !== hub.seq) return;
+    grid.removeAttribute("aria-busy");
+    if (!res.ok) {
+      grid.innerHTML = "";
+      note.textContent = t(res.setup ? "vid.err.pageText.setup" : "vid.err.pageText.load");
+      return;
+    }
+    const items = Array.isArray(res.data?.items) ? res.data.items : [];
+    note.textContent = items.length ? t("vid.hub.membersCount", { n: items.length, q }) : t("vid.hub.membersNone", { q });
+    grid.innerHTML = items.map((x) => `<li class="vh-item">${V.cardHtml(x, { compact: true })}</li>`).join("");
+    V.observeCards(grid);
+  }
+
+  async function ytSearch(q, seq) {
+    const panel = $("#vh-yt");
+    const grid = $("#vh-yt-grid");
+    const note = $("#vh-yt-note");
+    if (!panel || !grid) return;
+    panel.hidden = false;
+    note.textContent = "";
     grid.setAttribute("aria-busy", "true");
     grid.innerHTML = `<li class="vh-wait"><div class="loader" style="display:grid"><div class="spinner"></div></div></li>`;
     let out = null;
@@ -1030,24 +1072,18 @@
     } catch {
       out = null;
     }
+    if (seq !== hub.seq) return;
     grid.removeAttribute("aria-busy");
-    if (!out || typeof out !== "object") {
-      grid.innerHTML = `<li class="glass vs-none"><p>${esc(t("vid.yt.upstream"))}</p></li>`;
-      return;
-    }
-    if (out.ok !== true) {
-      const key = out.reason === "not_configured" ? "vid.yt.noKey"
-        : out.reason === "quota" ? "vid.yt.quota"
-        : out.reason === "missing" ? "vid.yt.none" : "vid.yt.upstream";
-      grid.innerHTML = `<li class="glass vs-none"><p>${esc(t(key, { q }))}</p></li>`;
+    if (!out || typeof out !== "object" || out.ok !== true) {
+      const key = out && out.reason === "not_configured" ? "vid.yt.noKey"
+        : out && out.reason === "quota" ? "vid.yt.quota"
+        : out && out.reason === "missing" ? "vid.yt.none" : "vid.yt.upstream";
+      grid.innerHTML = "";
+      note.textContent = t(key, { q });
       return;
     }
     const items = Array.isArray(out.items) ? out.items : [];
-    if (!items.length) {
-      grid.innerHTML = `<li class="glass vs-none"><p>${esc(t("vid.yt.none", { q }))}</p></li>`;
-      return;
-    }
-    head.textContent = t("vid.yt.count", { n: items.length, q });
+    note.textContent = items.length ? t("vid.yt.count", { n: items.length, q }) : t("vid.yt.none", { q });
     grid.innerHTML = items
       .map(
         (x) => `<li class="vh-item">
@@ -1065,57 +1101,33 @@
       )
       .join("");
     grid.querySelectorAll("[data-ytid]").forEach((b) =>
-      b.addEventListener("click", () => openYtModal(b.dataset.ytid, b.dataset.yttitle)),
+      b.addEventListener("click", () => playHubYouTube(b.dataset.ytid)),
     );
   }
 
-  function closeYtModal() {
-    if (hub.ytKey) document.removeEventListener("keydown", hub.ytKey, true);
-    hub.ytKey = null;
-    $("#vhy-modal")?.remove();
-  }
-
-  function openYtModal(id, title) {
+  /* A YouTube pick plays right here — in #vw-player, the very player the
+     embedded-link videos use on the video page — and its record (channel,
+     description, tags) lands under it. No modal, no redirect. */
+  function playHubYouTube(id) {
     if (!/^[A-Za-z0-9_-]{11}$/.test(String(id || ""))) return;
-    closeYtModal();
-    const box = document.createElement("div");
-    box.className = "vhy-modal";
-    box.id = "vhy-modal";
-    box.innerHTML = `<div class="vhy-backdrop" data-ytclose></div>
-      <div class="glass vhy-box" role="dialog" aria-modal="true" aria-label="${esc(title || "YouTube")}">
-        <button class="btn btn-sm btn-ghost vhy-close" type="button" data-ytclose aria-label="${esc(t("vid.yt.close"))}">${icon("close", 15)}</button>
-        <iframe class="vhy-frame" src="https://www.youtube-nocookie.com/embed/${esc(id)}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
-            title="${esc(title || "")}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-            allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
-        ${title ? `<p class="vhy-title">${esc(title)}</p>` : ""}
-        <div class="vhy-meta" id="vhy-meta" hidden></div>
-      </div>`;
-    box.addEventListener("click", (e) => {
-      if (e.target.closest("[data-ytclose]")) closeYtModal();
-      // the description of the YouTube record folds like the page's own
-      const ytMore = e.target.closest("[data-yt-more]");
-      if (ytMore) {
-        const txt = ytMore.parentElement?.querySelector("[data-ytdesc]");
-        if (txt) {
-          const open = txt.classList.toggle("is-open");
-          ytMore.setAttribute("aria-expanded", String(open));
-          ytMore.textContent = t(open ? "vid.showLess" : "vid.showMore");
-        }
-      }
-    });
-    hub.ytKey = (e) => {
-      if (e.key === "Escape") closeYtModal();
-    };
-    document.addEventListener("keydown", hub.ytKey, true);
-    document.body.appendChild(box);
-    // the same enrichment the video page gets: the channel, the description,
-    // the tags — loaded from YouTube itself while the video plays
+    const player = $("#vw-player");
+    if (!player) return;
+    player.innerHTML = `<iframe class="vw-frame" src="https://www.youtube-nocookie.com/embed/${esc(id)}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
+        title="YouTube" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+        allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+    player.hidden = false;
+    const metaBox = $("#vhy-meta");
+    if (metaBox) {
+      metaBox.hidden = true;
+      metaBox.innerHTML = "";
+    }
     V.fetchYouTubeMeta(id).then((res) => {
-      const metaBox = $("#vhy-meta");
-      if (!metaBox || !res.ok) return; // nothing to fake: the title alone stays
-      metaBox.innerHTML = V.youTubeMetaHtml(res.video);
-      metaBox.hidden = false;
+      const box = $("#vhy-meta");
+      if (!box || player.hidden || !res.ok) return; // the player alone stays
+      box.innerHTML = V.youTubeMetaHtml(res.video);
+      box.hidden = false;
     });
+    $("#vh-yt")?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   }
 
   // ---------------------------------------------------------------- the vertical (portrait) viewer
