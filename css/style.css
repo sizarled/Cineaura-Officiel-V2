@@ -75,6 +75,48 @@ button {
   color: inherit;
 }
 
+/* ── Base form controls ─────────────────────────────────────────────
+   Any field or classless button, on any page (panel, dashboard, market,
+   profile, prizes, …), gets a usable size and the site look instead of
+   the browser's tiny default rendering. `:where()` keeps these rules at
+   zero class-specificity, so every page's own classed rule
+   (`.form-row input`, `.stack select`, `.pa-*`, `.mkt-form input`,
+   `.pz-*`, `.pin-input`, themes, …) always wins over them. */
+select,
+textarea,
+input:where(:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])) {
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+textarea {
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+button:where(:not([class])),
+input:where([type="submit"], [type="button"], [type="reset"]):where(:not([class])) {
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sub-bg, rgba(255, 255, 255, 0.06));
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 ul {
   list-style: none;
 }
