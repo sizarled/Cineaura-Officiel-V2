@@ -877,6 +877,7 @@
     "vid.yt.quota": "YouTube’s daily search limit is reached — try again tomorrow.",
     "vid.yt.upstream": "YouTube could not be reached. Try again.",
     "vid.yt.close": "Close",
+    "vid.yt.openChannel": "Open the channel on YouTube",
     "vid.shorts.title": "Vertical videos",
     "vid.shorts.once": "Play each video once, then the next",
     "vid.shorts.counter": "{i} of {n}",

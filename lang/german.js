@@ -4471,6 +4471,7 @@
     "vid.yt.quota": "Das tägliche YouTube-Suchlimit ist erreicht — versuche es morgen erneut.",
     "vid.yt.upstream": "YouTube ist nicht erreichbar. Bitte erneut versuchen.",
     "vid.yt.close": "Schließen",
+    "vid.yt.openChannel": "Kanal auf YouTube öffnen",
     "vid.shorts.title": "Vertikale Videos",
     "vid.shorts.once": "Jedes Video einmal spielen, dann das nächste",
     "vid.shorts.counter": "{i} von {n}",

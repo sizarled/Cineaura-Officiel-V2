@@ -4474,6 +4474,7 @@
     "vid.yt.quota": "Se alcanzó el límite diario de búsqueda de YouTube — inténtalo mañana.",
     "vid.yt.upstream": "No se pudo conectar con YouTube. Inténtalo de nuevo.",
     "vid.yt.close": "Cerrar",
+    "vid.yt.openChannel": "Abrir el canal en YouTube",
     "vid.shorts.title": "Vídeos verticales",
     "vid.shorts.once": "Reproducir cada vídeo una vez y pasar al siguiente",
     "vid.shorts.counter": "{i} de {n}",

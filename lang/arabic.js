@@ -4537,6 +4537,7 @@
     "vid.yt.quota": "انتهت حصة بحث يوتيوب اليومية — جرّب غداً.",
     "vid.yt.upstream": "تعذّر الوصول إلى يوتيوب. حاول مجدداً.",
     "vid.yt.close": "إغلاق",
+    "vid.yt.openChannel": "افتح القناة على يوتيوب",
     "vid.shorts.title": "فيديوهات عمودية",
     "vid.shorts.once": "شاهد كل فيديو مرة واحدة ثم انتقل للتالي",
     "vid.shorts.counter": "{i} من {n}",

@@ -4469,6 +4469,7 @@
     "vid.yt.quota": "La limite quotidienne de recherche YouTube est atteinte — réessayez demain.",
     "vid.yt.upstream": "YouTube est injoignable. Réessayez.",
     "vid.yt.close": "Fermer",
+    "vid.yt.openChannel": "Ouvrir la chaîne sur YouTube",
     "vid.shorts.title": "Vidéos verticales",
     "vid.shorts.once": "Lire chaque vidéo une fois, puis la suivante",
     "vid.shorts.counter": "{i} sur {n}",

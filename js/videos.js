@@ -30,6 +30,77 @@
   };
   const PROVIDERS = ["youtube", "vimeo", "dailymotion", "facebook", "drive", "tiktok", "file", "hls", "link"];
 
+  /* ── Round 53 · the YouTube record behind a site video ───────────────────
+     The video page (and the hub's YouTube modal) ask the youtube-search edge
+     function — which keeps the API key on the server — for the real YouTube
+     record: the channel (name + avatar), the description, and the tags when
+     YouTube lists them. One fetch per video per session; any failure stays
+     honest: the caller simply keeps its own description, nothing is faked. */
+  const ytMetaCache = new Map();
+  async function fetchYouTubeMeta(videoId) {
+    const id = String(videoId || "").trim();
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return { ok: false, reason: "missing" };
+    if (ytMetaCache.has(id)) return ytMetaCache.get(id);
+    let out = null;
+    try {
+      const res = await fetch(`${C.SUPABASE_URL}/functions/v1/youtube-search`, {
+        method: "POST",
+        headers: {
+          apikey: C.SUPABASE_KEY,
+          Authorization: `Bearer ${C.SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ video: id }),
+      });
+      out = await res.json();
+    } catch {
+      out = null;
+    }
+    const ans =
+      out && out.ok === true && out.video
+        ? { ok: true, video: out.video }
+        : { ok: false, reason: out?.reason || "upstream" };
+    ytMetaCache.set(id, ans);
+    return ans;
+  }
+
+  function ytLinkify(text) {
+    return escapeHtml(text).replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, (u) => `<a href="${u}" target="_blank" rel="noopener noreferrer nofollow">${u}</a>`);
+  }
+
+  /* The block a YouTube video's page shows where every embedded-link video's
+     own text stands: the channel row, its description, its tags (if it has
+     any). opts.footHtml keeps the caller's own footer line under it. */
+  function youTubeMetaHtml(video, opts = {}) {
+    const chId = String(video?.channelId || "").trim();
+    const chUrl = chId ? `https://www.youtube.com/channel/${encodeURIComponent(chId)}` : "";
+    const desc = String(video?.description || "").trim();
+    const long = desc.length > 420;
+    const tags = (Array.isArray(video?.tags) ? video.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12);
+    const avatar = String(video?.channelAvatar || "");
+    const chName = String(video?.channel || "YouTube").trim() || "YouTube";
+    const head = `
+    <div class="vw-ythead">
+      ${chUrl
+        ? `<a class="vw-ytch" href="${escapeHtml(chUrl)}" target="_blank" rel="noopener" aria-label="${escapeHtml(t("vid.yt.openChannel"))}">`
+        : `<div class="vw-ytch">`}
+        ${avatar
+          ? `<img class="vw-ytch-img" src="${escapeHtml(avatar)}" alt="" loading="lazy" />`
+          : `<span class="vw-ytch-img vw-ytch-ph" aria-hidden="true">${escapeHtml(chName.slice(0, 1).toUpperCase())}</span>`}
+        <span class="vw-ytch-txt">
+          <bdi class="vw-ytch-name">${escapeHtml(chName)}</bdi>
+          <small class="vw-ytch-src">${escapeHtml(t("vid.prov.youtube"))}</small>
+        </span>
+      ${chUrl ? `</a>` : `</div>`}
+      <span class="vw-chip">${escapeHtml(t("vid.prov.youtube"))}</span>
+    </div>`;
+    return `${head}
+    <div class="vw-desc-text${long ? " is-long" : ""}" data-ytdesc>${desc ? ytLinkify(desc) : `<span class="muted">${escapeHtml(t("vid.noDesc"))}</span>`}</div>
+    ${long ? `<button class="vw-more" type="button" data-yt-more aria-expanded="false">${escapeHtml(t("vid.showMore"))}</button>` : ""}
+    ${tags.length ? `<div class="vw-tags vw-tags--yt">${tags.map((x) => `<span><bdi>#${escapeHtml(x)}</bdi></span>`).join("")}</div>` : ""}
+    ${opts.footHtml || ""}`;
+  }
+
   // ---------------------------------------------------------------- links
   function parseStart(v) {
     const raw = String(v || "").trim();
@@ -547,6 +618,8 @@
     openDialog,
     confirmDialog,
     playlistDialog,
+    fetchYouTubeMeta,
+    youTubeMetaHtml,
     LOCK_ICON,
   };
 })();

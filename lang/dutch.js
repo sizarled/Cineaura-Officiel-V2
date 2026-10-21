@@ -4470,6 +4470,7 @@
     "vid.yt.quota": "De dagelijkse YouTube-zoeklimiet is bereikt — probeer het morgen opnieuw.",
     "vid.yt.upstream": "YouTube is niet bereikbaar. Probeer opnieuw.",
     "vid.yt.close": "Sluiten",
+    "vid.yt.openChannel": "Kanaal op YouTube openen",
     "vid.shorts.title": "Verticale video's",
     "vid.shorts.once": "Speel elke video één keer af, dan de volgende",
     "vid.shorts.counter": "{i} van {n}",

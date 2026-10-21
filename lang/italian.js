@@ -4472,6 +4472,7 @@
     "vid.yt.quota": "Limite giornaliero di ricerca YouTube raggiunto — riprova domani.",
     "vid.yt.upstream": "YouTube non è raggiungibile. Riprova.",
     "vid.yt.close": "Chiudi",
+    "vid.yt.openChannel": "Apri il canale su YouTube",
     "vid.shorts.title": "Video verticali",
     "vid.shorts.once": "Riproduci ogni video una volta, poi il successivo",
     "vid.shorts.counter": "{i} di {n}",

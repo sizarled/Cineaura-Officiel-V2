@@ -538,7 +538,7 @@
         </div>
       </div>
       <div class="glass vw-share" id="vw-share" hidden>${C.shareRowHtml(href, c.title, { label: t("vid.shareLabel") })}</div>
-      <section class="glass vw-desc">
+      <section class="glass vw-desc" id="vw-desc">
         <div class="vw-desc-text${String(c.description || "").length > 420 ? " is-long" : ""}" id="vw-desc-text">${c.description ? linkify(c.description) : `<span class="muted">${esc(t("vid.noDesc"))}</span>`}</div>
         ${String(c.description || "").length > 420 ? `<button class="vw-more" type="button" id="vw-more" aria-expanded="false">${esc(t("vid.showMore"))}</button>` : ""}
         ${Array.isArray(c.tags) && c.tags.length ? `<div class="vw-tags">${c.tags.map((x) => `<a href="${V.searchHref({ tag: x })}"><bdi>#${esc(x)}</bdi></a>`).join("")}</div>` : ""}
@@ -556,7 +556,27 @@
     if (access === "ok") {
       V.track([c.id], "view");
       loadComments();
+      loadYouTubeMeta();
     }
+  }
+
+  /* Round 53 — a YouTube video stands where the embedded-link videos stand:
+     the same player, the same description section — but its words come from
+     YouTube itself: the channel (avatar + link), the video's description, its
+     tags when it has any (V.fetchYouTubeMeta / videos.list, server-held key).
+     On any failure the site's own description simply stays. */
+  async function loadYouTubeMeta() {
+    const info = state.info;
+    if (!info || info.provider !== "youtube") return;
+    const res = await V.fetchYouTubeMeta(info.id);
+    const sec = $("#vw-desc");
+    if (!sec || !sec.isConnected || state.info !== info) return;
+    if (!res.ok) return; // the site's own description stays — nothing faked
+    const date = res.video.publishedAt || state.data.content.publish_at;
+    sec.classList.add("is-yt");
+    sec.innerHTML = V.youTubeMetaHtml(res.video, {
+      footHtml: `<p class="vw-desc-foot muted">${esc(t("vid.publishedOn", { date: V.fullDate(date) }))} · <a href="${V.searchHref({ owner: state.data.owner.username })}">${esc(t("vid.moreFrom", { name: state.data.owner.username }))}</a></p>`,
+    });
   }
 
   function paintVote() {
@@ -607,6 +627,17 @@
         const open = txt.classList.toggle("is-open");
         e.target.closest("#vw-more").setAttribute("aria-expanded", String(open));
         e.target.closest("#vw-more").textContent = t(open ? "vid.showLess" : "vid.showMore");
+        return;
+      }
+      // the same toggle, on the block the YouTube record painted (Round 53)
+      const ytMore = e.target.closest("[data-yt-more]");
+      if (ytMore) {
+        const txt = ytMore.parentElement?.querySelector("[data-ytdesc]");
+        if (txt) {
+          const open = txt.classList.toggle("is-open");
+          ytMore.setAttribute("aria-expanded", String(open));
+          ytMore.textContent = t(open ? "vid.showLess" : "vid.showMore");
+        }
         return;
       }
       // a share: one of the networks, or the copy button (common.js copies the link)
@@ -1057,15 +1088,34 @@
             title="${esc(title || "")}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
         ${title ? `<p class="vhy-title">${esc(title)}</p>` : ""}
+        <div class="vhy-meta" id="vhy-meta" hidden></div>
       </div>`;
     box.addEventListener("click", (e) => {
       if (e.target.closest("[data-ytclose]")) closeYtModal();
+      // the description of the YouTube record folds like the page's own
+      const ytMore = e.target.closest("[data-yt-more]");
+      if (ytMore) {
+        const txt = ytMore.parentElement?.querySelector("[data-ytdesc]");
+        if (txt) {
+          const open = txt.classList.toggle("is-open");
+          ytMore.setAttribute("aria-expanded", String(open));
+          ytMore.textContent = t(open ? "vid.showLess" : "vid.showMore");
+        }
+      }
     });
     hub.ytKey = (e) => {
       if (e.key === "Escape") closeYtModal();
     };
     document.addEventListener("keydown", hub.ytKey, true);
     document.body.appendChild(box);
+    // the same enrichment the video page gets: the channel, the description,
+    // the tags — loaded from YouTube itself while the video plays
+    V.fetchYouTubeMeta(id).then((res) => {
+      const metaBox = $("#vhy-meta");
+      if (!metaBox || !res.ok) return; // nothing to fake: the title alone stays
+      metaBox.innerHTML = V.youTubeMetaHtml(res.video);
+      metaBox.hidden = false;
+    });
   }
 
   // ---------------------------------------------------------------- the vertical (portrait) viewer
