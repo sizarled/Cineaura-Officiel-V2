@@ -334,6 +334,27 @@ ul {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* the page you're on, in the one header menu every page shares (common.js
+   unifyHeaderNav) */
+.nav a[aria-current="page"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mobile-menu a[aria-current="page"] {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme="day"] .nav a[aria-current="page"] {
+  background: rgba(1, 180, 228, 0.1);
+}
+
+html[data-theme="day"] .mobile-menu a[aria-current="page"] {
+  border-color: rgba(13, 37, 63, 0.14);
+  background: rgba(1, 180, 228, 0.1);
+}
+
 .auth {
   display: flex;
   align-items: center;
@@ -1743,140 +1764,6 @@ html[dir="rtl"] .prof-side nav button .sec-badge {
   margin-right: 6px;
 }
 
-/* Arrange row + the ▲▼ list of the reorderable sidebar shortcuts
-   (Profile .prof-side nav and Dashboard .side-nav) */
-.nav-arr-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: 100%;
-  margin-top: 10px;
-  padding: 7px 10px;
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.nav-arr-toggle:hover {
-  color: var(--cyan);
-  border-color: var(--cyan);
-}
-
-.nav-arr-toggle.on {
-  color: var(--cyan);
-  border-color: var(--cyan);
-  background: rgba(1, 180, 228, 0.08);
-}
-
-.nav-arr-hint {
-  margin: 10px 2px 8px;
-  font-size: 12px;
-}
-
-.nav-arr-rows {
-  display: grid;
-  gap: 5px;
-}
-
-.nav-arr-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 7px 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--input-bg);
-}
-
-html[dir="rtl"] .nav-arr-row {
-  padding: 6px 10px 6px 7px;
-}
-
-.nav-arr-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.nav-arr-label > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* the ▲▼ keep their square in every theme (the sidenav's own button rules,
-   e.g. .prof-side nav button or the phone strip of the Dashboard, are more
-   specific — hence the !important on its box only) */
-.nav-arr-btn {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  justify-content: center !important;
-  width: 26px !important;
-  min-width: 26px !important;
-  height: 26px !important;
-  min-height: 26px !important;
-  padding: 0 !important;
-  gap: 0 !important;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--sub-bg);
-  color: var(--muted);
-}
-
-.nav-arr-btn:hover:not(:disabled) {
-  color: var(--cyan);
-  border-color: var(--cyan);
-}
-
-.nav-arr-btn:disabled {
-  opacity: 0.35;
-}
-
-.nav-arr-foot {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.nav-arr-foot .btn {
-  flex: 1;
-  justify-content: center;
-}
-
-@media (max-width: 900px) {
-  /* phones: the sidenavs are horizontal chip strips, but arranging is always a
-     vertical list (Profile chip grid / Dashboard strip) */
-  .prof-side nav.arranging {
-    grid-template-columns: 1fr;
-  }
-
-  .dash-side .side-nav.arranging {
-    display: grid;
-    gap: 6px;
-    overflow-x: visible;
-    padding-bottom: 0;
-    scrollbar-width: auto;
-  }
-
-  /* and inside the Dashboard strip the Arrange row takes a chip of its own */
-  .dash-side .side-nav:not(.arranging) .nav-arr-toggle {
-    width: auto;
-    flex: 0 0 auto;
-    white-space: nowrap;
-    min-height: 40px;
-    border: 1px solid var(--line);
-    margin-top: 0;
-  }
-}
 
 @media (max-width: 640px) {
   .header-bell-panel {

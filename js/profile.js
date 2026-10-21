@@ -33,11 +33,6 @@
     memberPoints,
     balanceTier,
     balanceTierHtml,
-    navOrderLoad,
-    navOrderMove,
-    navOrderReset,
-    navArrangeToggleHtml,
-    navArrangeHtml,
   } = window.CineAura;
 
   // Reads always go through; writes need a live session. A member who signed out
@@ -77,7 +72,6 @@
     ownPoints: null, // points the signed-in member can spend, once counted
     ownPointsReq: null,
     pc: null, // the Content tab (pcState)
-    arranging: false, // arranging the sidebar shortcuts (own profile only)
   };
 
   document.addEventListener("cineaura:prefs", () => {
@@ -520,20 +514,17 @@
   // home of the profile being visited.
   // Points live in Dashboard > Points; "Your content" (js/content-studio.js) holds the
   // member's videos: Create, Manage, Statistics. Right under it "market" opens the
-  // own store (viewMarket, sql/market.sql). The member re-sorts the whole list
-  // with the Arrange row (navOrder*, js/common.js); the order stays on the device.
+  // own store (viewMarket, sql/market.sql).
   const NAV_SECTIONS = ["home", "create", "posts", "content", "market", "messages", "search", "following", "blocked", "settings"];
 
   function signedIn() {
     return Boolean(state.me?.member?.member_id);
   }
 
-  // The sidebar sections in the order the member arranged them (own profile
-  // only; someone else's profile keeps the default order, its Home first).
+  // The sidebar sections (one order for every member; only signed-in members
+  // get a sidebar at all).
   function navSections() {
-    if (!signedIn()) return [];
-    if (!state.isOwner) return NAV_SECTIONS;
-    return navOrderLoad("prof", state.me?.member?.member_id, NAV_SECTIONS);
+    return signedIn() ? NAV_SECTIONS : [];
   }
 
   function secLabel(s) {
@@ -541,35 +532,20 @@
     return label !== `prof.${s}` ? label : s[0].toUpperCase() + s.slice(1);
   }
 
-  // The sidebar nav: the section buttons in the member's order (own profile —
-  // the Arrange row comes with it), or Home + the own-sections caption when
-  // visiting. While arranging the nav gains the ▲▼ rows; [data-arr-*] clicks
-  // redraw only this block (renderNav) and never switch the section.
+  // The sidebar nav: the section buttons (own profile), or Home + the
+  // own-sections caption when visiting somebody else.
   function profNavHtml() {
     const sections = navSections();
     if (!sections.length) return "";
     const navBtn = (s) =>
       `<button type="button" data-sec="${s}" class="${state.section===s?"active":""}">${window.CineAura.navIcon(s)}<span>${secLabel(s)}</span></button>`;
-    if (state.isOwner) {
-      if (state.arranging)
-        return `${navArrangeToggleHtml(true)}\n            ${navArrangeHtml(sections.map((s) => ({ id: s, label: secLabel(s) })))}`;
-      return `${sections.map(navBtn).join("\n            ")}\n            ${navArrangeToggleHtml(false)}`;
-    }
+    if (state.isOwner) return sections.map(navBtn).join("\n            ");
     // On somebody else's profile only Home is about that member; the rest of
     // the list is the signed-in member's own account, so it gets a caption.
     return `
             ${navBtn("home")}
             <p class="prof-side-cap">${t("prof.sideMine")}</p>
             ${sections.filter((s) => s !== "home").map(navBtn).join("\n            ")}`;
-  }
-
-  function renderNav() {
-    // every copy of the profile nav by the same name takes the member's own
-    // order, not just the first (a leftover cached shell must not stale behind)
-    document.querySelectorAll("#prof-root .prof-side nav").forEach((nav) => {
-      nav.innerHTML = profNavHtml();
-      nav.classList.toggle("arranging", Boolean(state.arranging && state.isOwner));
-    });
   }
 
   function renderShell() {
@@ -584,7 +560,7 @@
               <span class="muted">${state.isOwner ? t("prof.you") : t("prof.visiting")}</span>
             </span>
           </a>
-          <nav${state.arranging && state.isOwner ? ` class="arranging"` : ""}>${profNavHtml()}
+          <nav>${profNavHtml()}
           </nav>
         </aside>`
       : "";
@@ -598,23 +574,6 @@
       hydrateAvatars($("#prof-root"));
     }
     $("#prof-root").onclick = (e) => {
-      // Arranging the shortcuts (own profile only): toggle, ▲▼, default, done —
-      // no section switch while it's on.
-      if (e.target.closest("[data-arr-toggle]") && state.isOwner) {
-        state.arranging = !state.arranging;
-        renderNav();
-        return;
-      }
-      // (another member's profile never offers the arranging, and its clicks pass through)
-      if (state.arranging && state.isOwner) {
-        const mv = e.target.closest("[data-arr-id][data-arr-move]");
-        if (mv) navOrderMove("prof", state.me?.member?.member_id, NAV_SECTIONS, mv.dataset.arrId, Number(mv.dataset.arrMove));
-        else if (e.target.closest("[data-arr-reset]")) navOrderReset("prof", state.me?.member?.member_id);
-        else if (e.target.closest("[data-arr-done]")) state.arranging = false;
-        else return;
-        renderNav();
-        return;
-      }
       const sec = e.target.closest("[data-sec]");
       if (sec) {
         state.section = sec.dataset.sec;

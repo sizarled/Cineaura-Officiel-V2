@@ -3120,34 +3120,43 @@
     refitHeader();
   }
 
-  // The member videos (Search.html, Content.html) get a place in the header menu of every
-  // page, after Series, and in the phone menu.
-  // "Videos" in every header: Content.html, the search box and the 50 videos with the
-  // most watched minutes, recommendations or shares.
-  function addVideosNav() {
-    const here = /\/(search|content)(\.html)?$/i.test(location.pathname);
-    const make = () => {
+  /* One header menu for every page — only the home page keeps its own landing
+     links (#features, #plans…). Same nine links in the phone menu, above its
+     Sign In/Sign Up rows; the page you're on is marked aria-current. */
+  const HEADER_NAV = [
+    ["./index.html", "nav.home"],
+    ["./search.html", "nav.search"],
+    ["./movies.html", "nav.movies"],
+    ["./series.html", "nav.series"],
+    ["./Content.html", "nav.videos"],
+    ["./IPTV.html", "nav.iptv"],
+    ["./Prize.html", "nav.prizes"],
+    ["./Market.html", "nav.market"],
+    ["./help.html", "nav.help"],
+  ];
+  function unifyHeaderNav() {
+    const page = (location.pathname.split("/").pop() || "").toLowerCase();
+    if (!page || page === "index.html") return; // home keeps its own menu
+    const make = ([href, key]) => {
       const a = document.createElement("a");
-      a.href = "./Content.html";
-      a.dataset.i18n = "nav.videos";
-      a.dataset.videosNav = "1";
-      a.textContent = t("nav.videos");
-      if (here) a.setAttribute("aria-current", "page");
+      a.href = href;
+      a.dataset.i18n = key;
+      a.textContent = t(key);
+      if (href.toLowerCase().endsWith("/" + page)) a.setAttribute("aria-current", "page");
       return a;
     };
     const nav = document.querySelector("#site-header nav.nav");
-    if (nav && !nav.querySelector("[data-videos-nav]")) {
-      const series = [...nav.querySelectorAll("a")].find((x) => /#series$/.test(x.getAttribute("href") || ""));
-      if (series) series.after(make());
-      else nav.appendChild(make());
-    }
+    if (nav) nav.replaceChildren(...HEADER_NAV.map(make));
     const menu = document.querySelector("#mobile-menu");
-    if (menu && !menu.querySelector("[data-videos-nav]")) {
-      const series = [...menu.querySelectorAll(":scope > a")].find((x) => /#series$/.test(x.getAttribute("href") || ""));
-      const auth = menu.querySelector(":scope > div");
-      if (series) series.after(make());
-      else if (auth) auth.before(make());
-      else menu.appendChild(make());
+    if (menu) {
+      // the old top-level navigation links of this page go; the auth rows
+      // (Sign In / Sign Up / Dashboard / Log Out) stay, below the menu
+      const isNav = (a) => {
+        const file = (a.getAttribute("href") || "").split(/[?#]/)[0].split("/").pop().toLowerCase();
+        return !file || HEADER_NAV.some(([href]) => href.toLowerCase().endsWith("/" + file));
+      };
+      [...menu.querySelectorAll(":scope > a")].forEach((a) => isNav(a) && a.remove());
+      menu.prepend(...HEADER_NAV.map(make));
     }
   }
 
@@ -3349,7 +3358,7 @@
     initHeaderBell();
     pollSectionBadges();
     hydratePrefsFromProfile();
-    addVideosNav();
+    unifyHeaderNav();
     watchHeaderFit();
     showAccountDeadline().catch(() => {});
     const header = $("#site-header");
@@ -3939,105 +3948,6 @@
     bar.appendChild(btn);
     layout.prepend(bar);
     apply(sideHidden());
-  }
-
-  /* ════════════════════════════════════════════════════════════════════
-     The order of the sidebar shortcuts (Profile, Dashboard): each member
-     arranges them for themself (the Arrange row under the nav, ▲ / ▼ of every
-     entry) and the order stays on the device, like the theme and the language
-     (cineaura_navorder_<page>:<member id> = JSON [ids]). The ids always come
-     from the page, so nothing of another member's list is ever shown.
-  */
-  const NAV_ORDER_PREFIX = "cineaura_navorder_";
-  const navOrderKey = (page, memberId) => `${NAV_ORDER_PREFIX}${page}:${memberId || "guest"}`;
-
-  // The page's ids in the member's own order: the saved ids first (unknown or
-  // repeated ones dropped), then any id the member never agreed on — a new
-  // section, the Market — slides into its natural slot, right after the
-  // nearest default position that is already in the list.
-  function navOrderLoad(page, memberId, defaults) {
-    const out = [];
-    try {
-      const saved = JSON.parse(localStorage.getItem(navOrderKey(page, memberId)) || "null");
-      if (Array.isArray(saved)) {
-        const known = new Set(defaults);
-        saved.forEach((id) => {
-          if (known.has(id) && !out.includes(id)) out.push(id);
-        });
-      }
-    } catch {
-      /* storage blocked/broken: the default order */
-    }
-    defaults.forEach((id, di) => {
-      if (out.includes(id)) return;
-      let at = -1;
-      for (let k = di - 1; k >= 0 && at === -1; k -= 1) at = out.indexOf(defaults[k]);
-      out.splice(at + 1, 0, id);
-    });
-    return out;
-  }
-
-  function navOrderSave(page, memberId, order) {
-    try {
-      localStorage.setItem(navOrderKey(page, memberId), JSON.stringify(order));
-    } catch {
-      /* storage blocked: the new order holds for this view */
-    }
-    return order;
-  }
-
-  function navOrderReset(page, memberId) {
-    try {
-      localStorage.removeItem(navOrderKey(page, memberId));
-    } catch {
-      /* storage blocked */
-    }
-  }
-
-  // One step up (dir < 0) or down (dir > 0): swap with the neighbour and save.
-  function navOrderMove(page, memberId, defaults, id, dir) {
-    const order = navOrderLoad(page, memberId, defaults);
-    const from = order.indexOf(id);
-    const to = from + (dir < 0 ? -1 : 1);
-    if (from === -1 || to < 0 || to >= order.length) return order;
-    order.splice(to, 0, order.splice(from, 1)[0]);
-    return navOrderSave(page, memberId, order);
-  }
-
-  const NAV_ARR_SVG = {
-    rows: '<path d="M7.5 15.5L12 20l4.5-4.5M7.5 8.5L12 4l4.5 4.5"/>',
-    up: '<path d="M12 5l7 14H5z" fill="currentColor" stroke="none"/>',
-    down: '<path d="M12 19L5 5h14z" fill="currentColor" stroke="none"/>',
-  };
-  const navArrIcon = (k) =>
-    `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${NAV_ARR_SVG[k] || ""}</svg>`;
-
-  // The small row under a sidebar nav that opens the arranging. `on` while
-  // arranging (the nav itself shows the rows then).
-  function navArrangeToggleHtml(on) {
-    return `<button type="button" class="nav-arr-toggle${on ? " on" : ""}" data-arr-toggle aria-pressed="${on}">${navArrIcon("rows")}<span>${escapeHtml(t("nav.arrange"))}</span></button>`;
-  }
-
-  // What the nav shows while arranging: one row per shortcut with ▲ / ▼, then
-  // Default order and Done. items: [{ id, label }] (the icon is the id's); the
-  // page wires the clicks ([data-arr-toggle], [data-arr-id][data-arr-move],
-  // [data-arr-reset], [data-arr-done]) and never switches sections meanwhile.
-  function navArrangeHtml(items) {
-    const rows = items
-      .map((it, i) => `
-        <div class="nav-arr-row" data-arr-row="${escapeHtml(it.id)}">
-          <span class="nav-arr-label">${navIcon(it.id)}<span dir="auto">${escapeHtml(it.label)}</span></span>
-          <button type="button" class="nav-arr-btn" data-arr-id="${escapeHtml(it.id)}" data-arr-move="-1" ${i === 0 ? "disabled" : ""} title="${escapeHtml(t("nav.moveUp"))}" aria-label="${escapeHtml(t("nav.moveUp"))}">${navArrIcon("up")}</button>
-          <button type="button" class="nav-arr-btn" data-arr-id="${escapeHtml(it.id)}" data-arr-move="1" ${i === items.length - 1 ? "disabled" : ""} title="${escapeHtml(t("nav.moveDown"))}" aria-label="${escapeHtml(t("nav.moveDown"))}">${navArrIcon("down")}</button>
-        </div>`)
-      .join("");
-    return `
-      <p class="nav-arr-hint muted">${escapeHtml(t("nav.arrangeHint"))}</p>
-      <div class="nav-arr-rows" data-arr-rows>${rows}</div>
-      <div class="nav-arr-foot">
-        <button type="button" class="btn btn-sm btn-ghost" data-arr-reset>${escapeHtml(t("nav.resetOrder"))}</button>
-        <button type="button" class="btn btn-sm btn-primary" data-arr-done>${escapeHtml(t("act.done"))}</button>
-      </div>`;
   }
 
   /* ════════════════════════════════════════════════════════════════════
@@ -5565,12 +5475,6 @@
     premiumUnlock,
     premiumCodeMessage,
     navIcon,
-    navOrderLoad,
-    navOrderSave,
-    navOrderReset,
-    navOrderMove,
-    navArrangeToggleHtml,
-    navArrangeHtml,
     deviceMac,
     deviceName,
     publicIp,

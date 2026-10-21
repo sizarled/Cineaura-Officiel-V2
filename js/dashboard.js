@@ -90,7 +90,6 @@
     openPlaylist: null,
     panelVisible: false,
     sanctions: null,
-    arranging: false, // arranging the sidebar shortcuts (Arrange row under the nav)
   };
 
   let profileSettingsQueue = Promise.resolve();
@@ -271,33 +270,16 @@
     return map[pl.list_key] || pl.name;
   }
 
-  // The sidebar nav: the section buttons in the member's own order plus the
-  // Arrange row. While arranging they give way to the ▲▼ rows; [data-arr-*]
-  // clicks redraw only this block (renderNav), the open section stays put.
+  // The sidebar nav: the section buttons in one order, the Panel link of the
+  // members who see it afterwards.
   function dashNavHtml() {
-    const sections = C.navOrderLoad("dash", state.member?.member_id, SECTIONS);
-    if (state.arranging)
-      return [
-        C.navArrangeToggleHtml(true),
-        C.navArrangeHtml(sections.map((s) => ({ id: s, label: t("dash.nav." + s) }))),
-      ].join("\n");
+    const sections = SECTIONS;
     return [
       ...sections.map((s) =>
         `<button type="button" data-section="${s}" class="${state.section===s?"active":""}">${C.navIcon(s)}<span>${t("dash.nav."+s)}</span></button>`
       ),
       ...(state.panelVisible ? [`<a href="./Panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`] : []),
-      C.navArrangeToggleHtml(false),
     ].join("\n            ");
-  }
-
-  function renderNav() {
-    // every copy of the nav by the same name (an old cached shell can leave one
-    // behind), not just the first: all of them take the member's own order
-    document.querySelectorAll("#dash-root .side-nav").forEach((nav) => {
-      nav.innerHTML = dashNavHtml();
-      nav.classList.toggle("arranging", state.arranging);
-    });
-    showActiveTab();
   }
 
   function renderShell() {
@@ -322,7 +304,7 @@
             <span>${escapeHtml(tr(p.membership_type || m.membership_type || "Free"))}</span>
             <span>${escapeHtml(m.member_id)}</span>
           </a>
-          <nav class="side-nav${state.arranging ? " arranging" : ""}">
+          <nav class="side-nav">
             ${dashNavHtml()}
           </nav>
           <div class="side-label">${t("dash.side.movies")}</div>
@@ -351,22 +333,6 @@
   }
 
   function onShellClick(e) {
-    // Arranging the shortcuts: toggle, ▲▼, default order, done — no section
-    // switch while it's on.
-    if (e.target.closest("[data-arr-toggle]")) {
-      state.arranging = !state.arranging;
-      renderNav();
-      return;
-    }
-    if (state.arranging) {
-      const mv = e.target.closest("[data-arr-id][data-arr-move]");
-      if (mv) C.navOrderMove("dash", state.member?.member_id, SECTIONS, mv.dataset.arrId, Number(mv.dataset.arrMove));
-      else if (e.target.closest("[data-arr-reset]")) C.navOrderReset("dash", state.member?.member_id);
-      else if (e.target.closest("[data-arr-done]")) state.arranging = false;
-      else return;
-      renderNav();
-      return;
-    }
     const sec = e.target.closest("[data-section]");
     if (sec) {
       state.section = sec.dataset.section;

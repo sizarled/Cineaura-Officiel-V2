@@ -22,11 +22,8 @@
     "nav.logout": "Log Out",
     "nav.profile": "Profile",
     "nav.openMenu": "Open menu",
-    "nav.arrange": "Arrange the shortcuts",
-    "nav.arrangeHint": "Move a shortcut up or down; the order stays on this device.",
-    "nav.moveUp": "Move up",
-    "nav.moveDown": "Move down",
-    "nav.resetOrder": "Default order",
+    "nav.home": "Home",
+    "nav.help": "Help",
 
     // ── Home page ───────────────────────────────────────────────────
     "home.title": "CineAura — Movies, Series & Live IPTV",
