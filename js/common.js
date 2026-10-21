@@ -2656,26 +2656,38 @@
     return geoPromise;
   }
 
-  const manualLang = () => LANGS.includes(localStorage.getItem(LANG_KEY));
   const manualCountry = () => {
     const c = localStorage.getItem(COUNTRY_KEY);
     return /^[A-Z]{2}$/.test(c || "") ? c : "";
   };
   const currentCountry = () => manualCountry() || readGeo()?.cc || "";
-  const geoLang = (cc) => {
-    const l = window.CineAuraCountryLang?.[cc];
-    return LANGS.includes(l) ? l : "";
-  };
-
-  // First visit: follow the IP. A language or country picked by the visitor always wins.
+  // First visit: the country follows the IP; the language follows the browser
+  // (prefs.js decides it before the paint). A pick by the visitor always wins.
   async function geoBoot() {
     const cc = await detectGeo(false);
     if (!cc) return;
-    if (!manualLang()) {
-      const lang = geoLang(cc);
-      if (lang && lang !== getLang() && !accountLangApplied) applyPrefs({ language: lang, persist: false });
-    }
     document.dispatchEvent(new CustomEvent("cineaura:geo", { detail: { country: currentCountry() } }));
+  }
+
+  // First visit on this device: open Site Settings so the language (browser by
+  // default), the country (IP by default), the appearance and — for premium
+  // members — the ads choice are settled right away. The header button brings
+  // the dialog back at any time.
+  const WELCOME_KEY = "cineaura_settings_welcomed";
+  function welcomeSettingsOnce() {
+    let seen = "";
+    try {
+      seen = localStorage.getItem(WELCOME_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    if (seen) return;
+    try {
+      localStorage.setItem(WELCOME_KEY, "1");
+    } catch {
+      /* storage unavailable */
+    }
+    setTimeout(() => openSettings(), 300);
   }
 
   // The country of the content (watch providers, prices…): "" follows the IP.
@@ -2961,8 +2973,8 @@
       }
       const cc = await detectGeo(true);
       detecting = false;
-      const lang = geoLang(cc) || browserLang();
-      applyPrefs({ language: lang, persist: false });
+      // country from the new lookup, language back to the browser's
+      applyPrefs({ language: browserLang(), persist: false });
       if (!cc) toast(t("set.countryFail"));
       document.dispatchEvent(new CustomEvent("cineaura:geo", { detail: { country: currentCountry() } }));
     });
@@ -3349,6 +3361,7 @@
     applyPrefs({ persist: false });
     initSettingsMenu();
     geoBoot();
+    welcomeSettingsOnce();
     startPresence();
     renderAuth();
     // No session on a page that needs one: lock it before any handler is bound.
