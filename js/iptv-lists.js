@@ -6,7 +6,7 @@
  *
  *   L.openForm({ list, onSaved })  the publish / edit dialog: name, description, the
  *                                  playlist (a link, or an .m3u file uploaded to Storage:
- *                                  bucket IPTV, folder Playlist), the programme guide and
+ *                                  bucket source, folder IPTV), the programme guide and
  *                                  who sees the list (public / exclusive / private)
  *   L.refresh(list)                reads the playlist again and saves its channels
  *   L.cardHtml(list, opts)         a list as a card
@@ -22,8 +22,8 @@
   const C = window.CineAura;
   const { t, escapeHtml: esc } = C;
 
-  const BUCKET = "IPTV";
-  const FOLDER = "Playlist";
+  const BUCKET = "source";
+  const FOLDER = "IPTV";
   const MAX_FILE = 30 * 1024 * 1024; // an uploaded playlist, at most
   const CHUNK = 2000; // channels sent per request
   const MAX_INDEX = 20000; // channels kept for the search (sql/iptv_lists.sql)
@@ -317,7 +317,7 @@
     return [...buf].map((x) => abc[x % abc.length]).join("");
   }
 
-  // IPTV/Playlist/<member id>-<20 letters>.m3u, a new name for every upload
+  // source/IPTV/<member id>-<20 letters>.m3u, a new name for every upload
   // -> { ok: true, path } | { ok: false, reason: member | big | setup | network | failed }
   async function upload(file) {
     const id = memberId();
@@ -353,7 +353,7 @@
     if (status === 413 || /maximum allowed size|too large/i.test(message)) reason = "big";
     else if ([401, 403, 404, 415].includes(status) || /row-level security|bucket not found|mime/i.test(message)) reason = "setup";
     if (reason === "setup") {
-      console.warn(`[CineAura] Playlist upload refused (${status} ${message}). Run sql/iptv_lists.sql in the Supabase SQL editor; bucket ${BUCKET} must exist and accept audio/x-mpegurl.`);
+      console.warn(`[CineAura] Playlist upload refused (${status} ${message}). Run sql/iptv_lists.sql in the Supabase SQL editor; bucket ${BUCKET}, folder ${FOLDER}, must exist and accept audio/x-mpegurl.`);
     }
     return { ok: false, reason, status, message };
   }
