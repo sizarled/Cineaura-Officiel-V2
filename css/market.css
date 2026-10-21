@@ -195,7 +195,7 @@ a.mkt-slide-empty { cursor: pointer; }
 .mkt-mini.mkt-gated > svg { flex: none; width: 18px; height: 18px; color: var(--gold, #e9a300); }
 .mkt-mini.mkt-gated .mkt-mini-body b { color: var(--muted); font-weight: 600; }
 .mkt-age-row { display: flex; gap: 8px; }
-.mkt-age-row input { width: 110px; }
+.mkt-age-row input { flex: 1 1 110px; width: auto; min-width: 0; }
 .mkt-card-body { display: grid; gap: 4px; padding: 10px 12px 12px; align-content: start; min-width: 0; }
 .mkt-card-title {
   color: var(--text);
@@ -532,10 +532,10 @@ a.mkt-slide-empty { cursor: pointer; }
 .mkt-form-acts .btn { display: inline-flex; align-items: center; gap: 7px; }
 .mkt-seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .mkt-seg legend { width: 100%; margin-bottom: 6px; }
-.mkt-seg label { position: relative; flex: 1 1 120px; }
-.mkt-seg-4 label { flex-basis: 100px; }
-.mkt-seg input { position: absolute; opacity: 0; pointer-events: none; }
-.mkt-seg label span {
+.mkt-seg > label { position: relative; flex: 1 1 120px; }
+.mkt-seg-4 > label { flex-basis: 100px; }
+.mkt-seg > label > input { position: absolute; opacity: 0; pointer-events: none; }
+.mkt-seg > label > span {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -549,8 +549,24 @@ a.mkt-slide-empty { cursor: pointer; }
   cursor: pointer;
   text-align: center;
 }
-.mkt-seg input:checked + span { border-color: var(--cyan); background: rgba(45, 136, 255, 0.14); color: var(--cyan); }
-.mkt-seg input:focus-visible + span { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* Only the chip radios of the segment are hidden behind their label. Fields of
+   a nested block (the exclusive criteria of the product form) keep their normal
+   look and stay clickable — the old `.mkt-seg input` hit them all by accident. */
+.mkt-seg > label > input:checked + span { border-color: var(--cyan); background: rgba(45, 136, 255, 0.14); color: var(--cyan); }
+.mkt-seg > label > input:focus-visible + span { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* The criteria of an exclusive product: one clear panel under the chips, not a
+   loose flex item between them. */
+.mkt-seg > .mkt-aud-more {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+}
+.mkt-aud-more { display: grid; gap: 12px; }
 .mkt-chips-in {
   display: flex;
   flex-wrap: wrap;
