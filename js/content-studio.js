@@ -168,6 +168,15 @@
             <label class="field-label" for="vc-url">${esc(t("vid.f.url"))}</label>
             <input id="vc-url" type="url" inputmode="url" maxlength="2000" autocomplete="off" dir="ltr" placeholder="https://www.youtube.com/watch?v=…" value="${esc(d.url)}" />
             <p class="vs-hint" id="vc-url-hint" aria-live="polite">${esc(t("vid.f.urlHint"))}</p>
+            <!-- A YouTube link can borrow its own record, here under the link
+                 field: one click fills the title and the description (what the
+                 member writes instead is theirs just as well) — the link itself
+                 stays the video's source, and it can live here only once, for
+                 whoever publishes it first (content_create, "dup_link"). -->
+            <div class="vs-ytimp" id="vc-yt-imp" hidden>
+              <button class="btn btn-sm btn-ghost" type="button" id="vc-yt-import">${icon("link", 15)}<span>${esc(t("vid.f.ytImport"))}</span></button>
+              <p class="vs-hint" id="vc-yt-imp-note" aria-live="polite">${esc(t("vid.f.ytImportHint"))}</p>
+            </div>
             <!-- Or the member's own video file: it uploads to the Streamtape
                  Videos folder of their account and becomes this video's link. -->
             <button class="btn btn-sm btn-ghost" type="button" id="vc-up-toggle" style="margin-top:8px">${esc(t("vid.f.orUpload"))}</button>
@@ -340,9 +349,59 @@
           if (cb) cb.checked = true;
         }
       }
+      // the import offer belongs to YouTube links only — and standing by it,
+      // the same video can never be published twice on the site
+      const impBox = $("#vc-yt-imp");
+      if (impBox) {
+        const showImp = Boolean(v && v.provider === "youtube");
+        impBox.hidden = !showImp;
+        if (!showImp) {
+          const note = $("#vc-yt-imp-note");
+          note.classList.remove("is-ok", "is-bad");
+          note.textContent = t("vid.f.ytImportHint");
+        }
+      }
       $("#vc-thumb-wrap").hidden = !ownThumbAllowed(v);
       preview();
     };
+
+    // --- YouTube import: the video's own title + description into the form.
+    // The member may still write everything by hand — the link stays either way.
+    let ytImportSeq = 0;
+    const impBtn = $("#vc-yt-import");
+    impBtn?.addEventListener("click", async () => {
+      readDraft(pane);
+      const v = info();
+      const note = $("#vc-yt-imp-note");
+      if (!v || v.provider !== "youtube" || !note) return;
+      const seq = ++ytImportSeq;
+      impBtn.disabled = true;
+      note.classList.remove("is-ok", "is-bad");
+      note.textContent = t("vid.f.ytImportBusy");
+      const res = await V.fetchYouTubeMeta(v.id);
+      if (seq !== ytImportSeq) return; // a newer click took over
+      impBtn.disabled = false;
+      if (!res.ok) {
+        note.classList.add("is-bad");
+        note.textContent = t(
+          res.reason === "not_configured" ? "vid.yt.noKey"
+          : res.reason === "quota" ? "vid.yt.quota"
+          : res.reason === "not_found" || res.reason === "missing" ? "vid.yt.notFound"
+          : "vid.yt.upstream",
+        );
+        return;
+      }
+      const titleEl = $("#vc-title");
+      const descEl = $("#vc-desc");
+      const title = String(res.video.title || "").trim().slice(0, 150);
+      const descr = String(res.video.description || "").trim().slice(0, 5000);
+      if (title) titleEl.value = title;
+      if (descr) descEl.value = descr;
+      readDraft(pane); // the draft follows the form, upload or publish reads it
+      note.classList.add("is-ok");
+      note.textContent = t("vid.f.ytImportDone");
+      preview();
+    });
 
     // --- tags
     const chips = $("#vc-chips");
@@ -621,6 +680,8 @@
     people: "vid.err.people",
     publish_at: "vid.err.when",
     playlist: "vid.err.playlist",
+    // one YouTube video, one page on the site — whoever published it first
+    dup_link: "vid.err.dupLink",
     busy: "vid.err.generic",
   };
 

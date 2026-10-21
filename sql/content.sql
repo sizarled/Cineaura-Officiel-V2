@@ -578,24 +578,39 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------ 6. publishing
+-- The 11-character YouTube video id out of any link shape (lowercased whole —
+-- two links to one video only differ in host/casing). Null on anything else.
+-- Used by content_create's one-YouTube-video-one-page ban (dup_link);
+-- first shipped in sql/content_youtube_unique.sql.
+create or replace function public._youtube_id(p_url text) returns text
+language sql immutable strict as $$
+  select coalesce(
+    substring(lower(p_url) from 'youtu\.be/([a-z0-9_-]{11})'),
+    substring(lower(p_url) from 'youtube(?:-nocookie)?\.com/(?:watch\?[^#]*v=|embed/|shorts/|live/|v/)([a-z0-9_-]{11})')
+  )
+$$;
+
 -- d: { url, provider, thumb, title, description, tags[], language, age, visibility,
 --      followers, premium, countries, people[], playlist, playlist_name, publish_at }
--- -> { ok, id, publish_at, scheduled } | { ok: false, reason }
+-- -> { ok, id, publish_at, scheduled } | { ok: false, reason }  (reasons include 'dup_link' —
+--      a YouTube video lives once on the site, sql/content_youtube_unique.sql; the daily
+--      cap comes from the member's plan, plan_setting 'daily_uploads')
 create or replace function public.content_create(p_member text, d jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  m public.members; cid text; url text; title text; descr text; vis text; age int; lang text; prov text; thumb text;
-  is_portrait boolean;
+  m public.members; cid text; url text; title text; descr text; vis text; age int; lang text; prov text; thumb text; dup_id text;
+  is_portrait boolean; daycap int;
   tags text[]; people text[]; cty text; pub timestamptz; pid text; pname text; recent int; i int := 0; u text;
 begin
   m := public._content_viewer(p_member);
   if m.member_id is null then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
   if public._content_blocked(m.member_id, 'posts') then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
+  daycap := greatest(1, coalesce(public.plan_setting(public._plan_of_row(m), 'daily_uploads', '50')::int, 50));
   select count(*) into recent from public.content where owner_id = m.member_id and created_at > now() - interval '1 day';
-  if recent >= 50 then return jsonb_build_object('ok', false, 'reason', 'limit'); end if;
+  if recent >= daycap then return jsonb_build_object('ok', false, 'reason', 'limit'); end if;
 
   url := btrim(coalesce(d->>'url', ''));
-  if url !~* '^https?://[^/?#[:space:]]+' or length(url) > 2000 or url ~ '[[:space:]<>"`]' then
+  if url !~* '^https?://[^/?#[:space:]]+' or length(url) > 2000 or url ~ '[[:space:]<>"]' then
     return jsonb_build_object('ok', false, 'reason', 'url');
   end if;
   -- the link of one of their videos the team suspended cannot come back as a new video
@@ -608,11 +623,19 @@ begin
   if char_length(descr) > 5000 then return jsonb_build_object('ok', false, 'reason', 'description'); end if;
   prov := lower(coalesce(d->>'provider', 'link'));
   if prov not in ('youtube', 'vimeo', 'dailymotion', 'facebook', 'drive', 'tiktok', 'file', 'hls', 'link') then prov := 'link'; end if;
+  -- a YouTube video lives once on the site, whatever shape its link comes in,
+  -- whoever published it first — and only for as long as that video exists
+  -- (content_delete frees the link again)
+  if prov = 'youtube' then
+    select c.content_id into dup_id from public.content c
+     where public._youtube_id(c.video_url) is not null
+       and public._youtube_id(c.video_url) = public._youtube_id(url)
+     limit 1;
+    if dup_id is not null then return jsonb_build_object('ok', false, 'reason', 'dup_link'); end if;
+  end if;
   thumb := btrim(coalesce(d->>'thumb', ''));
-  if thumb <> '' and (thumb !~* '^https://[^/?#[:space:]]+' or length(thumb) > 1000 or thumb ~ '[[:space:]<>"`]') then thumb := ''; end if;
-  -- a portrait (vertical) video: ticked by the publisher, or a Shorts / TikTok link
+  if thumb <> '' and (thumb !~* '^https://[^/?#[:space:]]+' or length(thumb) > 1000 or thumb ~ '[[:space:]<>"]') then thumb := ''; end if;
   is_portrait := coalesce((d->>'portrait')::boolean, false) or prov = 'tiktok' or lower(url) like '%/shorts/%';
-  -- tags: lower case, no "#", 1 to 30 characters, 12 at most
   select coalesce(array_agg(t order by n), '{}') into tags from (
     select distinct on (t) t, n from (
       select lower(btrim(regexp_replace(x, '^#+', ''))) as t, n
@@ -640,7 +663,6 @@ begin
   if pub < now() then pub := now(); end if;
   if pub > now() + interval '1 year' then return jsonb_build_object('ok', false, 'reason', 'publish_at'); end if;
 
-  -- the playlist: one of the member's own, or a new one by name
   pid := nullif(btrim(coalesce(d->>'playlist', '')), '');
   pname := btrim(coalesce(d->>'playlist_name', ''));
   if pid is not null and not exists (select 1 from public.content_playlists where playlist_id = pid and owner_id = m.member_id) then

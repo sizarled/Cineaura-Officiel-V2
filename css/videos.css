@@ -185,6 +185,17 @@
 .vs-hint { color: var(--muted); font-size: 12.5px; margin: 0; }
 .vs-hint.is-ok { color: var(--green); }
 .vs-hint.is-bad { color: var(--red); }
+/* Round 56 — the YouTube import offer under the studio's link field: the
+   button next to its explanation, wrapping when narrow. */
+.vs-ytimp {
+  display: flex;
+  align-items: baseline;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.vs-ytimp .vs-hint { flex: 1 1 220px; }
+.vs-ytimp button { flex: none; }
 .vs-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .vs-col { display: grid; gap: 8px; align-content: start; }
 .vs-group { display: grid; gap: 8px; margin-top: 6px; }
