@@ -23,14 +23,14 @@
   // overview: every staff member (the numbers of their own sections); content, market, packages and
   // announce: js/panel-admin.js (sql/content.sql, iptv_lists.sql, market.sql, packages.sql, point_codes.sql,
   // panel_admin.sql); withdrawals: js/panel-withdraw.js (sql/withdrawals.sql)
-  const ALL_SECTIONS = ["overview", "accounts", "plans", "links", "iptv", "apps", "reports", "prizes", "messages", "content", "market", "packages", "withdrawals", "patreon", "announce", "help", "staff", "settings"];
+  const ALL_SECTIONS = ["overview", "accounts", "plans", "links", "iptv", "apps", "reports", "prizes", "messages", "content", "market", "packages", "withdrawals", "patreon", "announce", "help", "staff", "platforms", "settings"];
   // the side menu, in groups (a group without a section the staff member may open is left out)
   const NAV_GROUPS = [
     ["", ["overview"]],
     ["panel.grp.members", ["accounts", "packages", "withdrawals", "patreon", "messages", "staff"]],
     ["panel.grp.watch", ["links", "iptv", "apps"]],
     ["panel.grp.community", ["content", "market", "prizes"]],
-    ["panel.grp.site", ["reports", "announce", "help", "plans", "settings"]],
+    ["panel.grp.site", ["reports", "announce", "help", "plans", "platforms", "settings"]],
   ];
   // the sections a staff member can be given (overview: everybody; staff: the Super Admin)
   const GIVEN_SECTIONS = ALL_SECTIONS.filter((s) => s !== "staff" && s !== "overview");
@@ -379,6 +379,13 @@
     // the views of js/panel-admin.js
     if (PA()?.has(state.section)) {
       await PA().view(state.section, main, adminCtx());
+      hydrateAvatars(main);
+      hydrateMedals(main);
+      return;
+    }
+    // Social platforms (js/panel-platforms.js, sql/platforms.sql): the publishing queue.
+    if (window.CineAuraPlatformsPanel?.has(state.section)) {
+      await window.CineAuraPlatformsPanel.view(state.section, main, adminCtx());
       hydrateAvatars(main);
       hydrateMedals(main);
       return;
@@ -2466,6 +2473,8 @@
         <p class="muted">${t("panel.superAlways")}</p>
         ${state.staff.role === "super" ? `<button class="btn btn-sm btn-primary" id="sh-save" type="button">${t("common.save")}</button>` : ""}
         <hr />
+        <div id="pf-settings-slot"></div>
+        <hr />
         <p class="muted"><b>${t("panel.patreonTitle")}</b><br />${t("panel.patreonHint")}</p>
         <label class="field-label" for="pl-points">${t("panel.patreonPoints")}</label>
         <input id="pl-points" type="url" inputmode="url" maxlength="1000" placeholder="${escapeHtml(window.CineAura.PATREON_DEFAULT)}" dir="ltr" />
@@ -2504,6 +2513,9 @@
       $("#np1").value = "";
       $("#np2").value = "";
     };
+    // Social platforms API (js/panel-platforms.js + sql/platforms.sql): its own
+    // staff gate ("settings"), one card per network.
+    window.CineAuraPlatformsPanel?.renderSettings?.($("#pf-settings-slot"), adminCtx());
     // Saved by panel_settings_save() (sql/panel_admin.sql: the Super Admin, whatever the table's
     // policies and grants); without that file, straight into the table as before.
     $("#sh-save")?.addEventListener("click", async () => {

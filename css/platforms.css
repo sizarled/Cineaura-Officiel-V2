@@ -1,0 +1,153 @@
+/* Social platforms — the home "Follow us" strip, the Panel composer and the
+   Panel settings forms. Loaded by index.html and panel.html. */
+
+.pf-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22%;
+  font-weight: 800;
+  line-height: 1;
+  flex: 0 0 auto;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* ── home strip ─────────────────────────────────────────────────────────── */
+.pf-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}
+.pf-strip a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  text-decoration: none;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: 0.2s;
+}
+html[dir="rtl"] .pf-strip a { padding: 6px 7px 6px 12px; }
+.pf-strip a:hover {
+  border-color: var(--accent);
+  background: rgba(1, 180, 228, 0.08);
+  transform: translateY(-1px);
+}
+.pf-strip-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.pf-strip-head h4 { margin: 0; }
+.pf-strip-hint { font-size: 12px; color: var(--muted); }
+
+/* ── panel: settings & composer ─────────────────────────────────────────── */
+.pf-set-card,
+.pf-box {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--surface);
+  display: grid;
+  gap: 8px;
+}
+.pf-set-head { display: flex; align-items: center; gap: 8px; }
+.pf-set-head b { font-size: 14px; }
+.pf-set-head .spacer { flex: 1; }
+.pf-set-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.pf-set-grid label, .pf-composer label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.pf-set-grid input, .pf-composer input, .pf-composer textarea, .pf-composer select {
+  width: 100%;
+}
+.pf-cred-note { font-size: 11.5px; color: var(--muted); }
+.pf-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pf-day select { min-width: 110px; }
+
+.pf-plats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pf-plat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  user-select: none;
+  transition: 0.15s;
+}
+.pf-plat-chip input { display: none; }
+.pf-plat-chip.on {
+  border-color: var(--accent);
+  background: rgba(1, 180, 228, 0.12);
+  color: var(--accent);
+}
+.pf-plat-chip .pf-day-tag {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.pf-media-tabs { display: inline-flex; gap: 6px; }
+.pf-media-tabs button {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.pf-media-tabs button.on { border-color: var(--accent); color: var(--accent); background: rgba(1,180,228,.1); }
+.pf-media-preview { max-width: 260px; max-height: 140px; border-radius: 10px; border: 1px solid var(--line); display: block; }
+
+.pf-posts { display: grid; gap: 10px; }
+.pf-post {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--surface);
+  display: grid;
+  gap: 8px;
+}
+.pf-post-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pf-post-top b { font-size: 14px; }
+.pf-post-desc { font-size: 12.5px; color: var(--muted); white-space: pre-wrap; }
+.pf-post-tags { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--accent); }
+.pf-post-plats { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pf-state {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.pf-state.pending { color: #eab308; border-color: rgba(234, 179, 8, 0.4); }
+.pf-state.pending_webhook { color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
+.pf-state.published { color: #90cea1; border-color: rgba(144, 206, 161, 0.4); }
+.pf-state.partial { color: #f59e0b; border-color: rgba(245, 158, 11, 0.45); }
+.pf-state.failed { color: #f87171; border-color: rgba(248, 113, 113, 0.45); }
+.pf-post-meta { font-size: 11.5px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.pf-post-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pf-res { font-size: 11px; color: var(--muted); }

@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="css/videos.css" />
   <link rel="stylesheet" href="css/home-hub.css" />
   <link rel="stylesheet" href="css/home-updates.css" />
+  <link rel="stylesheet" href="css/platforms.css" />
   <link rel="stylesheet" href="css/facebook.css" />
   <link rel="stylesheet" href="css/mobile.css" />
 </head>
@@ -738,6 +739,9 @@
             <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">The Movie Database</a>
           </div>
         </div>
+        <!-- the site's social accounts (js/home-platforms.js fills it; sql/platforms.sql
+             is their source, edited in Panel > Settings > Social platforms API) -->
+        <div id="social-strip" style="margin:16px 0 6px"></div>
         <div class="footer-bottom">
           <span data-i18n="home.footer.copy">© 2026 CineAura. All rights reserved.</span>
           <span data-i18n="home.footer.tmdb">This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -756,6 +760,8 @@
   <script src="js/videos.js"></script>
   <script src="js/home-videos.js"></script>
   <script src="js/home-hub.js"></script>
+  <script src="js/social-icons.js"></script>
+  <script src="js/home-platforms.js"></script>
   <script src="js/home-updates.js"></script>
   <script src="js/prize-rules.js"></script>
   <script src="js/prize.js"></script>

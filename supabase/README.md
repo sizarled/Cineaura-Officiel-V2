@@ -166,3 +166,45 @@ the "Activate" tile on the page turns into **Upgrade**, Free never shows
 again, and the three premium plans are sold right on the page — the same
 points-buy the dashboard uses, one tap — alongside the classic code path.
 Reactivation stays available for every plan, Free included.
+
+---
+
+# Social publishing — setup (sql/platforms.sql + platform-publish)
+
+1. Run `sql/platforms.sql` in the Supabase SQL editor **once** (idempotent). It
+   creates `platform_settings` (per network: enabled, page URL, publish day,
+   API credentials — staff-only through RPCs) and `platform_posts` (the queue),
+   and seeds your 13 accounts from Platforms.txt.
+2. Panel > **Settings > Social platforms API**: paste the network's API
+   credentials (write-only) and, when you want, dedicate a weekday. Networks
+   without a public posting API (Quora, Rumble, Odysee, bilibili, Snapchat)
+   work through the **Webhook URL** field — Zapier / Make / n8n receives the
+   full payload and bridges them — and every other network may use a webhook
+   instead of native credentials.
+3. Panel > **Platforms**: title, description, tags, a media URL — or upload
+   straight there; images land in `source/Platforms/Photos`, videos in
+   `source/Platforms/Videos`, both public, ready for the networks to pull.
+4. The footer of the home page shows the enabled networks (`platforms_public()`).
+5. Deploy the sender and schedule it:
+
+```bash
+supabase functions deploy platform-publish
+supabase secrets set SUPABASE_URL=https://samazxadqggoeilaqfdp.supabase.co \
+  SUPABASE_SERVICE_ROLE_KEY=<service role key>
+```
+
+In the SQL editor (pg_cron must be enabled for the project), daily 09:00 UTC:
+
+```sql
+select cron.schedule('platform-publish-daily', '0 9 * * *',
+  $$ select net.http_post(
+    url:='https://samazxadqggoeilaqfdp.supabase.co/functions/v1/platform-publish',
+    headers:='{"Authorization":"Bearer <service role key>"}'::jsonb) $$);
+```
+
+Native publishers: YouTube (OAuth refresh token), Facebook page/group
+(photo & video), Instagram Business (container), TikTok (Pull-from-URL),
+Telegram bot, Reddit (OAuth), Pinterest, Tumblr (NPF), Vimeo (pull), Threads —
+X stays on the webhook until OAuth1 media uploading lands. A network is due
+on its `publish_day` (or every run when empty); results land back per network
+in each queue row and Panel > Platforms shows them.
