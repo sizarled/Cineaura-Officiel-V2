@@ -57,7 +57,7 @@
       </div>
       <div class="pf-strip" role="list">
         ${chips}
-        <a href="mailto:${pf.EMAIL}" title="${pf.EMAIL}"><span class="pf-badge" style="width:22px;height:22px;background:#0d253f;border:1px solid var(--line);color:var(--accent)" aria-hidden="true"><span style="font-size:12px">✉</span></span><span>${t("home.social.email")}</span></a>
+        <a href="mailto:${pf.EMAIL}" title="${pf.EMAIL}"><span class="pf-badge" style="width:22px;height:22px;background:#0d253f;border:1px solid var(--line)" aria-hidden="true"><img class="pf-badge-img" src="icons/platforms/email.svg" alt="" width="14" height="14" /></span><span>${t("home.social.email")}</span></a>
       </div>`;
   }
 

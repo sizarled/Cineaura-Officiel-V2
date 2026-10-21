@@ -24,13 +24,19 @@
   const byKey = {};
   PLATFORMS.forEach((p) => (byKey[p.key] = p));
   const known = (k) => Object.prototype.hasOwnProperty.call(byKey, k);
-  const info = (k) => byKey[k] || { key: k, name: k, glyph: k.slice(0, 1).toUpperCase() || "•", color: "#556", api: false };
+  const info = (k) => byKey[k] || { key: k, name: k, glyph: k.slice(0, 1).toUpperCase() || "•", color: "#556", api: false, svg: false };
+  // every listed network ships an SVG file (icons/platforms/<key>.svg)
+  PLATFORMS.forEach((p) => (p.svg = true));
 
-  /* A little rounded brand badge. size: px. */
+  /* A little rounded brand badge on the brand color, with the real SVG glyph
+     (icons/platforms/<key>.svg). size: px. Unknown keys keep a letter tile. */
   function badge(k, size = 34) {
     const p = info(k);
     const light = ["#fffc00"].includes(p.color);
-    return `<span class="pf-badge" style="width:${size}px;height:${size}px;background:${p.color};color:${light ? "#111" : "#fff"}" aria-hidden="true"><span style="font-size:${Math.max(11, size * 0.44)}px">${p.glyph}</span></span>`;
+    const inner = p.svg
+      ? `<img class="pf-badge-img" src="icons/platforms/${p.key}.svg" alt="" width="${Math.round(size * 0.62)}" height="${Math.round(size * 0.62)}" />`
+      : `<span style="font-size:${Math.max(11, size * 0.44)}px">${p.glyph}</span>`;
+    return `<span class="pf-badge" style="width:${size}px;height:${size}px;background:${p.color};color:${light ? "#111" : "#fff"}" aria-hidden="true">${inner}</span>`;
   }
 
   window.CineAuraPlatforms = {

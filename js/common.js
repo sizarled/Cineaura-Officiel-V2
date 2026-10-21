@@ -4540,9 +4540,13 @@
     const myTier = mp.tier?.tier || 0;
     const tierRows = WATCH_TIERS.map((x) => {
       const you = x.tier === myTier;
+      // each country shows its SVG flag (icons/flags/<cc>.svg); the fall-back
+      // tier gets a little globe
       const where = x.countries.length
-        ? `<bdi dir="ltr">${x.countries.join(", ")}</bdi>`
-        : escapeHtml(t("points.tierOther"));
+        ? `<bdi dir="ltr" class="pt-flags">${x.countries
+            .map((c) => `<img class="pt-flag" src="icons/flags/${c.toLowerCase()}.svg" alt="${escapeHtml(c)}" title="${escapeHtml(c)}" loading="lazy" />`)
+            .join("")}</bdi>`
+        : `<img class="pt-flag" src="icons/flags/globe.svg" alt="" title="${escapeHtml(t("points.tierOther"))}" loading="lazy" /> ${escapeHtml(t("points.tierOther"))}`;
       return `<tr${you ? ' class="is-you" aria-current="true"' : ""}>
             <td>${escapeHtml(t("points.tierN", { n: x.tier }))}${you ? ` <span class="pt-you">${escapeHtml(t("points.you"))}</span>` : ""}</td>
             <td class="pt-countries">${where}</td>
@@ -5317,6 +5321,50 @@
   // "1.0", "v1.0" and "1.0v" all read 1.0
   const appVersion = (value) => String(value || "").trim().replace(/^v\s*/i, "").replace(/\s*v$/i, "").slice(0, 20);
 
+  /* ── Menu icons (icons/nav/*.svg) — professional, one consistent outline set.
+     Decorates the site header menus (links carrying a data-i18n="nav.*" key)
+     and the Panel sidebar (links carrying data-section). Idempotent, and it
+     re-runs on translations and on dynamic nav repaints. */
+  const NAV_ICON_KEYS = {
+    "nav.home": "home", "nav.features": "features", "nav.find": "find", "nav.search": "search",
+    "nav.movies": "movie", "nav.series": "series", "nav.videos": "videos", "nav.iptv": "tv",
+    "nav.prizes": "trophy", "nav.market": "store", "nav.plans": "crown", "nav.support": "help",
+    "nav.signin": "login", "nav.signup": "signup", "nav.signout": "logout", "nav.account": "account",
+    "nav.panel": "dashboard", "nav.points": "points", "nav.profile": "account", "nav.help": "help",
+    "nav.messages": "chat", "nav.settings": "gear", "nav.playlists": "list", "nav.downloads": "download",
+    "nav.wallet": "wallet", "nav.store": "store", "nav.users": "users",
+  };
+  const SECTION_ICON_KEYS = {
+    overview: "dashboard", accounts: "users", plans: "crown", links: "link", iptv: "tv", apps: "apps",
+    reports: "report", prizes: "trophy", messages: "chat", content: "film", market: "store",
+    packages: "package", withdrawals: "wallet", patreon: "heart", announce: "megaphone", help: "help",
+    staff: "shield", platforms: "share", settings: "gear",
+  };
+  function navIconImg(file, cls) {
+    return `<img class="ni ${cls || ""}" src="icons/nav/${file}.svg" alt="" width="16" height="16" loading="lazy" />`;
+  }
+  function decorateNavIcons(root = document) {
+    root.querySelectorAll?.(".nav a[data-i18n], .hdr-menu a[data-i18n], .menu-drawer a[data-i18n], [data-menu-root] a[data-i18n]").forEach((a) => {
+      const key = a.getAttribute("data-i18n");
+      const file = NAV_ICON_KEYS[key];
+      if (file && !a.querySelector(".ni")) a.insertAdjacentHTML("afterbegin", navIconImg(file));
+    });
+    root.querySelectorAll?.('.side-nav a[data-section]').forEach((a) => {
+      const file = SECTION_ICON_KEYS[a.getAttribute("data-section")];
+      if (file && !a.querySelector(".ni")) a.insertAdjacentHTML("afterbegin", navIconImg(file));
+    });
+  }
+  let navIconTimer = 0;
+  function scheduleNavIcons() {
+    if (navIconTimer) return;
+    navIconTimer = setTimeout(() => { navIconTimer = 0; try { decorateNavIcons(); } catch {} }, 160);
+  }
+  try {
+    document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", scheduleNavIcons) : scheduleNavIcons();
+    window.addEventListener("cineaura:prefs", scheduleNavIcons);
+    new MutationObserver(scheduleNavIcons).observe(document.documentElement, { childList: true, subtree: true });
+  } catch {}
+
   window.CineAura = {
     API_KEY,
     API,
@@ -5536,6 +5584,9 @@
     pointsEarned,
     WATCH_TIERS,
     POINT_LEVELS,
+    NAV_ICON_KEYS,
+    SECTION_ICON_KEYS,
+    decorateNavIcons,
     BALANCE_TIERS,
     balanceTier,
     balanceTierHtml,
