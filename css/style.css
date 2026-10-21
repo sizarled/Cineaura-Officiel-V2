@@ -3266,3 +3266,60 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
 .side-nav a:hover .ni, .side-nav a.active .ni, .side-nav a.on .ni, .side-nav a[aria-current] .ni { opacity: 1; }
 .pt-flag { width: 20px; height: 15px; border-radius: 3px; vertical-align: -2px; display: inline-block; margin: 0 3px 1px 0; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18); }
 .pf-badge .pf-badge-img { display: block; width: 62%; height: 62%; }
+
+
+/* ── home: the icon-only header menu (label floats on hover) ── */
+.nav.nav-icons a.nv-ic {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; padding: 0; border-radius: 12px;
+}
+.nav.nav-icons a.nv-ic .ni { margin: 0; width: 19px; height: 19px; vertical-align: 0; opacity: .82; transition: .18s; }
+.nav.nav-icons a.nv-ic:hover .ni { opacity: 1; transform: translateY(-1px); }
+.nav.nav-icons a.nv-ic .nv-tip {
+  position: absolute; top: calc(100% + 10px); left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+  padding: 5px 11px; font-size: 12px; font-weight: 600; color: var(--text);
+  white-space: nowrap; opacity: 0; pointer-events: none; transition: .18s;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35); z-index: 50;
+}
+.nav.nav-icons a.nv-ic .nv-tip::before {
+  content: ""; position: absolute; top: -4px; left: 50%; width: 8px; height: 8px;
+  transform: translateX(-50%) rotate(45deg); background: var(--surface);
+  border-left: 1px solid var(--line); border-top: 1px solid var(--line);
+}
+.nav.nav-icons a.nv-ic:hover .nv-tip, .nav.nav-icons a.nv-ic:focus-visible .nv-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── home: the catalog search box (goes to search.html) ── */
+.hs-form {
+  display: flex; align-items: center; gap: 8px; margin-top: 18px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line);
+  border-radius: 16px; padding: 8px; max-width: 640px;
+}
+.hs-form:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(1, 180, 228, 0.14); }
+.hs-form .hs-ico { color: var(--muted); display: grid; place-items: center; padding: 0 4px 0 8px; flex: 0 0 auto; }
+.hs-form input {
+  flex: 1; min-width: 0; background: transparent; border: 0; outline: 0;
+  color: var(--text); font: inherit; font-size: 14.5px; padding: 9px 2px;
+}
+.hs-form input::placeholder { color: var(--muted); }
+@media (max-width: 560px) { .hs-form { flex-wrap: wrap; } .hs-form button { width: 100%; } }
+
+/* ── home: the Platforms horizontal icon track ── */
+.hpl-track {
+  display: flex; gap: 16px; overflow-x: auto; padding: 10px 4px 16px;
+  scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+}
+.hpl-item {
+  scroll-snap-align: start; display: grid; justify-items: center; gap: 7px;
+  min-width: 76px; text-decoration: none;
+}
+.hpl-item .pf-badge { transition: transform .18s, box-shadow .18s; }
+.hpl-item b { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.hpl-item:hover .pf-badge { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35); }
+.hpl-item:hover b { color: var(--accent); }
+
+/* the "New on CineAura" tiles live inside Features now */
+.hh-new-sub { margin: 30px 0 14px; }
+.hh-new-sub h3 { margin: 0 0 4px; font-size: 19px; }
+.hh-new-sub p { margin: 0; font-size: 13px; }

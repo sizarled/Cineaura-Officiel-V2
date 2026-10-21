@@ -5344,9 +5344,9 @@
     return `<img class="ni ${cls || ""}" src="icons/nav/${file}.svg" alt="" width="16" height="16" loading="lazy" />`;
   }
   function decorateNavIcons(root = document) {
-    root.querySelectorAll?.(".nav a[data-i18n], .hdr-menu a[data-i18n], .menu-drawer a[data-i18n], [data-menu-root] a[data-i18n]").forEach((a) => {
+    root.querySelectorAll?.(".nav a[data-i18n], .nav a[data-ni-file], .hdr-menu a[data-i18n], .menu-drawer a[data-i18n], [data-menu-root] a[data-i18n]").forEach((a) => {
       const key = a.getAttribute("data-i18n");
-      const file = NAV_ICON_KEYS[key];
+      const file = a.getAttribute("data-ni-file") || NAV_ICON_KEYS[key];
       if (file && !a.querySelector(".ni")) a.insertAdjacentHTML("afterbegin", navIconImg(file));
     });
     root.querySelectorAll?.('.side-nav a[data-section]').forEach((a) => {

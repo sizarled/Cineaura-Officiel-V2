@@ -12,7 +12,7 @@
  */
 (() => {
   const C = window.CineAura;
-  if (!C || !document.getElementById("whats-new")) return;
+  if (!C || (!document.getElementById("features") && !document.getElementById("whats-new"))) return;
   const { t, escapeHtml: esc } = C;
   const memberId = () => (C.getSession ? C.getSession()?.member_id || "" : "");
   // the exclusive products hide behind criteria, one of them the interface language (round 32):

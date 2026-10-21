@@ -284,109 +284,6 @@
     el.innerHTML = cards;
   }
 
-  // A TMDB link can carry a slug after the id: /person/500-tom-cruise,
-  // /movie/550-fight-club — only the digits are kept.
-  function extractTmdb(raw) {
-    if (!raw) return null;
-    let value = String(raw);
-    try {
-      const url = new URL(value, location.href);
-      value = url.searchParams.get("q") || url.searchParams.get("url") || url.searchParams.get("u") || value;
-    } catch {
-      /* keep original */
-    }
-    const match = decodeURIComponent(value).match(/themoviedb\.org\/(movie|tv|person)\/(\d+)/i);
-    if (!match) return null;
-    return { type: match[1].toLowerCase(), id: match[2] };
-  }
-
-  // Where a TMDB hit leads: people open their Cast page, titles the watch page.
-  function tmdbTarget(hit) {
-    if (!hit) return "";
-    return hit.type === "person" ? `./Cast.html?person=${hit.id}` : watchHref(hit.type, hit.id);
-  }
-
-  function isYouTube(raw) {
-    return /youtube\.com|youtu\.be|youtube-nocookie\.com/i.test(String(raw || ""));
-  }
-
-  // Google hands back its own wrappers; a TMDB link inside one is turned into
-  // the matching CineAura page (watch page for titles, Cast page for people).
-  function resolveSearchHref(anchor) {
-    if (!anchor) return { block: false, target: "" };
-    const candidates = [
-      anchor.getAttribute("data-ctorig"),
-      anchor.getAttribute("data-cturl"),
-      anchor.href,
-      anchor.getAttribute("href"),
-      anchor.textContent,
-    ];
-    for (const candidate of candidates) {
-      if (isYouTube(candidate)) return { block: true, target: "" };
-      const hit = extractTmdb(candidate);
-      if (hit) return { block: false, target: tmdbTarget(hit) };
-    }
-    return { block: false, target: "" };
-  }
-
-  function interceptSearchNavigation(event) {
-    const anchor = event.target.closest?.("a");
-    if (!anchor) return;
-    const insideResults =
-      anchor.closest(".gsc-results") ||
-      anchor.closest(".gsc-results-wrapper-overlay") ||
-      anchor.closest(".gcse-search") ||
-      anchor.closest(".gsc-completion-container");
-    if (!insideResults && !/themoviedb\.org|google\.com\/url/i.test(anchor.href || "")) {
-      return;
-    }
-
-    const resolved = resolveSearchHref(anchor);
-    if (resolved.block) {
-      event.preventDefault();
-      event.stopPropagation();
-      toast((window.CineAura?.t && window.CineAura.t("home.search.ytOff")) || "YouTube results are disabled on CineAura.");
-      return;
-    }
-    if (resolved.target) {
-      event.preventDefault();
-      event.stopPropagation();
-      location.href = resolved.target;
-    }
-  }
-
-  function installSearchIntercept() {
-    ["click", "auxclick", "mousedown"].forEach((name) => {
-      document.addEventListener(name, interceptSearchNavigation, true);
-    });
-
-    const originalOpen = window.open;
-    window.open = function patchedOpen(url, ...rest) {
-      if (isYouTube(url)) {
-        toast((window.CineAura?.t && window.CineAura.t("home.search.ytOff")) || "YouTube results are disabled on CineAura.");
-        return null;
-      }
-      const hit = extractTmdb(url);
-      if (hit) {
-        location.href = tmdbTarget(hit);
-        return null;
-      }
-      return originalOpen.call(window, url, ...rest);
-    };
-
-    const observer = new MutationObserver(() => {
-      $$(".gsc-results a, .gs-title, a.gs-title, .gs-visibleUrl").forEach((node) => {
-        const anchor = node.tagName === "A" ? node : node.closest("a");
-        const resolved = resolveSearchHref(anchor);
-        if (resolved.target && anchor) {
-          anchor.setAttribute("href", resolved.target);
-          anchor.setAttribute("target", "_self");
-        }
-      });
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-
   function setupChrome() {
     const header = $("#site-header");
     const onScroll = () => header.classList.toggle("scrolled", window.scrollY > 12);
@@ -497,7 +394,6 @@
     }
     renderAuth();
     window.CineAura?.translateDom?.(document);
-    installSearchIntercept();
 
     try {
       const [heroItems, movies, shows] = await Promise.all([

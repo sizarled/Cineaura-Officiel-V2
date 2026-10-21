@@ -39,7 +39,27 @@
     return SEED_LINKS;
   }
 
+  /* the big horizontally-scrollable icon track of the home Platforms section */
+  function drawTrack(items) {
+    const track = document.getElementById("home-platforms-track");
+    const pf = P();
+    if (!track || !pf) return;
+    track.innerHTML = items
+      .filter(([k, u]) => pf.known(k) && u)
+      .map(([k, u]) => {
+        const p = pf.info(k);
+        return `<a class="hpl-item" href="${u}" target="_blank" rel="noopener noreferrer" title="${p.name}">
+          ${pf.badge(k, 56)}<b>${p.name}</b>
+        </a>`;
+      })
+      .join("") + `<a class="hpl-item" href="mailto:${pf.EMAIL}" title="${pf.EMAIL}">
+          <span class="pf-badge" style="width:56px;height:56px;background:#0d253f;border:1px solid var(--line)"><img class="pf-badge-img" src="icons/platforms/email.svg" alt="" width="30" height="30" /></span>
+          <b>${t("home.social.email")}</b>
+        </a>`;
+  }
+
   function draw(items) {
+    drawTrack(items);
     const slot = SLOT();
     if (!slot) return;
     const pf = P();
@@ -62,7 +82,7 @@
   }
 
   async function init() {
-    if (!SLOT()) return;
+    if (!SLOT() && !document.getElementById("home-platforms-track")) return;
     const items = await links();
     draw(items);
   }

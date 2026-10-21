@@ -36,7 +36,7 @@ Flexible plans = باقات مرنة
 From $0 to Diamond = من 0$ إلى دايموند
 Catalog search = بحث الكتالوج
 Find any movie or series = اعثر على أي فيلم أو مسلسل
-Google search, tuned to The Movie Database. Pick a title and CineAura opens the watch page; a TMDB person link opens that person’s Cast page. YouTube results stay closed. = بحث Google موجه إلى قاعدة أفلام TMDB. اختر عنواناً لتفتح CineAura صفحة المشاهدة، ورابط شخصية يفتح صفحة Cast الخاصة بها. نتائج يوتيوب تبقى مغلقة.
+Type what you’re looking for — movies, series, members’ videos and IPTV channels — and the search page answers with sorting and filters. = اكتب ما تبحث عنه — أفلام، مسلسلات، فيديوهات الأعضاء، وقنوات IPTV — وصفحة البحث تجيبك بالترتيب والمرشحات.
 Now trending = الأكثر رواجاً
 Featured Movies = أفلام مختارة
 Twenty of this week’s most-watched films. Swipe or scroll sideways to browse. = عشرون من أكثر أفلام الأسبوع مشاهدة. مرّر أفقياً للتصفح.
@@ -3680,3 +3680,10 @@ Link another network = ربط منصة أخرى
 Linking failed = فشل الربط
 Linking = جارٍ الربط
 One tidy row per network: its state, its publish day and its page URL (it feeds the home footer strip). API credentials are linked on the dedicated page — API data opens it. The platform-publish worker reads them with the service role only. = صف واحد مرتب لكل منصة: حالتها، يوم نشرها، ورابط صفحتها (يغذي شريط التذييل في الرئيسية). بيانات الـ API تُربط من الصفحة المخصصة — «بيانات الـ API» تفتحها. عامل platform-publish يقرؤها بدور الخدمة فقط.
+
+Movie, series, actor… = فيلم، مسلسل، ممثل…
+Follow CineAura everywhere = تابع CineAura في كل مكان
+Every channel we publish on — scroll sideways and pick yours. = كل قناة ننشر عليها — مرر جانبًا واختر قناتك.
+# ── home re-order: nav icons, search box, platforms section ──
+Search = ابحث
+All our platforms = كل منصاتنا
