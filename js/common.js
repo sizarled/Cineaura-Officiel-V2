@@ -2513,6 +2513,39 @@
     return membershipCache[id];
   }
 
+  // Panel > Plans (sql/plans_settings.sql): the per-plan permission settings.
+  // plans_public answers the visible plans; [] while the migration is missing,
+  // so every reader falls back to today's hard rules.
+  let plansCache = null;
+  function plansPublic() {
+    if (!plansCache) {
+      plansCache = rpc("plans_public", {})
+        .then((res) => (res.ok && res.data?.ok && Array.isArray(res.data.plans) ? res.data.plans : []))
+        .catch(() => []);
+    }
+    return plansCache;
+  }
+  async function planSettings(planName) {
+    const plans = await plansPublic();
+    const hit = plans.find((p) => p.plan === String(planName || "")) || plans.find((p) => p.plan === "Free");
+    return hit && hit.settings && typeof hit.settings === "object" ? hit.settings : null;
+  }
+  // The rules a page needs about one membership: the Panel's numbers win, the old
+  // hard ones stand in until sql/plans_settings.sql has run.
+  async function planRules(planName) {
+    const name = String(planName || "Free");
+    const premium = name !== "Free";
+    const s = (await planSettings(name)) || {};
+    return {
+      adFree: s.ad_free ?? premium,
+      dailyUploads: s.daily_uploads ?? 50,
+      batchUploads: s.batch_uploads ?? 1,
+      codesMax: s.codes_max ?? (premium ? 10 : 5),
+      codeMonths: s.code_months ?? (name === "Silver" ? 3 : name === "Gold" ? 6 : name === "Diamond" ? 12 : 1),
+      levelCap: s.level_cap ?? (name === "Diamond" ? 10 : name === "Gold" ? 8 : name === "Silver" ? 5 : 2),
+    };
+  }
+
   const adFreeKey = (id) => `cineaura_adfree_${id}`;
   function adFreeFlag() {
     const id = getSession()?.member_id;
@@ -2533,15 +2566,28 @@
     }
     document.dispatchEvent(new CustomEvent("cineaura:adfree", { detail: { on } }));
   }
-  // True only for an active premium member who switched "Watch without ads" on.
+  // True when the member switched "Watch without ads" on and the Panel's plan
+  // settings allow it (plans without settings: the premium plans, as before).
   async function adFreeActive() {
     if (!adFreeFlag()) return false;
     const m = await membership();
+    if (m.guest) return false;
+    if (!m.unknown && m.type) {
+      const s = await planSettings(m.type);
+      if (s && typeof s.ad_free === "boolean") return s.ad_free;
+    }
     return Boolean(m.premium);
   }
   async function adsEligible() {
     const m = await membership();
     if (m.guest || m.unknown) return false; // cannot check the plan → no ads
+    if (m.type) {
+      const s = await planSettings(m.type);
+      if (s && typeof s.ad_free === "boolean") {
+        // ad_free off: the plan keeps ads for everyone; on: only until the member's switch
+        return s.ad_free ? !adFreeFlag() : true;
+      }
+    }
     if (!m.premium) return true;
     return PREMIUM_ADS_BY_DEFAULT && !adFreeFlag();
   }
@@ -2752,7 +2798,13 @@
       }
       const m = await membership();
       if (getSession()?.member_id !== session.member_id) return;
-      if (m.premium) {
+      let allowed = Boolean(m.premium);
+      if (!m.unknown && m.type) {
+        const s = await planSettings(m.type);
+        if (getSession()?.member_id !== session.member_id) return;
+        if (s && typeof s.ad_free === "boolean") allowed = s.ad_free;
+      }
+      if (allowed) {
         adBox.disabled = false;
         adBox.checked = adFreeFlag();
         adState.textContent = "";
@@ -4779,10 +4831,20 @@
 
   /* Every member has a daily cap of LEVEL × 10 watch/download links (and the
      same cap on profile posts). The level is the points level — the same one
-     the LV permission gates use. The membership decides the batch size of one
-     paste: Free 5 · Silver 10 · Gold 15 · Diamond 20. */
+     the LV permission gates use. Task 22 adds the plan's own "links per day":
+     the effective daily cap is the SMALLER of the level quota and the plan's
+     number. The membership decides the batch size of one paste: Free 5 ·
+     Silver 10 · Gold 15 · Diamond 20. */
   const MEMBERSHIP_BATCH_CAP = { Free: 5, Silver: 10, Gold: 15, Diamond: 20 };
   const dailyCapForLevel = (lv) => Math.max(0, Math.floor(Number(lv) || 0)) * 10;
+
+  // The plan's "links per day" (Panel > Plans); null when the plan does not
+  // tighten the level quota.
+  async function planDailyCap(type) {
+    const rules = await planRules(type || "Free").catch(() => null);
+    const n = Number(rules?.dailyUploads);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+  }
 
   function membershipBatchCap(info) {
     if (!info || info.guest || info.unknown) return MEMBERSHIP_BATCH_CAP.Free;
@@ -4818,12 +4880,24 @@
      it is still open. `what` is "links" (watch/download rows) or "posts"
      (profile publishing). Level 0 has a cap of 0 — publishing stays shut. */
   async function publishQuota(memberId, what = "links") {
-    const out = { level: null, cap: null, used: 0, left: null };
+    const out = { level: null, cap: null, used: 0, left: null, planCap: null };
     if (!memberId) return out;
     try {
       const mp = await memberPoints(memberId).catch(() => null);
       out.level = pointLevel(Number(mp?.earned || 0));
       out.cap = dailyCapForLevel(out.level);
+      // Task 22: the plan's "links per day" tightens the level quota (links only;
+      // the posts quota stays purely level-based).
+      if (what !== "posts") {
+        let type = "Free";
+        const m = await membership().catch(() => null);
+        if (m && m.premium && m.type) type = m.type;
+        const pCap = await planDailyCap(type);
+        if (pCap != null) {
+          out.planCap = pCap;
+          out.cap = Math.min(out.cap, pCap);
+        }
+      }
       out.used = what === "posts" ? await postsPublishedToday(memberId) : await linksPublishedToday(memberId);
       out.left = Math.max(0, out.cap - out.used);
     } catch {
@@ -5344,6 +5418,9 @@
     mountSideToggle,
     hydratePrefsFromProfile,
     adsEligible,
+    plansPublic,
+    planSettings,
+    planRules,
     adFreeActive,
     membership,
     openSettings,

@@ -488,7 +488,7 @@
   async function viewOverview(main) {
     const p = state.profile || {};
     const m = state.member;
-    const plan = codeLimit();
+    const plan = await codeLimit();
     clearInterval(overviewTimer);
     main.innerHTML = `
       <p class="eyebrow">${t("dash.overview")}</p>
@@ -1593,6 +1593,9 @@
     );
     const sqlMissing = regs?.data?.code === "PGRST205";
     const rows = regs.ok && Array.isArray(regs.data) ? regs.data : [];
+    // Panel > Plans: how many files one upload action may carry (default 1).
+    const rules = (await C.planRules?.(state.member.membership_type)) || null;
+    const batchMax = Math.max(1, Number(rules?.batchUploads) || 1);
     main.innerHTML = `
       <p class="eyebrow">${t("dash.nav.upload")}</p>
       <h1>${t("up.title")}</h1>
@@ -1634,6 +1637,7 @@
           <label class="addlink-field">
             <span>${t("watch.al.uploadFile")}</span>
             <input id="up-file" type="file" accept="video/*" ${ST ? "" : "disabled"} />
+            <p class="muted" id="up-batch-hint">${t("up.batchHint", { n: batchMax })}</p>
           </label>
           <div class="up-prog" id="up-prog" hidden>
             <div class="up-prog-bar" id="up-bar"></div>
@@ -1649,6 +1653,7 @@
       <div id="up-browse"></div>`;
 
     const $ = (s) => main.querySelector(s);
+    $("#up-file").multiple = batchMax > 1;
     /* The metadata quality of a film / an episode is one of the palette: the
        first picked chip. */
     const oneQuality = () => (selectedQualities("up-q").split(", ").filter(Boolean)[0] || "").trim();
@@ -1675,11 +1680,16 @@
     $("#up-go").onclick = async () => {
       if (!ST) return toast(t("up.fail"));
       const kind = $('input[name="up-kind"]:checked')?.value || "movie";
-      const file = $("#up-file")?.files?.[0];
-      if (!file) return toast(t("up.needFile"));
-      if (!/^(video\/|application\/(mp4|x-matroska|x-msvideo))/i.test(String(file.type || "")) && !/\.(mp4|mkv|avi|mov|webm|m4v|mpg|mpeg)$/i.test(String(file.name || ""))) {
-        return toast(t("up.needVideo"));
+      // the plan's batch: picked once, named and uploaded one after another
+      let files = Array.from($("#up-file")?.files || []);
+      if (!files.length) return toast(t("up.needFile"));
+      if (files.length > batchMax) {
+        toast(t("up.batchTooMany", { n: batchMax }));
+        files = files.slice(0, batchMax);
       }
+      files = files.filter((file) =>
+        /^(video\/|application\/(mp4|x-matroska|x-msvideo))/i.test(String(file.type || "")) || /\.(mp4|mkv|avi|mov|webm|m4v|mpg|mpeg)$/i.test(String(file.name || "")));
+      if (!files.length) return toast(t("up.needVideo"));
       // The radio says movie/tv/market; the folder grammar says movies/tv/market.
       const folder = kind === "movie" ? "movies" : kind;
       let tmdbId = 0;
@@ -1701,19 +1711,27 @@
           if (!(season >= 1 && season <= 99 && episode >= 1 && episode <= 999)) return toast(t("watch.al.seBad"));
         }
         if (!(await quotaGate())) return;
+        // the first batch file picks up where the duplicates check says
         const taken = kind === "tv"
           ? await ST.tvQualityTaken(tmdbId, season, episode, quality)
           : await ST.movieQualityTaken(quality, tmdbId);
         if (taken.length) return toast(t("up.dupTitle"));
+        if (kind === "tv" && episode + files.length - 1 > 999) {
+          return toast(t("watch.al.seBad"));
+        }
       }
-      let base = "";
-      if (kind === "tv") base = ST.names.tv(tmdbId, season, episode, quality);
-      else if (kind === "movie") base = ST.names.movie(quality, tmdbId);
-      else {
+      // one TMDB look at most: the title under every link the batch publishes
+      let tmdbTitle = "";
+      if (kind !== "market") {
+        try {
+          const info = await tmdb(`/${kind}/${tmdbId}`, "");
+          tmdbTitle = info?.title || info?.name || "";
+        } catch { /* TMDB unreachable: the id says enough */ }
+      }
+      let marketOrdinal = null;
+      if (kind === "market") {
         const mine = await ST.uploadsByRef("market", product.id);
-        const ordinal = mine.reduce((m, r) => Math.max(m, Number(r.ordinal) || 0), -1) + 1;
-        base = ST.names.market(product.id, ordinal);
-        product.__ordinal = ordinal;
+        marketOrdinal = mine.reduce((m, r) => Math.max(m, Number(r.ordinal) || 0), -1) + 1;
       }
       const button = $("#up-go");
       button.disabled = true;
@@ -1721,85 +1739,96 @@
       const bar = $("#up-bar");
       const nEl = $("#up-n");
       prog.hidden = false;
-      const paint = (n) => {
-        bar.style.width = `${n}%`;
-        nEl.textContent = `${n}%`;
-      };
-      paint(0);
-      const up = await ST.uploadNamed(state.member.member_id, folder, file, base, paint);
-      if (!up.ok) {
-        prog.hidden = true;
-        button.disabled = false;
-        return toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
-      }
-      /* The upload's own thumbnail: inside Home/Thumbnails there is an image
-         file that carries the very same name — it is grafted to the registry
-         row so every surface of the site can show the video's picture. */
-      let thumb = null;
-      try { thumb = await ST.thumbFor(base.replace(/\.[a-z0-9]+$/i, "")); } catch { /* no Thumbnails folder: fine */ }
-      const regOk = await ST.registerUpload({
-        owner_id: state.member.member_id,
-        owner_username: state.member.username,
-        folder,
-        name: up.name,
-        file_id: up.fileId,
-        page_url: up.pageUrl,
-        embed_url: up.embedUrl,
-        quality: quality || "",
-        tmdb_id: kind === "market" ? null : tmdbId,
-        season: kind === "tv" ? season : null,
-        episode: kind === "tv" ? episode : null,
-        ref_id: kind === "market" ? String(product.id) : "",
-        ordinal: kind === "market" ? product.__ordinal : null,
-        size_bytes: file.size || 0,
-        ...(thumb ? { thumb_url: thumb.pageUrl, thumb_file_id: thumb.fileId } : {}),
-      });
-      if (!regOk.ok) {
-        try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
-        prog.hidden = true;
-        button.disabled = false;
-        return toast(t(regOk.reason === "sql" ? "up.needSql" : regOk.reason === "dup" ? "up.dupTitle" : "up.fail"));
-      }
-      /* A film or an episode becomes ordinary links of its title right away:
-         watching reads the /e/ embed address, downloading the /v/ page
-         address — both rows published, title from TMDB. */
-      if (kind !== "market") {
-        let title = "";
-        try {
-          const info = await tmdb(`/${kind}/${tmdbId}`, "");
-          title = info?.title || info?.name || "";
-        } catch { /* TMDB unreachable: the id says enough */ }
-        const row = {
-          tmdb_id: tmdbId,
-          member_id: state.member.member_id,
-          username: state.member.username,
-          watch_url: up.embedUrl,
-          title: title || `#${tmdbId}`,
-          quality,
-          original_language: "",
-          has_subtitles: false,
-          subtitle_languages: "",
-          has_ads: false,
-          url_hidden: false,
-          link_kind: "watch",
+      let doneN = 0;
+      let lastFail = "";
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i];
+        // the tv batch walks the episodes up from the typed one; a film batch of
+        // more than one keeps "Part N" names apart; market ordinals follow
+        const ep = kind === "tv" ? episode + i : null;
+        let base = "";
+        if (kind === "tv") base = ST.names.tv(tmdbId, season, ep, quality);
+        else if (kind === "movie") base = ST.names.movie(quality, tmdbId) + (i ? ` Part ${i + 1}` : "");
+        else base = ST.names.market(product.id, marketOrdinal + i);
+        const paint = (n) => {
+          bar.style.width = `${n}%`;
+          nEl.textContent = files.length > 1 ? `${i + 1}/${files.length} · ${n}%` : `${n}%`;
         };
-        if (kind === "tv") {
-          row.season = season;
-          row.episode = episode;
+        paint(0);
+        const up = await ST.uploadNamed(state.member.member_id, folder, file, base, paint);
+        if (!up.ok) {
+          lastFail = up.reason === "toobig" ? "up.tooBig" : "up.fail";
+          continue;
         }
-        await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", row, ["watch"]);
-        try {
-          await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", { ...row, watch_url: up.pageUrl, link_kind: "download" }, ["download"]);
-        } catch { /* the download row is a bonus: its failure never fails the upload */ }
-      } else if (product && !(product.video_url || "")) {
-        await supabaseRequest(`/rest/v1/market_products?id=eq.${restValue(product.id)}`, {
-          method: "PATCH",
-          body: JSON.stringify({ video_url: up.pageUrl }),
+        /* The upload's own thumbnail: inside Home/Thumbnails there is an image
+           file that carries the very same name — it is grafted to the registry
+           row so every surface of the site can show the video's picture. */
+        let thumb = null;
+        try { thumb = await ST.thumbFor(base.replace(/\.[a-z0-9]+$/i, "")); } catch { /* no Thumbnails folder: fine */ }
+        const regOk = await ST.registerUpload({
+          owner_id: state.member.member_id,
+          owner_username: state.member.username,
+          folder,
+          name: up.name,
+          file_id: up.fileId,
+          page_url: up.pageUrl,
+          embed_url: up.embedUrl,
+          quality: quality || "",
+          tmdb_id: kind === "market" ? null : tmdbId,
+          season: kind === "tv" ? season : null,
+          episode: kind === "tv" ? ep : null,
+          ref_id: kind === "market" ? String(product.id) : "",
+          ordinal: kind === "market" ? marketOrdinal + i : null,
+          size_bytes: file.size || 0,
+          ...(thumb ? { thumb_url: thumb.pageUrl, thumb_file_id: thumb.fileId } : {}),
         });
+        if (!regOk.ok) {
+          try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
+          lastFail = regOk.reason === "sql" ? "up.needSql" : regOk.reason === "dup" ? "up.dupTitle" : "up.fail";
+          continue;
+        }
+        /* A film or an episode becomes ordinary links of its title right away:
+           watching reads the /e/ embed address, downloading the /v/ page
+           address — both rows published, title from TMDB. One film = one pair
+           of links; the tv batch links every episode of its run. */
+        if (kind !== "market") {
+          const row = {
+            tmdb_id: tmdbId,
+            member_id: state.member.member_id,
+            username: state.member.username,
+            watch_url: up.embedUrl,
+            title: tmdbTitle || `#${tmdbId}`,
+            quality,
+            original_language: "",
+            has_subtitles: false,
+            subtitle_languages: "",
+            has_ads: false,
+            url_hidden: false,
+            link_kind: "watch",
+          };
+          if (kind === "tv") {
+            row.season = season;
+            row.episode = ep;
+          }
+          if (kind === "tv" || i === 0) {
+            await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", row, ["watch"]);
+            try {
+              await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", { ...row, watch_url: up.pageUrl, link_kind: "download" }, ["download"]);
+            } catch { /* the download row is a bonus: its failure never fails the upload */ }
+          }
+        } else if (product && !(product.video_url || "")) {
+          const patch = await supabaseRequest(`/rest/v1/market_products?id=eq.${restValue(product.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ video_url: up.pageUrl }),
+          });
+          if (patch.ok) product.video_url = up.pageUrl;
+        }
+        doneN += 1;
       }
       prog.hidden = true;
       button.disabled = false;
-      toast(t("up.done"));
+      if (!doneN) return toast(t(lastFail || "up.fail"));
+      toast(doneN > 1 ? t("up.doneBatch", { n: doneN }) : t("up.done"));
       $("#up-file").value = "";
       viewUpload(main);
     };
@@ -1962,12 +1991,16 @@
       ${mineOut.length ? mineOut.map((r) => rowHtml(r, "out")).join("") : `<p class="empty">${t("dash.noReportsOut")}</p>`}`;
   }
 
-  function codeLimit() {
+  async function codeLimit() {
+    // Panel > Plans wins; the local table stands in for a site that has not
+    // deployed sql/plans_settings.sql yet.
+    const rules = await C.planRules?.(state.member.membership_type);
+    if (rules) return { maxCodes: rules.codesMax, months: rules.codeMonths };
     return PLAN[state.member.membership_type] || PLAN.Free;
   }
 
   async function viewCodes(main) {
-    const plan = codeLimit();
+    const plan = await codeLimit();
     const res = await supabaseRequest(
       `/rest/v1/codes?owner=eq.${restValue(state.member.member_id)}&select=*&order=created_at.desc`
     );
@@ -2296,9 +2329,31 @@
       if (!ip) return toast(t("dash.needIp"));
       const btn = $("#save-code");
       btn.disabled = true;
+      const age = $("#new-age").value || "adult";
+      // The server decides the count and the lifetime from the member's plan
+      // (code_create, sql/plans_settings.sql); an install without the function
+      // falls back to the legacy REST insert below.
+      const via = await supabaseRequest("/rest/v1/rpc/code_create", {
+        method: "POST",
+        body: JSON.stringify({ p_member: state.member.member_id, p_code: code, p_ip: ip, p_age: age }),
+      });
+      const viaData =
+        via.ok && via.data && typeof via.data === "object" && !Array.isArray(via.data) ? via.data : null;
+      if (viaData?.ok === true) {
+        btn.disabled = false;
+        toast(t("dash.codeSavedIp", { ip }));
+        viewCodes(main);
+        return;
+      }
+      if (viaData && "reason" in viaData) {
+        btn.disabled = false;
+        if (viaData.reason === "limit") return toast(t("dash.planAllows", { n: Number(viaData.max) || plan.maxCodes }));
+        if (viaData.reason === "exists") return toast(t("dash.codeExists"));
+        if (viaData.reason === "code") return toast(t("dash.need6"));
+        return toast(t("dash.codeFail"));
+      }
       const exp = new Date();
       exp.setMonth(exp.getMonth() + plan.months);
-      const age = $("#new-age").value || "adult";
       const row = {
         owner: state.member.member_id,
         code,

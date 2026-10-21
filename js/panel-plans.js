@@ -23,6 +23,18 @@
     const cents = Number(p.price_usd_cents || 0);
     const approx = Math.ceil((cents / 100) * RATE);
     const done = [p.updated_at ? String(p.updated_at).slice(0, 16).replace("T", " ") : "", p.updated_by].filter(Boolean);
+    // The permissions block (sql/plans_settings.sql): normalized server-side, so a
+    // site that has not run the migration yet falls back to today's numbers.
+    const s0 = p.settings && typeof p.settings === "object" ? p.settings : {};
+    const s = {
+      ad_free: Boolean(s0.ad_free ?? !free),
+      daily: Number(s0.daily_uploads ?? 50),
+      batch: Number(s0.batch_uploads ?? 1),
+      codesMax: Number(s0.codes_max ?? (free ? 5 : 10)),
+      codeMonths: Number(s0.code_months ?? (free ? 1 : name === "Silver" ? 3 : name === "Gold" ? 6 : 12)),
+      turns: s0.withdraw_turns == null ? "" : Number(s0.withdraw_turns),
+      cap: Number(s0.level_cap ?? (name === "Diamond" ? 10 : name === "Gold" ? 8 : name === "Silver" ? 5 : 2)),
+    };
     return `
       <section class="pa-box" data-plan="${esc(name)}">
         <h3>${esc(name)}</h3>
@@ -43,6 +55,23 @@
           <label class="wide"><span>${esc(t("plans.f.perks"))}</span>
             <textarea name="perks" rows="9" spellcheck="false">${esc((Array.isArray(p.perks) ? p.perks : []).join("\n"))}</textarea>
             <small class="muted">${esc(t("plans.perksHint"))}</small></label>
+          <div class="wide pa-set">
+            <h4>${esc(t("plans.set.title"))}</h4>
+            <p class="muted">${esc(t("plans.set.hint"))}</p>
+          </div>
+          <label class="pa-check"><input type="checkbox" name="s_ad_free" ${s.ad_free ? "checked" : ""} /> ${esc(t("plans.set.adFree"))}</label>
+          <label><span>${esc(t("plans.set.daily"))}</span>
+            <input name="s_daily" type="number" min="1" max="1000" step="1" dir="ltr" value="${s.daily}" /></label>
+          <label><span>${esc(t("plans.set.batch"))}</span>
+            <input name="s_batch" type="number" min="1" max="20" step="1" dir="ltr" value="${s.batch}" /></label>
+          <label><span>${esc(t("plans.set.codesMax"))}</span>
+            <input name="s_codesmax" type="number" min="0" max="100" step="1" dir="ltr" value="${s.codesMax}" /></label>
+          <label><span>${esc(t("plans.set.codeMonths"))}</span>
+            <input name="s_codemonths" type="number" min="1" max="120" step="1" dir="ltr" value="${s.codeMonths}" /></label>
+          <label><span>${free ? esc(t("plans.set.turnsFree")) : esc(t("plans.set.turns"))}</span>
+            <input name="s_turns" type="number" min="1" max="99" step="1" dir="ltr" value="${s.turns}" ${free ? "disabled" : ""} /></label>
+          <label><span>${esc(t("plans.set.cap"))}</span>
+            <input name="s_cap" type="number" min="1" max="10" step="1" dir="ltr" value="${s.cap}" /></label>
           ${done.length ? `<p class="wide muted">${esc(t("plans.savedBy", { at: done[0], by: done[1] || "—" }))}</p>` : ""}
           <div class="wide acc-actions">
             <button class="btn btn-sm btn-primary" type="submit">${esc(t("plans.save"))}</button>
@@ -63,6 +92,15 @@
       ribbon: f.ribbon.value || "",
       visible: f.visible.checked ? "true" : "false",
       perks,
+      settings: {
+        ad_free: f.s_ad_free.checked ? "true" : "false",
+        daily_uploads: (f.s_daily.value || "").trim(),
+        batch_uploads: (f.s_batch.value || "").trim(),
+        codes_max: (f.s_codesmax.value || "").trim(),
+        code_months: (f.s_codemonths.value || "").trim(),
+        withdraw_turns: name === "Free" ? "" : (f.s_turns.value || "").trim(),
+        level_cap: (f.s_cap.value || "").trim(),
+      },
     };
   }
 
