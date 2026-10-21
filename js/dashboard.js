@@ -291,12 +291,13 @@
   }
 
   function renderNav() {
-    const nav = document.querySelector("#dash-root .side-nav");
-    if (nav) {
+    // every copy of the nav by the same name (an old cached shell can leave one
+    // behind), not just the first: all of them take the member's own order
+    document.querySelectorAll("#dash-root .side-nav").forEach((nav) => {
       nav.innerHTML = dashNavHtml();
       nav.classList.toggle("arranging", state.arranging);
-      showActiveTab();
-    }
+    });
+    showActiveTab();
   }
 
   function renderShell() {

@@ -564,11 +564,12 @@
   }
 
   function renderNav() {
-    const nav = $("#prof-root .prof-side nav");
-    if (nav) {
+    // every copy of the profile nav by the same name takes the member's own
+    // order, not just the first (a leftover cached shell must not stale behind)
+    document.querySelectorAll("#prof-root .prof-side nav").forEach((nav) => {
       nav.innerHTML = profNavHtml();
       nav.classList.toggle("arranging", Boolean(state.arranging && state.isOwner));
-    }
+    });
   }
 
   function renderShell() {
