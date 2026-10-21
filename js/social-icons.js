@@ -39,6 +39,25 @@
     known,
     info,
     badge,
+    /* Credential fields each network needs on the link page (platform.html)
+       and its Panel summary. Write-only: typed values are stored; an empty
+       field keeps the stored one. webhook_url — the edge function POSTs the
+       payload there (Zapier / Make / n8n / any receiver) when native
+       credentials are missing; the only path for api:false networks. */
+    CRED_FIELDS: {
+      youtube: ["client_id", "client_secret", "refresh_token", "channel_id"],
+      facebook: ["page_id", "page_access_token", "group_id"],
+      instagram: ["ig_user_id", "access_token"],
+      tiktok: ["client_key", "client_secret", "access_token", "open_id"],
+      telegram: ["bot_token", "chat_id"],
+      reddit: ["client_id", "client_secret", "refresh_token", "subreddit"],
+      pinterest: ["access_token", "board_id"],
+      tumblr: ["api_key", "access_token", "blog_identifier"],
+      vimeo: ["access_token"],
+      x: ["api_key", "api_secret", "access_token", "access_secret"],
+      threads: ["access_token", "user_id"],
+      quora: [], rumble: [], odysee: [], bilibili: [], snapchat: [],
+    },
     // the support mail the site lists with its accounts (Platforms.txt)
     EMAIL: "youneselradi95@gmail.com",
   };

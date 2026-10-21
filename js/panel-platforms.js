@@ -10,23 +10,10 @@
   const esc = (s) => (C()?.escapeHtml ? C().escapeHtml(s) : String(s ?? ""));
   const toast = (m) => C()?.toast?.(m);
 
-  /* Credential fields each network asks for; every network also accepts
-     webhook_url — the edge function POSTs the payload there (Zapier / Make /
-     n8n / any receiver) when native credentials are missing. */
-  const CRED_FIELDS = {
-    youtube: ["client_id", "client_secret", "refresh_token", "channel_id"],
-    facebook: ["page_id", "page_access_token", "group_id"],
-    instagram: ["ig_user_id", "access_token"],
-    tiktok: ["client_key", "client_secret", "access_token", "open_id"],
-    telegram: ["bot_token", "chat_id"],
-    reddit: ["client_id", "client_secret", "refresh_token", "subreddit"],
-    pinterest: ["access_token", "board_id"],
-    tumblr: ["api_key", "access_token", "blog_identifier"],
-    vimeo: ["access_token"],
-    x: ["api_key", "api_secret", "access_token", "access_secret"],
-    threads: ["access_token", "user_id"],
-    quora: [], rumble: [], odysee: [], bilibili: [], snapchat: [],
-  };
+  // the per-network credential fields live in the shared registry
+  // (window.CineAuraPlatforms.CRED_FIELDS, js/social-icons.js) so this panel,
+  // Settings and the platform.html linking page all use the one list.
+  const CRED_FIELDS = (key) => window.CineAuraPlatforms?.CRED_FIELDS?.[key] || [];
 
   const DAY_NAMES = () => [0, 1, 2, 3, 4, 5, 6].map((d) => t("panel.pf.d." + d));
   const dayLabel = (d) => (d === null || d === undefined || d === "" || Number.isNaN(Number(d)) ? t("panel.pf.every") : t("panel.pf.d." + Number(d)));
@@ -46,7 +33,7 @@
   /* ────────────────────────── Panel > Settings: the Social platforms API block ── */
 
   function credsSummary(creds, key) {
-    const fields = (CRED_FIELDS[key] || []).filter((f) => String(creds?.[f] || "").trim());
+    const fields = CRED_FIELDS(key).filter((f) => String(creds?.[f] || "").trim());
     const wh = String(creds?.webhook_url || "").trim();
     const n = fields.length + (wh ? 1 : 0);
     return n ? t("panel.pf.credsSet", { n }) : t("panel.pf.credsNone");
@@ -59,67 +46,58 @@
     slot.innerHTML = `
       <div class="pf-box">
         <p><b>${t("panel.pf.settingsTitle")}</b><br /><span class="muted">${t("panel.pf.settingsHint")}</span></p>
-        <div class="pf-set-grid" data-pf-set>
-          <p class="muted" style="grid-column:1/-1">${t("common.loading")}…</p>
+        <div class="pft-wrap" data-pf-set>
+          <p class="muted">${t("common.loading")}…</p>
         </div>
       </div>`;
     const cfg = await loadConfig(token, true);
     const wrap = slot.querySelector("[data-pf-set]");
-    wrap.innerHTML = P()
-      .list.map((p) => {
-        const row = cfg[p.key] || {};
-        const creds = row.credentials && typeof row.credentials === "object" ? row.credentials : {};
-        const fields = CRED_FIELDS[p.key] || [];
-        return `
-        <div class="pf-set-card" data-pf-plat="${p.key}">
-          <div class="pf-set-head">
-            ${P().badge(p.key, 28)} <b>${p.name}</b>
-            <span class="spacer"></span>
-            <label class="lang-chip" style="margin:0"><input type="checkbox" data-pf-enabled ${row.enabled ? "checked" : ""} /> ${t("panel.pf.enabled")}</label>
-          </div>
-          <label>${t("panel.pf.profileUrl")}
-            <input type="url" dir="ltr" data-pf-url value="${esc(row.profile_url || "")}" placeholder="https://…" maxlength="500" />
-          </label>
-          <div class="pf-day">${t("panel.pf.day")}
-            <select data-pf-day>
-              <option value="" ${row.publish_day === null || row.publish_day === undefined ? "selected" : ""}>${t("panel.pf.every")}</option>
-              ${DAY_NAMES().map((n, d) => `<option value="${d}" ${Number(row.publish_day) === d ? "selected" : ""}>${n}</option>`).join("")}
-            </select>
-          </div>
-          <details class="pf-creds">
-            <summary class="pf-cred-note">${t("panel.pf.creds")} — ${credsSummary(creds, p.key)}</summary>
-            <div class="pf-set-grid">
-              ${fields.map((f) => `<label>${f.replace(/_/g, " ")}<input dir="ltr" data-pf-cred="${f}" type="password" autocomplete="off" placeholder="${esc(creds[f] ? "••••••" : "")}" /><input type="hidden" data-pf-cred-kept="${f}" value="${esc(String(creds[f] || ""))}" /></label>`).join("")}
-              <label>${t("panel.pf.webhook")}<input dir="ltr" data-pf-cred="webhook_url" type="url" maxlength="1000" placeholder="https://…" value="${esc(creds.webhook_url || "")}" /></label>
-            </div>
-            ${!fields.length ? `<p class="pf-cred-note">${t("panel.pf.noApiNote")}</p>` : ""}
-            <p class="pf-cred-note">${t("panel.pf.credsNote")}</p>
-          </details>
-          <div><button class="btn btn-sm btn-primary" type="button" data-pf-save>${t("common.save")}</button> <span class="pf-set-state muted" data-pf-state></span></div>
-        </div>`;
-      })
-      .join("");
+    // one uniform row per network: identity · linked? · publish day · page URL ·
+    // save · and the credential form lives on the dedicated platform.html page
+    wrap.innerHTML = `
+      <table class="pft-table">
+        <thead><tr>
+          <th>${t("panel.pf.hPlatform")}</th><th>${t("panel.pf.hStatus")}</th><th>${t("panel.pf.hDay")}</th>
+          <th>${t("panel.pf.hUrl")}</th><th>${t("panel.pf.hActions")}</th>
+        </tr></thead>
+        <tbody>
+        ${P().list.map((p) => {
+          const row = cfg[p.key] || {};
+          const creds = row.credentials && typeof row.credentials === "object" ? row.credentials : {};
+          const linked2 = row.enabled === true || CRED_FIELDS(p.key).some((f) => String(creds[f] || "").trim()) || String(creds.webhook_url || "").trim();
+          return `<tr data-pf-plat="${p.key}">
+            <td><span class="pft-plat">${P().badge(p.key, 26)} ${p.name}</span></td>
+            <td><span class="pft-status ${linked2 ? "on" : "off"}" data-pf-status>${t(linked2 ? "platform.linked" : "platform.unlinked")}</span> <span class="muted" style="font-size:11px">${credsSummary(creds, p.key)}</span></td>
+            <td>
+              <select data-pf-day>
+                <option value="" ${row.publish_day === null || row.publish_day === undefined ? "selected" : ""}>${t("panel.pf.every")}</option>
+                ${DAY_NAMES().map((n, d) => `<option value="${d}" ${Number(row.publish_day) === d ? "selected" : ""}>${n}</option>`).join("")}
+              </select>
+            </td>
+            <td><input type="url" dir="ltr" data-pf-url value="${esc(row.profile_url || "")}" placeholder="https://…" maxlength="500" /></td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-sm btn-primary" type="button" data-pf-save>${t("common.save")}</button>
+              <a class="btn btn-sm btn-ghost pft-linkbtn" href="platform.html#${p.key}" target="_blank" rel="noopener" data-pf-link>${t("panel.pf.editCreds")}</a>
+              <span class="pf-set-state muted" data-pf-state></span>
+            </td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+      </table>`;
 
-    slot.querySelectorAll("[data-pf-save]").forEach((btn) =>
-      btn.addEventListener("click", async () => {
+    slot.querySelectorAll("[data-pf-save]").forEach((btn) =>      btn.addEventListener("click", async () => {
         const card = btn.closest("[data-pf-plat]");
         const key = card.dataset.pfPlat;
         // a blank credential keeps the stored secret (it is never shown back);
         // a typed one replaces it. webhook_url is shown in the clear.
-        const creds = {};
-        card.querySelectorAll("[data-pf-cred]").forEach((inp) => {
-          const f = inp.dataset.pfCred;
-          const kept = card.querySelector(`[data-pf-cred-kept="${f}"]`)?.value || "";
-          const typed = inp.value.trim();
-          if (f === "webhook_url" ? true : typed || kept) creds[f] = typed || kept;
-        });
+        const creds = {}; // {} keeps every stored secret — secrets are edited on platform.html
         const dayRaw = card.querySelector("[data-pf-day]").value;
         const url = card.querySelector("[data-pf-url]").value.trim();
         if (url && !/^https:\/\/[^/?#\s<>"`]+/i.test(url)) return toast(t("panel.pf.badUrl"));
         btn.disabled = true;
         const res = await C()
           .rpc("platforms_settings_save", {
-            p_token: token, p_platform: key, p_enabled: card.querySelector("[data-pf-enabled]").checked,
+            p_token: token, p_platform: key, p_enabled: (cfg[key] && cfg[key].enabled) || false,
             p_profile_url: url, p_publish_day: dayRaw === "" ? null : Number(dayRaw), p_credentials: creds,
           })
           .catch(() => null);
@@ -134,6 +112,10 @@
         const stateEl = card.querySelector("[data-pf-state]");
         if (stateEl) stateEl.textContent = "✓ " + t("panel.saved");
         setTimeout(() => stateEl && (stateEl.textContent = ""), 3000);
+        const st2 = card.querySelector("[data-pf-status]");
+        const creds2 = (cfg[key] && cfg[key].credentials) || {};
+        const linked3 = (cfg[key] && cfg[key].enabled === true) || CRED_FIELDS(key).some((f) => String(creds2[f] || "").trim()) || String(creds2.webhook_url || "").trim();
+        if (st2) { st2.textContent = t(linked3 ? "platform.linked" : "platform.unlinked"); st2.classList.toggle("on", linked3); st2.classList.toggle("off", !linked3); }
       })
     );
   }
@@ -181,7 +163,11 @@
       <p class="muted">${t("panel.pf.lead")}</p>
       <div class="stack">
         <section class="pf-box" data-composer>
-          <h3 style="margin:0">${t("panel.pf.composer.t")}</h3>
+          <div class="pf-composer-head">
+            <h3 style="margin:0">${t("panel.pf.composer.t")}</h3>
+            <a class="btn btn-sm" href="platform.html" target="_blank" rel="noopener" data-c-linkbtn>${t("panel.pf.linkBtn")}</a>
+          </div>
+          <p class="muted" style="margin:0;font-size:12px">${t("panel.pf.linkHint")}</p>
           <label>${t("panel.pf.titleLbl")}<input type="text" data-c-title maxlength="300" placeholder="${esc(t("panel.pf.titlePh"))}" /></label>
           <label>${t("panel.pf.descLbl")}<textarea data-c-desc rows="4" maxlength="12000" placeholder="${esc(t("panel.pf.descPh"))}"></textarea></label>
           <label>${t("panel.pf.tagsLbl")}<input type="text" data-c-tags dir="ltr" maxlength="400" placeholder="movie, cineaura, 2026" /></label>
