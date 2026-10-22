@@ -60,6 +60,7 @@
     lock: svg('<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>', 14),
     star: svg('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', 14),
     thumb: svg('<path d="M7 10.5v9H4v-9z"/><path d="M7 10.5l3.6-6.3a1.9 1.9 0 0 1 3.4 1.3l-.5 3.5h5a2 2 0 0 1 2 2.3l-1.1 6.4a2 2 0 0 1-2 1.8H7"/>', 16),
+    thumbDn: svg('<g transform="rotate(180 12 12)"><path d="M7 10.5v9H4v-9z"/><path d="M7 10.5l3.6-6.3a1.9 1.9 0 0 1 3.4 1.3l-.5 3.5h5a2 2 0 0 1 2 2.3l-1.1 6.4a2 2 0 0 1-2 1.8H7"/></g>', 16),
     repost: svg('<path d="M17 3l3 3-3 3"/><path d="M4 11V9.5A3.5 3.5 0 0 1 7.5 6H20"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v1.5a3.5 3.5 0 0 1-3.5 3.5H4"/>', 16),
     list: svg('<path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.6" cy="6.5" r="1.1"/><circle cx="4.6" cy="12" r="1.1"/><circle cx="4.6" cy="17.5" r="1.1"/>', 16),
     trash: svg('<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4.5h6V7"/>', 15),
@@ -2145,6 +2146,14 @@
           <ul class="pro">${(item.pros || []).map((x) => `<li dir="auto">${esc(x)}</li>`).join("") || `<li class="muted">${esc(t("mkt.noPros"))}</li>`}</ul>
           <ul class="con">${(item.cons || []).map((x) => `<li dir="auto">${esc(x)}</li>`).join("") || `<li class="muted">${esc(t("mkt.noCons"))}</li>`}</ul>
         </div>`;
+      // Helpful / not-helpful votes on reviews (sql/market_review_votes.sql):
+      // a "helpful" adds +30 positive points, a "not-helpful" +30 negative
+      // points — the same reach arithmetic the profile posts use.
+      const rvUp = Number(item.rv_up || 0);
+      const rvDown = Number(item.rv_down || 0);
+      acts.push(`<button class="btn btn-sm ${item.rv_mine === "up" ? "btn-vote-on" : "btn-ghost"}" type="button" data-mi-act="rv-up" title="${esc(t("mkt.rv.helpful", { n: M.fmt(rvUp) }))}">${ICON.thumb}<span>${esc(t("mkt.rv.helpful", { n: M.fmt(rvUp) }))}</span></button>`);
+      acts.push(`<button class="btn btn-sm ${item.rv_mine === "down" ? "btn-vote-on" : "btn-ghost"}" type="button" data-mi-act="rv-down" title="${esc(t("mkt.rv.notHelpful", { n: M.fmt(rvDown) }))}">${ICON.thumbDn}<span>${esc(t("mkt.rv.notHelpful", { n: M.fmt(rvDown) }))}</span></button>`);
+      acts.push(`<span class="muted mkt-rv-pts" title="${esc(t("mkt.rv.ptsLine", { pos: M.fmt(rvUp * 30), neg: M.fmt(rvDown * 30) }))}">${esc(t("mkt.rv.ptsLine", { pos: M.fmt(rvUp * 30), neg: M.fmt(rvDown * 30) }))}</span>`);
       if (item.mine) {
         if (!item.suspended) acts.push(`<button class="btn btn-sm btn-ghost" type="button" data-mi-act="edit-review">${ICON.edit}<span>${esc(t("mkt.edit"))}</span></button>`);
         acts.push(`<button class="btn btn-sm btn-ghost mkt-del" type="button" data-mi-act="delete-review">${ICON.trash}<span>${esc(t("common.delete"))}</span></button>`);
@@ -2164,6 +2173,27 @@
       </article>`;
   };
 
+  // Paints rv_up / rv_down / rv_mine onto the review items of the list, so
+  // itemHtml can show the vote counters. Review rows the info is known for are
+  // kept (no refetch); call M.enrichReviewVotes after every items reload.
+  M.enrichReviewVotes = async (items) => {
+    const miss = (items || []).filter((x) => x && x.type === "review" && x.id && x.rv_up == null);
+    if (!miss.length) return;
+    miss.forEach((x) => { x.rv_up = 0; x.rv_down = 0; x.rv_mine = ""; }); // safe defaults even when the table is missing
+    try {
+      const ids = miss.map((x) => Number(x.id)).filter(Boolean);
+      const res = await supabaseRequest(`/rest/v1/market_review_votes?review_id=in.(${ids.join(",")})&select=review_id,member_id,vote`);
+      if (!res.ok || !Array.isArray(res.data)) return;
+      const me = M.memberId();
+      miss.forEach((it) => {
+        const vs = res.data.filter((v) => Number(v.review_id) === Number(it.id));
+        it.rv_up = vs.filter((v) => v.vote === "up").length;
+        it.rv_down = vs.filter((v) => v.vote === "down").length;
+        it.rv_mine = vs.find((v) => String(v.member_id) === me)?.vote || "";
+      });
+    } catch { /* defaults stay */ }
+  };
+
   // The buttons of the cards inside root. items(): the cards' data; changed(): draw them again.
   M.wireItems = (root, { items, changed }) => {
     if (!root || root.dataset.miWired) return;
@@ -2177,6 +2207,35 @@
       const act = b.dataset.miAct;
       if (!M.memberId()) {
         location.href = M.signinHref(`${location.pathname.replace(/^\//, "")}${location.search}${location.hash}`);
+        return;
+      }
+      if (act === "rv-up" || act === "rv-down") {
+        if (item.mine) return C.toast(t("mkt.rv.ownerCant"));
+        const me = M.memberId();
+        const choice = act === "rv-up" ? "up" : "down";
+        b.disabled = true;
+        try {
+          await supabaseRequest(
+            `/rest/v1/market_review_votes?review_id=eq.${restValue(item.id)}&member_id=eq.${restValue(me)}`,
+            { method: "DELETE" }
+          );
+          const ins = await supabaseRequest("/rest/v1/market_review_votes", {
+            method: "POST",
+            body: JSON.stringify({ review_id: Number(item.id), member_id: me, username: M.username(), vote: choice }),
+          });
+          if (!ins.ok) throw ins;
+          const again = await supabaseRequest(`/rest/v1/market_review_votes?review_id=eq.${restValue(item.id)}&select=member_id,vote`);
+          const vs = Array.isArray(again.data) ? again.data : [];
+          item.rv_up = vs.filter((v) => v.vote === "up").length;
+          item.rv_down = vs.filter((v) => v.vote === "down").length;
+          item.rv_mine = choice;
+          const card = b.closest("[data-mi]");
+          if (card) card.outerHTML = M.itemHtml(item); // delegation lives on root: the fresh card keeps working
+          C.toast(choice === "up" ? t("prof.youUp") : t("prof.youDown"));
+        } catch {
+          C.toast(t("mkt.rv.voteFail"));
+        }
+        b.disabled = false;
         return;
       }
       if (act === "reshare") return M.openReshare({ kind: "rec", item, onSaved: () => changed() });

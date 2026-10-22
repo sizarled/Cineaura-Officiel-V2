@@ -1125,3 +1125,8 @@ html[dir="rtl"] .cpn-chip { padding: 6px 12px 6px 8px; }
 @media (max-width: 520px) {
   .mkt-lv-lock { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- Market review votes (sql/market_review_votes.sql) ---------- */
+.btn.btn-vote-on { background: var(--cyan, #22d3ee); color: #06222b; border-color: transparent; }
+.btn.btn-vote-on:hover { filter: brightness(1.06); }
+.mkt-rv-pts { align-self: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }

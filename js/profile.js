@@ -347,6 +347,7 @@
   }
 
   function postNoun(kind) {
+    if (kind === "post") return t("prof.updNounPost");
     if (kind === "playlist") return t("prof.updNounPlaylist");
     if (kind === "review") return t("prof.updNounReview");
     if (kind === "reclist") return t("prof.updNounRecList");
@@ -358,7 +359,7 @@
   function updateLine(r, p, opts = {}) {
     const links = opts.links !== false;
     const actorName = String(r.actor_username || "").replace(/^@/, "");
-    const title = escapeHtml(p?.title || p?.post_id || r.post_id || "");
+    const title = escapeHtml(p?.title || String(p?.body || "").split("\n")[0].slice(0, 60) || p?.post_id || r.post_id || "");
     const ownerName = String(p?.owner_username || r.target_username || "").replace(/^@/, "");
     const actor = links
       ? `<a href="${profileHref(actorName)}"><strong>@${escapeHtml(actorName)}</strong></a>`
@@ -1437,6 +1438,7 @@
   const RICH_KINDS = ["recommendation", "reclist", "review"];
 
   function kindLabel(kind) {
+    if (kind === "post") return t("prof.plainPost");
     if (kind === "playlist") return t("dash.nav.playlists");
     if (kind === "reclist") return t("prof.recList");
     if (kind === "review") return t("rev.review");
@@ -1565,7 +1567,7 @@
         <span class="eyebrow">${kindLabel(p.kind)} · ${visLabel(p.visibility)} · ${String(p.created_at || "").slice(0, 10)}</span>
         ${ownerToolsHtml(p)}
       </div>
-      <h3>${escapeHtml(p.title)}</h3>
+      ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
       ${postContentHtml(p, items)}
       ${hideVote ? "" : `<div class="prof-actions">
         <button class="btn btn-sm ${mine === "up" ? "btn-vote-on" : "btn-ghost"}" data-vote="up" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.recommendBtn", { n: up })}</button>
@@ -1838,6 +1840,7 @@
       el.hidden = n == null;
       el.textContent = n == null ? "" : String(n);
     });
+    await M.enrichReviewVotes?.(mk.items);
     list.innerHTML = mk.items.length ? mk.items.map(M.itemHtml).join("") : mkEmptyHtml();
     if (btn) btn.hidden = mk.items.length >= mk.total;
     hydrateAvatars(list);
@@ -2080,6 +2083,7 @@
     openPosts.forEach((p) => state.postCache.set(p.post_id, p));
     await videosReady;
     await marketReady;
+    await MK?.enrichReviewVotes?.(mfeed.items);
     await primeAvatars(
       [...rows.map((r) => r.actor_id), ...feed.items.map((v) => v.owner_id), ...mfeed.items.map((x) => x.author?.id)],
       [...rows.map((r) => r.actor_username), ...feed.items.map((v) => v.owner), ...mfeed.items.map((x) => x.author?.username)]
@@ -2547,7 +2551,8 @@
       <p class="eyebrow">Create</p>
       <h1>${t("prof.newPost")}</h1>
       <div class="tabs">
-        <button class="btn btn-sm btn-primary" data-ck="playlist" type="button">${t("dash.nav.playlists")}</button>
+        <button class="btn btn-sm btn-primary" data-ck="post" type="button">${t("prof.plainPost")}</button>
+        <button class="btn btn-sm btn-ghost" data-ck="playlist" type="button">${t("dash.nav.playlists")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="recommendation" type="button">${t("prof.recs")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="reclist" type="button">${t("prof.recList")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="review" type="button">${t("rev.review")}</button>
@@ -2587,7 +2592,7 @@
     main.querySelectorAll("[data-ck]").forEach((b) => {
       b.onclick = () => draw(b.dataset.ck);
     });
-    draw("playlist");
+    draw("post");
   }
 
   async function savePlaylistPost() {
@@ -2621,7 +2626,9 @@
     await insertPost("playlist", title, body, vis, playlistId, []);
   }
 
-  // ---------- Rich composer: recommendation / list / review ----------
+  // ---------- Rich composer: post / recommendation / list / review ----------
+  // A "post" is a plain text post: the title picker stays available, but no
+  // title is required (members must be able to publish without a title).
   function drawRichComposer(box, kind) {
     const d = (state.draft = {
       kind,
@@ -2632,7 +2639,7 @@
     });
     const multi = kind === "reclist";
     const isReview = kind === "review";
-    const pickLabel = isReview ? t("rev.pickTitle") : multi ? t("rich.pickMany") : t("rich.pickOne");
+    const pickLabel = kind === "post" ? t("cr.attachOpt") : isReview ? t("rev.pickTitle") : multi ? t("rich.pickMany") : t("rich.pickOne");
     const pcCol = (key) => `
       <div class="pc-col ${key}">
         <h5>${t(`rev.${key}`)}</h5>
@@ -2849,8 +2856,10 @@
     if (!vis) return;
     const title = $("#c-title").value.trim();
     const body = $("#c-body").value.trim();
-    if (!d.items.length) return toast(kind === "review" ? t("rev.needTitle") : t("rich.needItem"));
-    if (!title || !body) return toast(kind === "review" ? t("rev.needText") : "Title and text are required.");
+    if (kind !== "post" && !d.items.length) return toast(kind === "review" ? t("rev.needTitle") : t("rich.needItem"));
+    if (kind === "post") {
+      if (!body) return toast(t("prof.needPostText"));
+    } else if (!title || !body) return toast(kind === "review" ? t("rev.needText") : "Title and text are required.");
     const extras = { display: Rich.displayString(d.display) };
     if (kind === "review") {
       extras.pros = d.pros.join("\n");
@@ -3147,7 +3156,7 @@
     ov.className = "modal-overlay";
     ov.innerHTML = `<section class="glass modal-card pm-modal">
       <span class="eyebrow">${kindLabel(post.kind)} · ${String(post.created_at || "").slice(0, 10)}</span>
-      <h2>${escapeHtml(post.title)}</h2>
+      <h2>${escapeHtml(post.title || t("rich.untitled"))}</h2>
       <div class="stack">
         <label class="field-label" for="em-vis">${t("pm.visibility")}</label>
         <div class="vis-picker" role="radiogroup">
@@ -4216,7 +4225,7 @@
         <span class="chip cs-points" title="${t("prof.pointsHelp")}">${t("prof.recPoints", { n: points })}</span>
         ${minutes ? `<span class="chip cs-minutes">${t("prof.postMin", { n: minutes })}</span>` : ""}
       </div>
-      <h3>${escapeHtml(p.title)}</h3>
+      ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
       ${postContentHtml(p, items)}
       <div class="prof-actions">
         <button class="btn btn-sm ${mine === "up" ? "btn-vote-on" : "btn-ghost"}" data-vote="up" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.recommendBtn", { n: up })}</button>

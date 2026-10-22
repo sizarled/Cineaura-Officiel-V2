@@ -158,7 +158,7 @@ begin
   from sel;
   return result;
 end $$;
-comment on function public.post_suggestions(text, int) is 'Daily suggestion package: public posts related to what the member watched, within each post\'s reach budget (logged to post_surfaced).';
+comment on function public.post_suggestions(text, int) is 'Daily suggestion package: public posts related to what the member watched, within each post''s reach budget (logged to post_surfaced).';
 
 -- ------------------------------------------------- 6. the Find leader-board
 create or replace function public.post_top_members(p_limit int default 12)
