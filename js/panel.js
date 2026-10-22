@@ -23,14 +23,14 @@
   // overview: every staff member (the numbers of their own sections); content, market, packages and
   // announce: js/panel-admin.js (sql/content.sql, iptv_lists.sql, market.sql, packages.sql, point_codes.sql,
   // panel_admin.sql); withdrawals: js/panel-withdraw.js (sql/withdrawals.sql)
-  const ALL_SECTIONS = ["overview", "accounts", "plans", "links", "iptv", "apps", "reports", "prizes", "messages", "content", "market", "packages", "withdrawals", "patreon", "announce", "help", "staff", "platforms", "settings"];
+  const ALL_SECTIONS = ["overview", "accounts", "plans", "links", "iptv", "apps", "reports", "prizes", "messages", "content", "market", "packages", "withdrawals", "patreon", "announce", "help", "helpcats", "staff", "platforms", "settings"];
   // the side menu, in groups (a group without a section the staff member may open is left out)
   const NAV_GROUPS = [
     ["", ["overview"]],
     ["panel.grp.members", ["accounts", "packages", "withdrawals", "patreon", "messages", "staff"]],
     ["panel.grp.watch", ["links", "iptv", "apps"]],
     ["panel.grp.community", ["content", "market", "prizes"]],
-    ["panel.grp.site", ["reports", "announce", "help", "plans", "platforms", "settings"]],
+    ["panel.grp.site", ["reports", "announce", "help", "helpcats", "plans", "platforms", "settings"]],
   ];
   // the sections a staff member can be given (overview: everybody; staff: the Super Admin)
   const GIVEN_SECTIONS = ALL_SECTIONS.filter((s) => s !== "staff" && s !== "overview");
@@ -373,6 +373,7 @@
       prizes: viewPrizes,
       messages: viewMessages,
       help: (m)=> window.CineAuraHelpPanel ? window.CineAuraHelpPanel.viewHelp(m) : (m.innerHTML='<p>Help panel not loaded</p>'),
+      helpcats: (m)=> window.CineAuraHelpCats ? window.CineAuraHelpCats.viewHelpCats(m) : (m.innerHTML='<p>Categories panel not loaded</p>'),
       staff: viewStaff,
       settings: viewSettings,
     };

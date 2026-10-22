@@ -53,10 +53,14 @@
     } catch { return ""; }
   };
 
+  let lastCatsErr = "";
   async function fetchCategories() {
+    lastCatsErr = "";
     if (!supabaseRequest) return [];
     const res = await supabaseRequest("/rest/v1/help_categories?select=*&order=sort_order.asc");
-    return res.ok && Array.isArray(res.data) ? res.data : [];
+    if (res.ok && Array.isArray(res.data)) return res.data;
+    lastCatsErr = String((res.data && (res.data.message || res.data.hint || res.data.details)) || res.status || "network");
+    return [];
   }
   async function fetchArticle(id) {
     if (!id || !supabaseRequest) return null;
@@ -401,6 +405,7 @@
               <div class="wp-panel-body">
                 <input type="search" id="wp-cat-search" placeholder="${t("help.searchPh") || "Search categories…"}" class="wp-search" />
                 <div id="ed-cats" class="wp-cats">${catHTML}</div>
+                ${lastCatsErr ? `<div class="wp-note wp-cats-err">⚠ ${esc((t("help.catsLoadFail") || "Categories could not be loaded ({err}) — retry, or run sql/help.sql in the SQL editor.").replace("{err}", lastCatsErr))} <button type="button" class="btn btn-sm btn-ghost" id="ed-cats-retry">${esc(t("help.retry") || "Retry")}</button></div>` : (!categories.length && catHTML.includes("wp-empty") ? `<p class="wp-note" style="margin-top:6px"><a class="wp-link" href="./panel.html?section=helpcats">${esc(t("help.goManage") || "Manage sections from the Panel → Categories tab")}</a></p>` : "")}
                 <small class="wp-note">${t("help.catHint") || "Choose one or more sections."}</small>
               </div>
             </details>
@@ -532,6 +537,19 @@
       });
     });
     $("#ed-cats").addEventListener("change", markDirty);
+    $("#ed-cats-retry")?.addEventListener("click", async (btn) => {
+      btn.currentTarget.disabled = true;
+      const cats = await fetchCategories();
+      if (cats.length) {
+        $("#ed-cats").innerHTML = catTreeHTML(cats, [...document.querySelectorAll('#ed-cats input[name="cats"]:checked')].map((i) => Number(i.value)));
+        const err = $(".wp-cats-err");
+        if (err) err.remove();
+      } else {
+        const msg = $(".wp-cats-err");
+        if (msg) msg.textContent = (t("help.catsLoadFail") || "Categories could not be loaded ({err}) — retry, or run sql/help.sql in the SQL editor.").replace("{err}", lastCatsErr || "?");
+      }
+      btn.currentTarget.disabled = false;
+    });
     $("#wp-settings-toggle").addEventListener("click", () => $("#wp-sidebar").classList.toggle("is-hidden"));
     $("#wp-fullscreen").addEventListener("click", () => {
       document.documentElement.classList.toggle("wp-fullscreen");
