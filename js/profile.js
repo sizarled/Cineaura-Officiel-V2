@@ -1507,6 +1507,37 @@
     </div>`;
   }
 
+  // Comments + threaded replies (parent_id, sql/post_reach.sql). Replies to a
+  // reply attach to the thread root — one nesting level, like the big networks.
+  function commentListHtml(comments, postId) {
+    const list = comments || [];
+    const byId = new Map(list.map((c) => [c.id, c]));
+    const rootOf = (c) => {
+      let x = c, guard = 0;
+      while (x.parent_id && byId.has(x.parent_id) && guard++ < 10) x = byId.get(x.parent_id);
+      return x.id;
+    };
+    const replies = new Map();
+    const roots = [];
+    list.forEach((c) => {
+      const k = c.parent_id ? rootOf(c) : c.id;
+      if (k === c.id) roots.push(c);
+      else {
+        if (!replies.has(k)) replies.set(k, []);
+        replies.get(k).push(c);
+      }
+    });
+    const canReply = state.me && !blockedFeature("updates");
+    const item = (c, depth) => `
+      <div class="cmt${depth ? " cmt-reply" : ""}">
+        <p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}
+          ${canReply ? ` <button class="cmt-reply-btn" type="button" data-reply-to="${c.parent_id ? rootOf(c) : c.id}" data-reply-post="${escapeHtml(postId)}" data-reply-user="${escapeHtml(c.username)}">↩ ${t("prof.reply")}</button>` : ""}
+        </p>
+        ${(replies.get(c.id) || []).map((r) => item(r, depth + 1)).join("")}
+      </div>`;
+    return roots.map((c) => item(c, 0)).join("");
+  }
+
   function myVoteIn(votes) {
     const me = state.me?.member?.member_id;
     if (!me) return "";
@@ -1544,7 +1575,7 @@
       </div>`}
       ${hideVote && state.me && !minePost ? `<div class="prof-actions">${reportBtn()}</div>` : ""}
       <div class="stack" style="margin-top:10px">
-        ${(comments || []).map((c) => `<p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}</p>`).join("")}
+        ${commentListHtml(comments, p.post_id)}
         ${state.me && !blockedFeature("updates") ? `<div class="form-row"><input data-cmt="${escapeHtml(p.post_id)}" placeholder="${t("prof.writeCmt")}" /><button class="btn btn-sm btn-primary" data-send-cmt="${escapeHtml(p.post_id)}" type="button">${t("prof.comment")}</button></div>` : ""}
       </div>
       <div class="post-share">${shareRowHtml(postHref(p), postShareText(p), { compact: true, track: p.post_id })}</div>`;
@@ -1572,8 +1603,27 @@
       }
       const inp = document.querySelector(`[data-cmt="${focusCmt.dataset.focusCmt}"]`);
       if (inp) {
+        delete inp.dataset.parent;
+        inp.placeholder = t("prof.writeCmt");
         inp.scrollIntoView({ behavior: "smooth", block: "center" });
         inp.focus();
+      }
+      return;
+    }
+    // Reply icon: the comment box becomes "reply to @user" (saved as parent_id).
+    const replyBtn = e.target.closest("[data-reply-to]");
+    if (replyBtn) {
+      if (!state.me) {
+        toast(t("prof.signFirst"));
+        return;
+      }
+      if (!(await window.CineAura.guardFeature("comments"))) return;
+      const rInp = document.querySelector(`[data-cmt="${replyBtn.dataset.replyPost}"]`);
+      if (rInp) {
+        rInp.dataset.parent = replyBtn.dataset.replyTo;
+        rInp.placeholder = t("prof.replyTo", { user: "@" + (replyBtn.dataset.replyUser || "") });
+        rInp.scrollIntoView({ behavior: "smooth", block: "center" });
+        rInp.focus();
       }
       return;
     }
@@ -1662,6 +1712,7 @@
       const input = document.querySelector(`[data-cmt="${postId}"]`);
       const text = input?.value.trim();
       if (!text) return;
+      const parent = Number(input?.dataset.parent || 0) || null;
       await supabaseRequest("/rest/v1/post_comments", {
         method: "POST",
         body: JSON.stringify({
@@ -1669,8 +1720,15 @@
           member_id: state.me.member.member_id,
           username: state.me.member.username,
           comment: text,
+          ...(parent ? { parent_id: parent } : {}),
         }),
       });
+      // Note: comments already count toward reach via the post_comments table
+      // itself (post_reach), so no extra post_event row is needed here.
+      if (input) {
+        delete input.dataset.parent;
+        input.placeholder = t("prof.writeCmt");
+      }
       redraw();
     }
   }
@@ -1846,6 +1904,12 @@
         .map((b) => b.blocker_id)
     );
     const ids = (fol.data || []).map((f) => f.following_id).filter((id) => !hidden.has(id));
+    // Posts I marked "don't recommend" leave my own update suggestions, whoever
+    // recommended or published them.
+    const dv = await supabaseRequest(
+      `/rest/v1/post_votes?member_id=eq.${restValue(state.me.member.member_id)}&vote=eq.down&select=post_id`
+    ).catch(() => ({ data: [] }));
+    const downIds = new Set((dv.data || []).map((r) => r.post_id));
     body.innerHTML = `
       <div class="filter-bar">
         <div class="filter-group">
@@ -1859,6 +1923,15 @@
         </div>
       </div>
       <div class="ad-spot" data-ad="banner"></div>
+      <section class="person-updates suggest-zone">
+        <div class="section-head">
+          <div>
+            <div class="kicker"><span class="eyebrow">${t("prof.suggestSub")}</span></div>
+            <h2>${t("prof.suggestions")}</h2>
+          </div>
+        </div>
+        <div id="suggest-list"><p class="muted">${t("common.loading")}</p></div>
+      </section>
       <div id="upd-list"></div>
       <section class="person-updates">
         <div class="section-head">
@@ -1871,6 +1944,11 @@
       </section>`;
     if (!ids.length) {
       $("#upd-list").innerHTML = `<p class="empty">${t("prof.followToSee")}</p>`;
+      // Nobody followed yet: the suggestions block still has content to offer.
+      drawSuggestions();
+      $("#suggest-list").onclick = (e) => {
+        onPostClick(e, () => drawSuggestions());
+      };
       await drawPersonUpdates();
       return;
     }
@@ -1922,15 +2000,24 @@
     const upd = await supabaseRequest(
       `/rest/v1/updates?actor_id=in.(${ids.join(",")})&select=*&order=created_at.desc&limit=120`
     );
-    // Posts I marked "don't recommend" leave my own update suggestions, whoever
-    // recommended or published them.
-    const dv = await supabaseRequest(
-      `/rest/v1/post_votes?member_id=eq.${restValue(state.me.member.member_id)}&vote=eq.down&select=post_id`
-    ).catch(() => ({ data: [] }));
-    const downIds = new Set((dv.data || []).map((r) => r.post_id));
-    const rows = (upd.data || []).filter(
+    let rows = (upd.data || []).filter(
       (r) => r.post_id && !hidden.has(r.actor_id) && !downIds.has(r.post_id)
     );
+    // A silenced post (net-negative day points, sql/post_reach.sql) drops out of
+    // the updates feed too — only its owner and the owner's followers keep it.
+    const candIds = [...new Set(rows.map((r) => r.post_id))];
+    if (candIds.length) {
+      try {
+        const gate = await supabaseRequest(`/rest/v1/rpc/posts_gate`, {
+          method: "POST",
+          body: JSON.stringify({ p_member: state.me.member.member_id, p_ids: candIds }),
+        });
+        if (gate.ok && Array.isArray(gate.data)) {
+          const okIds = new Set(gate.data.filter((g) => g.allowed).map((g) => g.post_id));
+          rows = rows.filter((r) => okIds.has(r.post_id));
+        }
+      } catch (e) { /* RPC missing: fail open, nothing changes */ }
+    }
     const postIds = [...new Set(rows.map((r) => r.post_id))];
     const posts = postIds.length
       ? await supabaseRequest(`/rest/v1/posts?post_id=in.(${postIds.join(",")})&select=*`)
@@ -2109,6 +2196,59 @@
       el.onchange = draw;
     });
     draw();
+
+    // ---- Suggestions: posts whose items match what I already watch ----
+    // Server side (post_suggestions, sql/post_reach.sql): my watched tmdb ids
+    // (views + hestory) intersected with post_items; every post serves at most
+    // its daily reach budget (post_reach points) of NEW members per day and is
+    // never resurfaced to the same member twice in a day.
+    async function drawSuggestions() {
+      const box = $("#suggest-list");
+      if (!box) return;
+      try {
+        const res = await supabaseRequest(`/rest/v1/rpc/post_suggestions`, {
+          method: "POST",
+          body: JSON.stringify({ p_member: state.me.member.member_id, p_limit: 12 }),
+        });
+        const posts = (res.ok && Array.isArray(res.data) ? res.data : []).filter((p) => !downIds.has(p.post_id));
+        if (!posts.length) {
+          box.innerHTML = `<p class="muted">${t("prof.suggestEmpty")}</p>`;
+          return;
+        }
+        const sIds = posts.map((p) => p.post_id).join(",");
+        posts.forEach((p) => state.postCache.set(p.post_id, p));
+        const [its, vts, cms] = await Promise.all([
+          supabaseRequest(`/rest/v1/post_items?post_id=in.(${sIds})&select=*`),
+          supabaseRequest(`/rest/v1/post_votes?post_id=in.(${sIds})&select=*`),
+          supabaseRequest(`/rest/v1/post_comments?post_id=in.(${sIds})&select=*&order=created_at.asc`),
+        ]);
+        const iMap = {}, vMap = {}, cMap = {};
+        (its.data || []).forEach((i) => (iMap[i.post_id] = iMap[i.post_id] || []).push(i));
+        (vts.data || []).forEach((v) => (vMap[v.post_id] = vMap[v.post_id] || []).push(v));
+        (cms.data || []).forEach((c) => (cMap[c.post_id] = cMap[c.post_id] || []).push(c));
+        await primeAvatars(posts.map((p) => p.owner_id), posts.map((p) => p.owner_username));
+        await enrichItemMap(posts, iMap);
+        box.innerHTML = posts.map((p) => {
+          const owner = String(p.owner_username || "").replace(/^@/, "");
+          const actor = `<a href="${profileHref(owner)}"><strong><bdi>@${escapeHtml(owner)}</bdi></strong></a>`;
+          return `<article class="post-card upd-card suggest-card kind-${escapeHtml(p.kind)}" data-post="${escapeHtml(p.post_id)}" data-owner="${escapeHtml(p.owner_id || "")}">
+            <div class="upd-lead">
+              ${avatarImg(p.owner_id, owner)}
+              <div class="upd-lead-body">
+                <p class="upd-lead-line">${t("prof.suggestLead", { actor })}</p>
+                <div class="upd-lead-time muted">${escapeHtml(String(p.created_at || "").slice(0, 16).replace("T", " "))}${p.hits ? ` · ${t("prof.suggestHits", { n: p.hits })}` : ""}</div>
+              </div>
+            </div>
+            ${postCardInnerHtml(p, iMap[p.post_id] || [], vMap[p.post_id] || [], cMap[p.post_id] || [])}
+          </article>`;
+        }).join("");
+        hydrateAvatars(box);
+      } catch (err) {
+        console.warn("post_suggestions failed", err);
+        box.innerHTML = `<p class="muted">${t("prof.suggestEmpty")}</p>`;
+      }
+    };
+    drawSuggestions();
     // The activity wall binds its click handler on #home-body: drop it here so a
     // stale copy cannot react to votes / comments inside the updates feed.
     body.onclick = null;
@@ -2126,6 +2266,9 @@
       }
       if (e.target.closest("[data-mi]")) return; // the market cards (js/market-forms.js)
       onPostClick(e, () => drawUpdates());
+    };
+    $("#suggest-list").onclick = (e) => {
+      onPostClick(e, () => drawSuggestions());
     };
     MK?.wireItems($("#upd-list"), { items: () => mfeed.items, changed: () => drawUpdates() });
     await drawPersonUpdates();
@@ -3812,7 +3955,7 @@
       <h1>${t("nav.search")}</h1>
       <div class="tabs follow-tabs" role="tablist">
         <button type="button" role="tab" class="follow-tab${searchTab === "content" ? " active" : ""}" data-stab="content">${t("prof.searchContent")}</button>
-        <button type="button" role="tab" class="follow-tab${searchTab === "profiles" ? " active" : ""}" data-stab="profiles">${t("prof.searchProfiles")}</button>
+        <button type="button" role="tab" class="follow-tab${searchTab === "profiles" ? " active" : ""}" data-stab="profiles">${t("prof.find")}</button>
       </div>
       <div id="stab-content" ${searchTab !== "content" ? "hidden" : ""}></div>
       <div id="stab-profiles" ${searchTab !== "profiles" ? "hidden" : ""}></div>`;
@@ -4023,11 +4166,23 @@
         return String(b.created_at || "").localeCompare(String(a.created_at || ""));
       });
 
-      await primeAvatars(visible.map((p) => p.owner_id), visible.map((p) => p.owner_username));
-      await enrichItemMap(visible, itemMap);
-      visible.forEach((p) => state.postCache.set(p.post_id, p));
+      // Silenced posts (net-negative day) stay findable only by owner & followers.
+      let gated = visible;
+      try {
+        const gate = await supabaseRequest(`/rest/v1/rpc/posts_gate`, {
+          method: "POST",
+          body: JSON.stringify({ p_member: state.me?.member?.member_id || "", p_ids: visible.map((p) => p.post_id) }),
+        });
+        if (gate.ok && Array.isArray(gate.data)) {
+          const okIds = new Set(gate.data.filter((g) => g.allowed).map((g) => g.post_id));
+          gated = visible.filter((p) => okIds.has(p.post_id));
+        }
+      } catch (e) { /* RPC missing: fail open */ }
+      await primeAvatars(gated.map((p) => p.owner_id), gated.map((p) => p.owner_username));
+      await enrichItemMap(gated, itemMap);
+      gated.forEach((p) => state.postCache.set(p.post_id, p));
 
-      results.innerHTML = visible.map((p) => {
+      results.innerHTML = gated.map((p) => {
         const owner = ownerProfileMap[p.owner_id] || {};
         const items = itemMap[p.post_id] || [];
         const pvotes = voteMap[p.post_id] || [];
@@ -4070,7 +4225,7 @@
         ${state.me && p.owner_id !== state.me.member?.member_id ? `<button class="btn btn-sm btn-ghost" data-report-post="${escapeHtml(p.post_id)}" type="button" title="${t("prof.reportPost")}">⚑ ${t("prof.reportPost")}</button>` : ""}
       </div>
       <div class="stack" style="margin-top:10px">
-        ${(comments || []).map((c) => `<p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}</p>`).join("")}
+        ${commentListHtml(comments, p.post_id)}
         ${state.me ? `<div class="form-row"><input data-cmt="${escapeHtml(p.post_id)}" placeholder="${t("prof.writeCmt")}" /><button class="btn btn-sm btn-primary" data-send-cmt="${escapeHtml(p.post_id)}" type="button">${t("prof.comment")}</button></div>` : ""}
       </div>
       <div class="post-share">${shareRowHtml(postHref(p), postShareText(p), { compact: true, track: p.post_id })}</div>
@@ -4080,6 +4235,7 @@
   function drawProfilesSearch(main) {
     const box = main.querySelector("#stab-profiles");
     box.innerHTML = `
+      <div id="q-top"></div>
       <div class="stack">
         <input id="q-user" placeholder="${t("reg.username")}" />
         <div class="form-row">
@@ -4140,6 +4296,39 @@
     };
     box.querySelector("#q-go").onclick = doSearch;
     box.querySelector("#q-user").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+    // Leader-board: the members whose posts reached the most people this month —
+    // each post's reach (up+30 / down-30 / comments / shares, sql/post_reach.sql)
+    // summed across all of their posts.
+    (async () => {
+      const top = box.querySelector("#q-top");
+      if (!top) return;
+      top.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+      try {
+        const res = await supabaseRequest(`/rest/v1/rpc/post_top_members`, {
+          method: "POST",
+          body: JSON.stringify({ p_limit: 12 }),
+        });
+        const topRows = res.ok && Array.isArray(res.data) ? res.data : [];
+        if (!topRows.length) { top.innerHTML = ""; return; }
+        await primeAvatars(topRows.map((r) => r.owner_id), topRows.map((r) => r.username));
+        top.innerHTML = `
+          <div class="section-head">
+            <div>
+              <div class="kicker"><span class="eyebrow">${t("prof.reachPts")}</span></div>
+              <h2>${t("prof.topMembers")}</h2>
+            </div>
+          </div>
+          ${topRows.map((r) => `<div class="person-row">
+            <img src="${escapeHtml(avatarOf(null, r.username))}" alt="" data-avatar-for="${escapeHtml(r.owner_id)}" data-avatar-name="${escapeHtml(r.username)}" />
+            <div>
+              <strong>@${escapeHtml(r.username)}</strong>
+              <div class="muted">${t("prof.topMemberMeta", { n: Number(r.posts || 0), pts: Number(r.reach || 0) })}</div>
+            </div>
+            <a class="btn btn-sm btn-primary" href="${profileHref(r.username)}">${t("common.visit")}</a>
+          </div>`).join("")}`;
+        hydrateAvatars(top);
+      } catch (e) { top.innerHTML = ""; }
+    })();
   }
 
   async function viewFollowing(main) {

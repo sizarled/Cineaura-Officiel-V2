@@ -528,6 +528,12 @@ begin
                                  where pi.post_id = p.post_id and pi.media_type = med))
         and public._search_has(words, p.title || ' ' || coalesce(p.body, '') || ' ' || p.owner_username)
         and public._search_when(p.created_at, p_when)
+        -- Silenced posts (net-negative day, sql/post_reach.sql) leave search too,
+        -- but their owner and the owner's followers keep finding them.
+        and (me = p.owner_id
+             or exists (select 1 from public.follows fo
+                        where fo.follower_id = me and fo.following_id = p.owner_id and fo.status = 'accepted')
+             or not public.post_silenced(p.post_id))
     ), seen as (
       select * from src where why = 'ok'
     )
@@ -574,6 +580,12 @@ begin
                                  where pi.post_id = p.post_id and pi.media_type = med))
         and public._search_has(words, p.title || ' ' || coalesce(p.body, '') || ' ' || p.owner_username)
         and public._search_when(p.created_at, p_when)
+        -- Silenced posts (net-negative day, sql/post_reach.sql) leave search too,
+        -- but their owner and the owner's followers keep finding them.
+        and (me = p.owner_id
+             or exists (select 1 from public.follows fo
+                        where fo.follower_id = me and fo.following_id = p.owner_id and fo.status = 'accepted')
+             or not public.post_silenced(p.post_id))
     ), seen as (
       select * from src where why = 'ok'
     )
@@ -854,6 +866,12 @@ begin
                                           or (b.blocker_id = p.owner_id and b.blocked_id = me)))
         and public._search_has(words, p.title || ' ' || coalesce(p.body, '') || ' ' || p.owner_username)
         and public._search_when(p.created_at, p_when)
+        -- Silenced posts (net-negative day, sql/post_reach.sql) leave search too,
+        -- but their owner and the owner's followers keep finding them.
+        and (me = p.owner_id
+             or exists (select 1 from public.follows fo
+                        where fo.follower_id = me and fo.following_id = p.owner_id and fo.status = 'accepted')
+             or not public.post_silenced(p.post_id))
     ), seen as (
       select * from src where why = 'ok'
     )
