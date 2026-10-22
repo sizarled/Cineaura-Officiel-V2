@@ -70,12 +70,8 @@
 
   function viewHelpCats(main) {
     main.dataset.view = 'helpcats';
-    main.innerHTML = `<div class="pa-help-head">
-      <div>
-        <p class="eyebrow">${t('panel.nav.helpcats') || 'Categories'}</p>
-        <h1>${t('helpcats.title') || 'Help Center — Categories & Sections'}</h1>
-        <p class="muted">${t('helpcats.lead') || 'The sections and subsections readers browse / the article editor offers. Deleting a section frees its articles back to uncategorized.'}</p>
-      </div>
+    main.innerHTML = `<div class="hc-toolbar" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px">
+      <p class="muted" style="margin:0;max-width:640px">${t('helpcats.lead')}</p>
       <div style="display:flex;gap:8px;align-items:center">
         <button type="button" class="btn btn-ghost" id="hc-refresh">⟳ ${t('helpcats.refresh') || 'Refresh'}</button>
         <button type="button" class="btn btn-primary" id="hc-new-toggle">＋ ${t('helpcats.addMain') || 'Add section'}</button>

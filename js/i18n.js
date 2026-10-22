@@ -5579,7 +5579,6 @@
     "help.width": "Width",
     "help.words": "words",
     "panel.nav.helpcats": "Categories",
-    "helpcats.title": "Help Center — Categories & Sections",
     "helpcats.lead": "The sections and subsections readers browse / the article editor offers. Deleting one frees its articles back to uncategorized.",
     "helpcats.addMain": "Add section",
     "helpcats.addSub": "Add subsection",
@@ -5610,6 +5609,7 @@
     "help.catsLoadFail": "Categories could not be loaded ({err}) — retry, or run sql/help.sql in the SQL editor.",
     "help.retry": "Retry",
     "help.goManage": "Manage sections from the Panel → Categories tab",
+    "help.tabArticles": "Articles",
 
   };
 

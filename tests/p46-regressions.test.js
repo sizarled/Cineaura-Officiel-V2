@@ -53,21 +53,29 @@ has("bridge: identity-guarded default", hs, "attidentity");
 has("bridge: category seed", hs, "'getting-started'");
 has("bridge: editor category gate intact", read("js/help-article.js"), '#ed-cats input[name="cats"]:checked');
 
-// ---------------- Panel categories tab (helpcats, 2026-10-22)
+// ---------------- Help Center categories tab (helpcats merged into Help, 2026-10-22)
 ok("helpcats: module exists", fs.existsSync(path.join(ROOT, "js/help-cats.js")));
 const pj = read("js/panel.js");
-has("helpcats: in ALL_SECTIONS", pj, '"help", "helpcats", "staff"');
-has("helpcats: nav group placement", pj, '"reports", "announce", "help", "helpcats", "plans"');
-has("helpcats: renderer mapping", pj, 'helpcats: (m)=> window.CineAuraHelpCats ? window.CineAuraHelpCats.viewHelpCats(m)');
+has("helpcats: ALL_SECTIONS back to help-only", pj, '"help", "staff", "platforms", "settings"');
+has("helpcats: nav group back to help-only", pj, '"reports", "announce", "help", "plans", "platforms"');
+has("helpcats: legacy deep link remapped", pj, 'requestedSection === "helpcats"');
+has("helpcats: initial tab passed to viewHelp", pj, "viewHelp(m, helpInitialTab)");
+const hp = read("js/help-panel.js");
+has("helpcats: cats tab inside Help Center", hp, 'data-htab="cats"');
+has("helpcats: articles tab inside Help Center", hp, 'data-htab="articles"');
+has("helpcats: tab delegates to module", hp, "window.CineAuraHelpCats.viewHelpCats(body)");
+has("helpcats: initialTab support", hp, "initialTab === 'cats'");
 has("helpcats: panel.html loads module", read("panel.html"), 'src="js/help-cats.js"');
-has("helpcats: nav icon", read("js/common.js"), 'helpcats: '); const hc = read("js/help-cats.js");
+ok("helpcats: standalone nav icon removed", !read("js/common.js").includes("helpcats:"));
+const hc = read("js/help-cats.js");
 has("helpcats: REST fetch", hc, '/rest/v1/help_categories?select=*');
 has("helpcats: delete section", hc, "method: 'DELETE'");
 has("helpcats: inline error surface", hc, 'helpcats.loadFail');
 has("helpcats: editor retry button", read("js/help-article.js"), 'id="ed-cats-retry"');
 has("helpcats: editor records load error", read("js/help-article.js"), 'lastCatsErr');
-has("helpcats: engine nav label", read("js/i18n.js"), '"panel.nav.helpcats": "Categories"');
+has("helpcats: engine nav label kept as tab label", read("js/i18n.js"), '"panel.nav.helpcats": "Categories"');
 has("helpcats: engine addMain", read("js/i18n.js"), '"helpcats.addMain": "Add section"');
+has("helpcats: engine articles-tab label", read("js/i18n.js"), '"help.tabArticles": "Articles"');
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
