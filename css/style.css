@@ -315,7 +315,7 @@ ul {
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: 8px;
+  margin-inline-start: 8px;
   flex: 1;
 }
 
@@ -359,7 +359,7 @@ html[data-theme="day"] .mobile-menu a[aria-current="page"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .auth-user,
@@ -485,7 +485,7 @@ body.is-logged-in .link-dashboard {
 .mobile-menu a,
 .mobile-menu button {
   width: 100%;
-  text-align: left;
+  text-align: start;
   padding: 12px 14px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
@@ -1539,27 +1539,6 @@ html[lang="ar"] .prof-head h1 {
   font-family: "Cairo", var(--sans);
 }
 
-html[dir="rtl"] .nav {
-  margin-left: 0;
-  margin-right: 8px;
-}
-
-html[dir="rtl"] .auth {
-  margin-left: 0;
-  margin-right: auto;
-}
-
-html[dir="rtl"] .mobile-menu a,
-html[dir="rtl"] .mobile-menu button,
-html[dir="rtl"] .prof-side nav button {
-  text-align: right;
-}
-
-html[dir="rtl"] .bubble.mine {
-  margin-left: 0;
-  margin-right: auto;
-}
-
 /* ---------- Header Bell Notifications ---------- */
 .header-bell-wrap {
   position: relative;
@@ -1755,13 +1734,8 @@ html[dir="rtl"] .bubble.mine {
   color: #fff;
   font-size: 10px;
   font-weight: 700;
-  margin-left: 6px;
+  margin-inline-start: 6px;
   line-height: 1;
-}
-
-html[dir="rtl"] .prof-side nav button .sec-badge {
-  margin-left: 0;
-  margin-right: 6px;
 }
 
 
@@ -3310,3 +3284,7 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
 .hh-new-sub { margin: 30px 0 14px; }
 .hh-new-sub h3 { margin: 0 0 4px; font-size: 19px; }
 .hh-new-sub p { margin: 0; font-size: 13px; }
+
+
+/* Arabic: the decorative serif has no Arabic glyphs — Cairo takes over */
+html[lang="ar"] .hero-copy h1 { font-family: "Cairo", var(--sans); }

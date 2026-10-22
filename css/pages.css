@@ -505,12 +505,7 @@ body.page-inner {
 
 .watch-recommend .rec-done a {
   color: var(--cyan);
-  margin-left: 6px;
-}
-
-html[dir="rtl"] .watch-recommend .rec-done a {
-  margin-left: 0;
-  margin-right: 6px;
+  margin-inline-start: 6px;
 }
 
 .watch-recommend .rec-hint {
@@ -849,7 +844,7 @@ html[data-theme="day"] .vis-chip.vis-private { color: #c62f35; }
 }
 
 .comment-card.reply {
-  margin-left: min(36px, 8vw);
+  margin-inline-start: min(36px, 8vw);
   background: rgba(1, 180, 228, 0.05);
 }
 
@@ -2012,12 +2007,12 @@ html[data-theme="day"] .vis-chip.vis-private { color: #c62f35; }
 }
 
 .password-wrap input {
-  padding-right: 44px;
+  padding-inline-end: 44px;
 }
 
 .password-wrap button {
   position: absolute;
-  right: 8px;
+  inset-inline-end: 8px;
   top: 50%;
   transform: translateY(-50%);
   width: 32px;
@@ -2149,7 +2144,7 @@ html[dir="rtl"] .success-user { padding: 8px 8px 8px 16px; }
 .success-meta strong {
   color: var(--text);
   font-weight: 650;
-  text-align: right;
+  text-align: end;
 }
 
 .recovery-box {

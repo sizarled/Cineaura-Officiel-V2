@@ -636,3 +636,7 @@ html.nav-fold[dir="rtl"] .mobile-menu { inset: 0 auto auto 14px; }
 /* the page in the menu that is open */
 .nav a[aria-current="page"] { color: var(--text); background: var(--sub-bg); }
 .mobile-menu a[aria-current="page"] { color: var(--cyan); }
+
+
+/* Arabic: the decorative serif has no Arabic glyphs — Cairo takes over */
+html[lang="ar"] .auth-gate-note h2 { font-family: "Cairo", var(--sans); }

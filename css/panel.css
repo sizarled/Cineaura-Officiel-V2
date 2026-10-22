@@ -230,7 +230,7 @@ html[dir="rtl"] .side-lists button {
 }
 
 .bubble.mine {
-  margin-left: auto;
+  margin-inline-start: auto;
   background: rgba(144, 206, 161, 0.16);
 }
 
@@ -246,11 +246,6 @@ html[dir="rtl"] .mp-actions,
 html[dir="rtl"] .chat-head,
 html[dir="rtl"] .staff-line {
   text-align: right;
-}
-
-html[dir="rtl"] .bubble.mine {
-  margin-left: 0;
-  margin-right: auto;
 }
 
 /* Prize subscription modes (gift / challenge / lottery) editor */

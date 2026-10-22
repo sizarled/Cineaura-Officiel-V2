@@ -519,18 +519,6 @@ select {
 }
 
 /* ── RTL (Arabic) on small screens ────────────────────────────── */
-@media (max-width: 900px) {
-  html[dir="rtl"] .auth {
-    margin-inline-start: auto;
-    margin-left: 0;
-  }
-
-  html[dir="rtl"] .mobile-menu a,
-  html[dir="rtl"] .mobile-menu button {
-    text-align: right;
-  }
-}
-
 /* Landscape phones: the hero must not eat the whole viewport */
 @media (max-height: 520px) and (orientation: landscape) {
   .hero {

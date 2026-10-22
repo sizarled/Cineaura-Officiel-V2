@@ -74,7 +74,7 @@
 .side-nav a,
 .side-lists button,
 .side-lists a {
-  text-align: left;
+  text-align: start;
   padding: 10px 12px;
   border-radius: 12px;
   color: var(--muted);
@@ -133,7 +133,7 @@
 .table td {
   padding: 10px 8px;
   border-bottom: 1px solid var(--line);
-  text-align: left;
+  text-align: start;
 }
 
 .cards {
@@ -427,7 +427,7 @@
   border: 1px solid var(--line);
   background: rgba(4, 14, 24, 0.45);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 
 .choice:hover,
@@ -1720,3 +1720,9 @@ html:not([data-theme="day"]) .ipx-badge.epg { color: #a996ff; }
   .wd-cond-grid, .wd-fields { grid-template-columns: minmax(0, 1fr); }
   .wd-submit { justify-self: stretch; }
 }
+
+
+/* Arabic: the decorative serif has no Arabic glyphs — Cairo takes over */
+html[lang="ar"] .dash-gate h1 { font-family: "Cairo", var(--sans); }
+html[lang="ar"] .dash-main h1 { font-family: "Cairo", var(--sans); }
+html[lang="ar"] .wizard h1 { font-family: "Cairo", var(--sans); }

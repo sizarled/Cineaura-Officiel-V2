@@ -328,3 +328,7 @@
   .wp-bar-left{ flex:1 1 100%; }
   .wp-bar-right{ flex:0; }
 }
+
+
+/* Arabic: the decorative serif has no Arabic glyphs — Cairo takes over */
+html[lang="ar"] .help-hero h1 { font-family: "Cairo", var(--sans); }

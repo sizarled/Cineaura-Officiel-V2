@@ -21,7 +21,7 @@
 }
 
 .prof-side nav button {
-  text-align: left;
+  text-align: start;
   padding: 10px 12px;
   border-radius: 12px;
   color: var(--muted);
@@ -442,7 +442,7 @@
 }
 
 .bubble.mine {
-  margin-left: auto;
+  margin-inline-start: auto;
   background: rgba(144, 206, 161, 0.16);
 }
 
