@@ -25,7 +25,7 @@
 -- 1 · tables -----------------------------------------------------------------
 
 create table if not exists public.platform_settings (
-  platform     text primary key check (platform ~ '^[a-z]{2,20}$'),
+  platform     text primary key check (platform ~ '^[a-z]{1,20}$'),
   enabled      boolean not null default false,
   profile_url  text not null default '',
   publish_day  smallint check (publish_day between 0 and 6), -- 0=Sunday … 6=Saturday (site-local; the edge function compares UTC)
