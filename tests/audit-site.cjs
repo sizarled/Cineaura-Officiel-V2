@@ -77,7 +77,10 @@ let missingTr = 0;
 for (const v of uniqVals) {
   for (const lg of langs) {
     if (!packs[lg].js.includes(`"${v}":`)) { if (missingTr++ < 40) line(`  lang/${lg}.js missing: "${v.slice(0, 60)}"`); }
-    if (!packs[lg].lng.includes(`${v} = `)) { if (missingTr < 40 + 40) line(`  lang/${lg}.lng missing: "${v.slice(0, 60)}"`); missingTr++; }
+    // .lng files are legacy mirrors the site never reads (js/lang.js only loads lang/*.js);
+    // the project rule keeps lang/arabic.lng in sync with arabic.js, so audit that one only.
+    // sentences containing " = " can never be .lng keys (that would break the file's own " = " separator)
+    if (lg === "arabic" && !v.includes(" = ") && !packs[lg].lng.includes(`${v} = `)) { if (missingTr < 80) line(`  lang/${lg}.lng missing: "${v.slice(0, 60)}"`); missingTr++; }
   }
 }
 line(`  distinct sentences: ${uniqVals.length} · missing pack entries: ${missingTr}`);
