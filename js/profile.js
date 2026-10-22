@@ -1523,7 +1523,13 @@
     const up = votes.filter((v) => v.vote === "up").length;
     const down = votes.filter((v) => v.vote === "down").length;
     const mine = myVoteIn(votes);
+    const minePost = Boolean(state.me) && p.owner_id === state.me.member?.member_id;
     const hideVote = blockedFeature("updates") && !state.isOwner;
+    // Comment shortcut + report button: anyone signed in may comment (unless the
+    // owner blocked the updates feature for me); a post is reported by everyone
+    // except its own author.
+    const commentBtn = () => `<button class="btn btn-sm btn-ghost" data-focus-cmt="${escapeHtml(p.post_id)}" type="button" title="${t("prof.writeCmt")}">💬 ${t("prof.comment")}</button>`;
+    const reportBtn = () => `<button class="btn btn-sm btn-ghost" data-report-post="${escapeHtml(p.post_id)}" type="button" title="${t("prof.reportPost")}">⚑ ${t("prof.reportPost")}</button>`;
     return `<div class="post-top">
         <span class="eyebrow">${kindLabel(p.kind)} · ${visLabel(p.visibility)} · ${String(p.created_at || "").slice(0, 10)}</span>
         ${ownerToolsHtml(p)}
@@ -1533,7 +1539,10 @@
       ${hideVote ? "" : `<div class="prof-actions">
         <button class="btn btn-sm ${mine === "up" ? "btn-vote-on" : "btn-ghost"}" data-vote="up" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.recommendBtn", { n: up })}</button>
         <button class="btn btn-sm ${mine === "down" ? "btn-vote-on" : "btn-ghost"}" data-vote="down" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.dont", { n: down })}</button>
+        ${state.me ? commentBtn() : ""}
+        ${state.me && !minePost ? reportBtn() : ""}
       </div>`}
+      ${hideVote && state.me && !minePost ? `<div class="prof-actions">${reportBtn()}</div>` : ""}
       <div class="stack" style="margin-top:10px">
         ${(comments || []).map((c) => `<p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}</p>`).join("")}
         ${state.me && !blockedFeature("updates") ? `<div class="form-row"><input data-cmt="${escapeHtml(p.post_id)}" placeholder="${t("prof.writeCmt")}" /><button class="btn btn-sm btn-primary" data-send-cmt="${escapeHtml(p.post_id)}" type="button">${t("prof.comment")}</button></div>` : ""}
@@ -1554,6 +1563,31 @@
     }
     const vote = e.target.closest("[data-vote]");
     const send = e.target.closest("[data-send-cmt]");
+    // Comment icon: scroll straight to the comment box of this post.
+    const focusCmt = e.target.closest("[data-focus-cmt]");
+    if (focusCmt) {
+      if (!state.me) {
+        toast(t("prof.signFirst"));
+        return;
+      }
+      const inp = document.querySelector(`[data-cmt="${focusCmt.dataset.focusCmt}"]`);
+      if (inp) {
+        inp.scrollIntoView({ behavior: "smooth", block: "center" });
+        inp.focus();
+      }
+      return;
+    }
+    // Report icon: opens the report dialog (one report per post per member).
+    const repBtn = e.target.closest("[data-report-post]");
+    if (repBtn) {
+      if (!state.me) {
+        toast(t("prof.signFirst"));
+        return;
+      }
+      const post = state.postCache.get(repBtn.dataset.reportPost);
+      if (post) postReportDlg(post);
+      return;
+    }
     if (!state.me) {
       if (vote || send) toast(t("prof.signFirst"));
       return;
@@ -1584,17 +1618,27 @@
         ? { member_id: voted.owner_id, username: voted.owner_username }
         : state.hostMember;
       const kind = choice === "up" ? "vote_up" : "vote_down";
-      await supabaseRequest("/rest/v1/updates", {
-        method: "POST",
-        body: JSON.stringify({
-          actor_id: state.me.member.member_id,
-          actor_username: state.me.member.username,
-          target_id: owner.member_id,
-          target_username: owner.username,
-          kind,
-          post_id: postId,
-        }),
-      });
+      // A recommendation ("up") is republished in my followers' updates feed —
+      // and it raises the post's search points (+30 each). A "don't recommend"
+      // is never republished: it removes every vote line I left for this post
+      // instead, and it costs the post search points (−30 each).
+      await supabaseRequest(
+        `/rest/v1/updates?actor_id=eq.${restValue(state.me.member.member_id)}&post_id=eq.${restValue(postId)}&kind=in.(vote_up,vote_down)`,
+        { method: "DELETE" }
+      );
+      if (choice === "up") {
+        await supabaseRequest("/rest/v1/updates", {
+          method: "POST",
+          body: JSON.stringify({
+            actor_id: state.me.member.member_id,
+            actor_username: state.me.member.username,
+            target_id: owner.member_id,
+            target_username: owner.username,
+            kind,
+            post_id: postId,
+          }),
+        });
+      }
       // Tell the author, in the header bell, with the same one-line wording.
       if (voted && voted.owner_id && voted.owner_id !== state.me.member.member_id) {
         await notifyOnce(voted.owner_id, {
@@ -1878,7 +1922,15 @@
     const upd = await supabaseRequest(
       `/rest/v1/updates?actor_id=in.(${ids.join(",")})&select=*&order=created_at.desc&limit=120`
     );
-    const rows = (upd.data || []).filter((r) => r.post_id && !hidden.has(r.actor_id));
+    // Posts I marked "don't recommend" leave my own update suggestions, whoever
+    // recommended or published them.
+    const dv = await supabaseRequest(
+      `/rest/v1/post_votes?member_id=eq.${restValue(state.me.member.member_id)}&vote=eq.down&select=post_id`
+    ).catch(() => ({ data: [] }));
+    const downIds = new Set((dv.data || []).map((r) => r.post_id));
+    const rows = (upd.data || []).filter(
+      (r) => r.post_id && !hidden.has(r.actor_id) && !downIds.has(r.post_id)
+    );
     const postIds = [...new Set(rows.map((r) => r.post_id))];
     const posts = postIds.length
       ? await supabaseRequest(`/rest/v1/posts?post_id=in.(${postIds.join(",")})&select=*`)
@@ -2828,6 +2880,80 @@
       if (ok) {
         toast(t("pm.deleted"));
         onDone?.();
+      }
+    });
+  }
+
+  // Report a post (sql/post_reports.sql -> public.post_reports): one report per
+  // post per member, with a subject and an optional note. Valid reports weigh on
+  // the post's search points (−60 each, see _search_rank in sql/search.sql).
+  function postReportDlg(post) {
+    const myId = state.me?.member?.member_id || "";
+    if (!myId) {
+      toast(t("prof.signFirst"));
+      return;
+    }
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML = `<section class="glass modal-card">
+      <span class="eyebrow">${kindLabel(post.kind)}</span>
+      <h2>${t("prof.repTitle")}</h2>
+      <p class="muted">${escapeHtml(post.title || post.post_id || "")}</p>
+      <div class="form-row">
+        <select id="pr-subj">
+          <option value="spam">${t("prof.repSpam")}</option>
+          <option value="abuse">${t("prof.repAbuse")}</option>
+          <option value="misleading">${t("prof.repMislead")}</option>
+          <option value="other" selected>${t("prof.repOther")}</option>
+        </select>
+      </div>
+      <div class="form-row" style="margin-top:8px">
+        <textarea id="pr-note" rows="3" maxlength="500" placeholder="${t("prof.repNote")}"></textarea>
+      </div>
+      <div class="prof-actions" style="margin-top:12px">
+        <button class="btn btn-sm btn-primary" id="pr-go" type="button">${t("common.send")}</button>
+        <button class="btn btn-sm btn-ghost" id="pr-x" type="button">${t("prof.cancel")}</button>
+      </div>
+    </section>`;
+    document.body.appendChild(ov);
+    ov.addEventListener("click", async (e) => {
+      if (e.target === ov || e.target.closest("#pr-x")) return ov.remove();
+      const go = e.target.closest("#pr-go");
+      if (!go) return;
+      go.disabled = true;
+      const res = await supabaseRequest("/rest/v1/post_reports", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          post_id: post.post_id,
+          owner_id: post.owner_id || "",
+          owner_username: post.owner_username || "",
+          reporter_id: myId,
+          reporter_username: state.me.member.username || "",
+          subject: ov.querySelector("#pr-subj")?.value || "other",
+          note: (ov.querySelector("#pr-note")?.value || "").trim(),
+        }),
+      });
+      if (res.ok || res.status === 409) {
+        ov.remove();
+        toast(t(res.ok ? "prof.repSent" : "prof.repDup"));
+        if (res.ok && post.owner_id && post.owner_id !== myId) {
+          // The author hears about the report once, like any other post event.
+          notifyOnce(post.owner_id, {
+            kind: "report",
+            title: t("prof.repTitle"),
+            body: t("prof.repNotif", {
+              actor: `@${state.me.member.username}`,
+              post: post.title || post.post_id,
+            }),
+            href: postDest(post, state.me.member.username),
+            from_id: myId,
+            from_username: state.me.member.username,
+          });
+        }
+      } else {
+        go.disabled = false;
+        toast(t("prof.repFail"));
       }
     });
   }
@@ -3940,6 +4066,8 @@
       <div class="prof-actions">
         <button class="btn btn-sm ${mine === "up" ? "btn-vote-on" : "btn-ghost"}" data-vote="up" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.recommendBtn", { n: up })}</button>
         <button class="btn btn-sm ${mine === "down" ? "btn-vote-on" : "btn-ghost"}" data-vote="down" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.dont", { n: down })}</button>
+        ${state.me ? `<button class="btn btn-sm btn-ghost" data-focus-cmt="${escapeHtml(p.post_id)}" type="button" title="${t("prof.writeCmt")}">💬 ${t("prof.comment")}</button>` : ""}
+        ${state.me && p.owner_id !== state.me.member?.member_id ? `<button class="btn btn-sm btn-ghost" data-report-post="${escapeHtml(p.post_id)}" type="button" title="${t("prof.reportPost")}">⚑ ${t("prof.reportPost")}</button>` : ""}
       </div>
       <div class="stack" style="margin-top:10px">
         ${(comments || []).map((c) => `<p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}</p>`).join("")}
