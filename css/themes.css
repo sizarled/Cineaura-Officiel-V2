@@ -852,3 +852,87 @@ html[data-style="macos"] .hero-content{ padding-inline:20px; }
 /* ---------- Site name: "CineAura WEB" in every style ----------
    The only word that follows CineAura in the logo is WEB (old " YouTube" / " tv+" suffixes removed). */
 .logo-word::after{ content:" WEB"; font-weight:400; opacity:.9; letter-spacing:0; }
+
+/* ==========================================================
+   DEFAULT THEME — PERFORMANCE PASS (task: keep the Cineaura
+   glass attractive but light. Only data-style="default" pages
+   are touched; the preset styles above are unchanged.)
+
+   1. Blur is expensive: 22px backdrop blur + 80px blurred,
+      animating orbs repaint whole regions on every scroll frame.
+   2. Everything here keeps the translucent look with much
+      cheaper effects: a hairline blur (6px) on the sticky
+      chrome only, cheap transforms for the three orbs (their
+      smooth edge now comes from a radial-gradient, no filter),
+      and calmer static radial pools on the background.
+   3. Cheap enough that phones and long pages stay fluid.
+   ========================================================== */
+
+/* --- 1. background: static pool gradients instead of SVG noise --- */
+html[data-style="default"] .grain { display: none; }
+html[data-style="default"] .bg-orbs {
+  background:
+    radial-gradient(1100px 620px at 8% -8%, rgba(1, 180, 228, 0.13), transparent 58%),
+    radial-gradient(900px 520px at 100% 0%, rgba(144, 206, 161, 0.09), transparent 52%),
+    radial-gradient(700px 480px at 70% 100%, rgba(1, 180, 228, 0.06), transparent 55%),
+    var(--orbs-base);
+}
+
+/* --- 2. floating orbs: same drift, but NO blur filter --- */
+html[data-style="default"] .orb {
+  filter: none;
+  opacity: 0.55;
+  animation-duration: 45s;
+  animation-timing-function: linear;
+  will-change: transform;
+  border-radius: 50%;
+  /* the radial gradient fakes the soft edge the blur used to give;
+     the color stop matches the previous blur halo */
+}
+html[data-style="default"] .orb-cyan,
+html[data-style="default"] .orb-mid {
+  background: radial-gradient(closest-side, rgba(1, 180, 228, 0.5), rgba(1, 180, 228, 0) 72%);
+}
+html[data-style="default"] .orb-green {
+  background: radial-gradient(closest-side, rgba(144, 206, 161, 0.45), rgba(144, 206, 161, 0) 72%);
+}
+
+/* --- 3. sticky chrome: keep glass, but a hairline blur --- */
+html[data-style="default"] .header.scrolled .header-inner {
+  backdrop-filter: blur(6px) saturate(135%);
+  -webkit-backdrop-filter: blur(6px) saturate(135%);
+}
+html[data-style="default"] .mobile-menu {
+  backdrop-filter: blur(6px) saturate(135%);
+  -webkit-backdrop-filter: blur(6px) saturate(135%);
+}
+
+/* --- 4. cards & page elements: NO constant glass repaint --- */
+html[data-style="default"] .glass,
+html[data-style="default"] .watch-panel,
+html[data-style="default"] .profile-card,
+html[data-style="default"] .card,
+html[data-style="default"] .help-toc,
+html[data-style="default"] .help-section-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* the translucent fills were tuned to sit on a blurred backdrop;
+   make them slightly denser so text contrast is unchanged */
+html[data-style="default"]:not([data-theme="day"]) {
+  --surface: rgba(12, 28, 45, 0.9);
+  --card-bg: rgba(14, 32, 51, 0.92);
+  --input-bg: rgba(10, 24, 40, 0.94);
+}
+html[data-style="default"][data-theme="day"] {
+  --surface: rgba(255, 255, 255, 0.9);
+  --card-bg: rgba(255, 255, 255, 0.88);
+  --input-bg: rgba(255, 255, 255, 0.95);
+}
+
+/* --- 5. cheaper ambience: the hero's saturate/contrast filter repaints
+       on every Ken Burns frame; the drop-shadows on small icons add a
+       painter to each card. The look survives without them. --- */
+html[data-style="default"] .hero-bg { filter: none; }
+html[data-style="default"] .hero-thumbs button.active::after,
+html[data-style="default"] .live-dot i { animation-duration: 60s; }
