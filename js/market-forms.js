@@ -22,7 +22,7 @@
 (() => {
   "use strict";
   const C = window.CineAura;
-  const { t, escapeHtml: esc } = C;
+  const { t, escapeHtml: esc, supabaseRequest: sbReq, restValue: restV } = C;
   const M = {};
 
   M.memberId = () => String(C.getSession()?.member_id || "");
@@ -2176,17 +2176,21 @@
   // Paints rv_up / rv_down / rv_mine onto the review items of the list, so
   // itemHtml can show the vote counters. Review rows the info is known for are
   // kept (no refetch); call M.enrichReviewVotes after every items reload.
+  // Numeric review id from either 5 or "rv5" (feed wrappers can carry a prefix).
+  const rvId = (it) => Number(String(it?.id ?? "").replace(/\D/g, "")) || null;
+
   M.enrichReviewVotes = async (items) => {
     const miss = (items || []).filter((x) => x && x.type === "review" && x.id && x.rv_up == null);
     if (!miss.length) return;
     miss.forEach((x) => { x.rv_up = 0; x.rv_down = 0; x.rv_mine = ""; }); // safe defaults even when the table is missing
     try {
-      const ids = miss.map((x) => Number(x.id)).filter(Boolean);
-      const res = await supabaseRequest(`/rest/v1/market_review_votes?review_id=in.(${ids.join(",")})&select=review_id,member_id,vote`);
+      const ids = miss.map(rvId).filter(Boolean);
+      if (!ids.length) return;
+      const res = await sbReq(`/rest/v1/market_review_votes?review_id=in.(${ids.join(",")})&select=review_id,member_id,vote`);
       if (!res.ok || !Array.isArray(res.data)) return;
       const me = M.memberId();
       miss.forEach((it) => {
-        const vs = res.data.filter((v) => Number(v.review_id) === Number(it.id));
+        const vs = res.data.filter((v) => Number(v.review_id) === rvId(it));
         it.rv_up = vs.filter((v) => v.vote === "up").length;
         it.rv_down = vs.filter((v) => v.vote === "down").length;
         it.rv_mine = vs.find((v) => String(v.member_id) === me)?.vote || "";
@@ -2212,19 +2216,21 @@
       if (act === "rv-up" || act === "rv-down") {
         if (item.mine) return C.toast(t("mkt.rv.ownerCant"));
         const me = M.memberId();
+        const id = rvId(item);
+        if (!id) return C.toast(t("mkt.rv.voteFail"));
         const choice = act === "rv-up" ? "up" : "down";
         b.disabled = true;
         try {
-          await supabaseRequest(
-            `/rest/v1/market_review_votes?review_id=eq.${restValue(item.id)}&member_id=eq.${restValue(me)}`,
+          await sbReq(
+            `/rest/v1/market_review_votes?review_id=eq.${restV(id)}&member_id=eq.${restV(me)}`,
             { method: "DELETE" }
           );
-          const ins = await supabaseRequest("/rest/v1/market_review_votes", {
+          const ins = await sbReq("/rest/v1/market_review_votes", {
             method: "POST",
-            body: JSON.stringify({ review_id: Number(item.id), member_id: me, username: M.username(), vote: choice }),
+            body: JSON.stringify({ review_id: id, member_id: me, username: M.username(), vote: choice }),
           });
           if (!ins.ok) throw ins;
-          const again = await supabaseRequest(`/rest/v1/market_review_votes?review_id=eq.${restValue(item.id)}&select=member_id,vote`);
+          const again = await sbReq(`/rest/v1/market_review_votes?review_id=eq.${restV(id)}&select=member_id,vote`);
           const vs = Array.isArray(again.data) ? again.data : [];
           item.rv_up = vs.filter((v) => v.vote === "up").length;
           item.rv_down = vs.filter((v) => v.vote === "down").length;
