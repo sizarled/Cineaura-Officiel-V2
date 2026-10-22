@@ -5381,6 +5381,13 @@
     "help.viewHelp": "View Help",
     "help.backPanel": "Back to Panel",
     "help.editorTitle": "Edit Article — CineAura",
+    "help.coverImage": "Cover image",
+    "help.coverHint": "Shown at the top of the article and on its cards.",
+    "help.uploading": "Uploading image…",
+    "help.uploadFail": "Image upload is not set up — image kept inside the article.",
+    "help.autosaved": "Autosaved",
+    "help.startWriting": "Start writing — ابدأ الكتابة هنا، ثم استخدم شريط الأدوات أو زر «+ إضافة كتلة».",
+    "help.canvasPlaceholder": "Type / choose a block, or start writing… — اكتب مقالك هنا",
     "panel.nav.help": "Help Center",
 
     // ── Social platforms (js/panel-platforms.js, sql/platforms.sql) ──
