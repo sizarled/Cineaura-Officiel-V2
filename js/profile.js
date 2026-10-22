@@ -227,15 +227,15 @@
 
   function profileHref(username) {
     if (typeof sharedProfileHref === "function") return sharedProfileHref(username);
-    return `./Profile.html?@${encodeURIComponent(username)}`;
+    return `./profile.html?@${encodeURIComponent(username)}`;
   }
 
   // Every post gets its own link, so it can be shared and opened on its own:
-  // ./Profile.html?post=P123456789
+  // ./profile.html?post=P123456789
   function postHref(post) {
     const id = typeof post === "string" ? post : post?.post_id || "";
     if (typeof sharedPostHref === "function") return sharedPostHref(id);
-    return `./Profile.html?post=${encodeURIComponent(id)}`;
+    return `./profile.html?post=${encodeURIComponent(id)}`;
   }
 
   // The caption the networks receive when a post is shared.
@@ -264,7 +264,7 @@
     return getSession()?.username || "";
   }
 
-  // The post a shared link points at ("./Profile.html?post=P123456789").
+  // The post a shared link points at ("./profile.html?post=P123456789").
   function sharedPostId() {
     return new URLSearchParams(location.search).get("post") || "";
   }
@@ -342,7 +342,7 @@
   // Where a post lives: its playlist page, otherwise the author's profile.
   function postDest(p, fallbackUsername) {
     if (!p) return profileHref(fallbackUsername);
-    if (p.playlist_id) return `./Playlist.html?ID=${encodeURIComponent(p.playlist_id)}`;
+    if (p.playlist_id) return `./playlist.html?ID=${encodeURIComponent(p.playlist_id)}`;
     return profileHref(p.owner_username || fallbackUsername);
   }
 
@@ -1083,7 +1083,7 @@
   // A tab of every profile, for every visitor: the videos of the member the visitor
   // may find (content_search with p_owner, newest / most watched / most liked / most
   // shared) and the member's playlists (content_playlists_of), each one opening its
-  // videos (content_playlist_get). Profile.html?@name#videos, #playlists and
+  // videos (content_playlist_get). profile.html?@name#videos, #playlists and
   // #playlist/CPL123456789 open it straight away; the address bar follows the tab.
   const PC_PAGE = 24;
   const PC_SORTS = [
@@ -1485,7 +1485,7 @@
         })
         .join("");
       return `${video}<p>${escapeHtml(p.body || "")}</p>
-        ${p.playlist_id ? `<p><a class="btn btn-sm btn-ghost" href="./Playlist.html?ID=${encodeURIComponent(p.playlist_id)}">${t("prof.openPl")}</a></p>` : ""}
+        ${p.playlist_id ? `<p><a class="btn btn-sm btn-ghost" href="./playlist.html?ID=${encodeURIComponent(p.playlist_id)}">${t("prof.openPl")}</a></p>` : ""}
         ${media ? `<div class="post-media">${media}</div>` : ""}`;
     }
     const display = Rich.parseDisplay(p.display);
@@ -1775,7 +1775,7 @@
         <div class="follow-tabs pm-tabs" role="tablist" aria-label="${escapeHtml(t("prof.mk.tabsLabel"))}">
           ${MK_TABS.map((k) => `<button type="button" role="tab" class="follow-tab${mk.tab === k ? " active" : ""}" data-mk-tab="${k}" aria-selected="${mk.tab === k}">${escapeHtml(t(`prof.mk.${k}`))}<span class="follow-count" data-mk-count="${k}" hidden></span></button>`).join("")}
         </div>
-        ${state.isOwner ? `<p class="muted pm-hint">${escapeHtml(t("prof.mk.hintMine"))} <a href="./Market.html">${escapeHtml(t("prof.mk.goMarket"))}</a></p>` : ""}
+        ${state.isOwner ? `<p class="muted pm-hint">${escapeHtml(t("prof.mk.hintMine"))} <a href="./market.html">${escapeHtml(t("prof.mk.goMarket"))}</a></p>` : ""}
         <div class="pm-list" id="pm-list" aria-live="polite"></div>
         <div class="pm-more"><button class="btn btn-sm btn-ghost" type="button" data-mk-more hidden>${escapeHtml(t("vid.showMore"))}</button></div>
       </section>`;
@@ -1874,12 +1874,12 @@
     if (state.isOwner) {
       box.innerHTML = `
         <div class="pm-store-body"><b>${escapeHtml(t("prof.mk.noStoreMine"))}</b><small class="muted">${escapeHtml(t("prof.mk.noStoreMineHint"))}</small></div>
-        <a class="btn btn-sm btn-primary pm-visit" href="./Market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>`;
+        <a class="btn btn-sm btn-primary pm-visit" href="./market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>`;
       return;
     }
     const name = `<bdi>@${escapeHtml(state.hostMember?.username || "")}</bdi>`;
     box.innerHTML = `<div class="pm-store-body"><b>${t("prof.mk.noStore", { name })}</b></div>
-      <a class="btn btn-sm btn-ghost pm-visit" href="./Market.html">${M.ICON.bag}<span>${escapeHtml(t("prof.mk.goMarket"))}</span></a>`;
+      <a class="btn btn-sm btn-ghost pm-visit" href="./market.html">${M.ICON.bag}<span>${escapeHtml(t("prof.mk.goMarket"))}</span></a>`;
   }
 
   async function drawUpdates() {
@@ -2117,7 +2117,7 @@
       </div>`;
     };
     // A new video of somebody I follow: the same lead line as the other entries, then
-    // its card (Content.html?idcontent=…).
+    // its card (content.html?idcontent=…).
     const videoHtml = (v) => {
       const owner = String(v.owner || "").replace(/^@/, "");
       const actor = `<a href="${profileHref(owner)}"><strong><bdi>@${escapeHtml(owner)}</bdi></strong></a>`;
@@ -2423,7 +2423,7 @@
           ? rows
               .map(({ post, people: hits }) => {
                 const dest = post.playlist_id
-                  ? `./Playlist.html?ID=${encodeURIComponent(post.playlist_id)}`
+                  ? `./playlist.html?ID=${encodeURIComponent(post.playlist_id)}`
                   : profileHref(post.owner_username);
                 const names = hits
                   .map((w) => `<a class="chip" href="${personHref(w.id)}">${escapeHtml(w.name || `#${w.id}`)}</a>`)
@@ -2976,7 +2976,7 @@
         post: `«${title}»`,
       }),
       href: playlistId
-        ? `./Playlist.html?ID=${encodeURIComponent(playlistId)}`
+        ? `./playlist.html?ID=${encodeURIComponent(playlistId)}`
         : profileHref(state.me.member.username),
       visibility: vis.visibility,
     });
@@ -4453,7 +4453,7 @@
     // balance/held/capital come with the new sql/market.sql; before it only the card shows
     const hasBal = s && s.balance !== undefined && s.balance !== null;
     const chip = (group, key, n) =>
-      `<a class="prof-mkt-chip${n ? " has" : ""}" href="./Market.html#${group}/${key}"><b>${M.fmt(n)}</b><span>${escapeHtml(t(`mkt.tab.${group}.${key}`))}</span></a>`;
+      `<a class="prof-mkt-chip${n ? " has" : ""}" href="./market.html#${group}/${key}"><b>${M.fmt(n)}</b><span>${escapeHtml(t(`mkt.tab.${group}.${key}`))}</span></a>`;
     const logo = s?.logo
       ? `<img class="prof-mkt-logo" src="${escapeHtml(s.logo)}" alt="" loading="lazy" />`
       : `<span class="prof-mkt-logo prof-mkt-logo-ph">${M.ICON.store}</span>`;
@@ -4480,13 +4480,13 @@
             <span class="prof-mkt-logo prof-mkt-logo-ph">${M.ICON.store}</span>
             <div class="prof-mkt-nostore">
               <p class="muted">${escapeHtml(t("mkt.s.intro"))}</p>
-              <a class="btn btn-sm btn-primary" href="./Market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>
+              <a class="btn btn-sm btn-primary" href="./market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>
             </div>
           `}
           <div class="prof-mkt-acts">
             ${s ? `<a class="btn btn-sm btn-ghost" href="${escapeHtml(M.storeHref(s.id))}"><span>${escapeHtml(t("mkt.yourStore"))}</span></a>` : ""}
-            <a class="btn btn-sm btn-ghost" href="./Market.html#settings"><span>${escapeHtml(t("mkt.nav.settings"))}</span></a>
-            <a class="btn btn-sm btn-ghost" href="./Market.html"><span>${escapeHtml(t("mkt.eyebrow"))}</span></a>
+            <a class="btn btn-sm btn-ghost" href="./market.html#settings"><span>${escapeHtml(t("mkt.nav.settings"))}</span></a>
+            <a class="btn btn-sm btn-ghost" href="./market.html"><span>${escapeHtml(t("mkt.eyebrow"))}</span></a>
           </div>
         </div>
         <div class="prof-mkt-cols">
@@ -4678,15 +4678,15 @@
     if (state.isOwner && !host.profile) state.host = state.me.profile || ownSeed();
     await loadRelations();
     await loadHostStatus();
-    // Profile.html#content (and #content/manage, #content/stats) opens "Your content"
+    // profile.html#content (and #content/manage, #content/stats) opens "Your content"
     if (state.me && /^#content(\/|$)/.test(location.hash)) state.section = "content";
-    // Profile.html?@name#videos, #playlists, #playlist/CPL… open the Content tab
+    // profile.html?@name#videos, #playlists, #playlist/CPL… open the Content tab
     const pcWant = pcFromHash();
     if (pcWant && !postId) {
       state.homeTab = "content";
       Object.assign(pcState(), pcWant);
     }
-    // Profile.html?@name#market (#market/recs | lists | reviews) opens the Market tab
+    // profile.html?@name#market (#market/recs | lists | reviews) opens the Market tab
     const mkWant = mkFromHash();
     if (mkWant && !postId) {
       state.homeTab = "market";

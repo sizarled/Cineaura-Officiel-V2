@@ -160,7 +160,7 @@
 
   async function drawCreate(pane) {
     const d = state.draft || (state.draft = blankDraft());
-    /* Landing from Content.html?yt=… — its "Import this video" button left the
+    /* Landing from content.html?yt=… — its "Import this video" button left the
        link for the form: the import offer stands by it, one click fills the
        title and the description, the member may also write everything by hand
        (the video itself still passes content_create's one-link-once ban). */
@@ -208,7 +208,7 @@
               <input id="vc-thumb" type="url" inputmode="url" maxlength="1000" dir="ltr" placeholder="https://…/picture.jpg" value="${esc(d.thumb)}" />
               <p class="vs-hint">${esc(t("vid.f.thumbHint"))}</p>
             </div>
-            <!-- A vertical video is shown centered on Content.html with the up/down
+            <!-- A vertical video is shown centered on content.html with the up/down
                  flip buttons; a Shorts or TikTok link checks this automatically. -->
             <label class="lang-chip" for="vc-portrait"><input type="checkbox" id="vc-portrait" ${d.portrait ? "checked" : ""} /> ${esc(t("vid.f.portrait"))}</label>
             <p class="vs-hint">${esc(t("vid.f.portraitHint"))}</p>

@@ -3625,7 +3625,7 @@
  "Save the bar": "Balk opslaan",
  "The bar was saved.": "De balk is opgeslagen.",
  "Write a text of 3 to 280 characters to show the bar.": "Schrijf een tekst van 3 tot 280 tekens om de balk te tonen.",
- "The link must start with https:// or be a page of the site (./Market.html).": "De link moet met https:// beginnen of een pagina van de site zijn (./Market.html).",
+ "The link must start with https:// or be a page of the site (./market.html).": "De link moet met https:// beginnen of een pagina van de site zijn (./market.html).",
  "The button text is too long (40 characters at most).": "De knoptekst is te lang (maximaal 40 tekens).",
  "Check the dates: the end must come after the start.": "Controleer de datums: het einde moet na het begin liggen.",
  "Send a message to the members": "Een bericht naar de leden sturen",
@@ -4538,7 +4538,7 @@
     "vid.shorts.end": "Dat was de laatste verticale video",
     "vid.shorts.restart": "Opnieuw beginnen",
     "vid.f.portrait": "Een verticale video (portret)",
-    "vid.f.portraitHint": "Wordt automatisch aangevinkt bij een YouTube Shorts- of TikTok-link. Verticale video's verschijnen op Content.html gecentreerd met de omhoog/omlaag-knoppen."
+    "vid.f.portraitHint": "Wordt automatisch aangevinkt bij een YouTube Shorts- of TikTok-link. Verticale video's verschijnen op content.html gecentreerd met de omhoog/omlaag-knoppen."
 ,
  "act.firstFreeNote": "De eerste activering is altijd Free. Silver, Gold en Diamond openen direct daarna — als upgrades die je met je punten betaalt.",
  "act.upgrade": "Upgrade",

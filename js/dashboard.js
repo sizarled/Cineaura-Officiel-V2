@@ -278,7 +278,7 @@
       ...sections.map((s) =>
         `<button type="button" data-section="${s}" class="${state.section===s?"active":""}">${C.navIcon(s)}<span>${t("dash.nav."+s)}</span></button>`
       ),
-      ...(state.panelVisible ? [`<a href="./Panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`] : []),
+      ...(state.panelVisible ? [`<a href="./panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`] : []),
     ].join("\n            ");
   }
 
@@ -298,7 +298,7 @@
     $("#dash-root").innerHTML = `
       <div class="dash-layout">
         <aside class="glass dash-side">
-          <a class="side-user" href="./Profile.html?@${encodeURIComponent(m.username)}">
+          <a class="side-user" href="./profile.html?@${encodeURIComponent(m.username)}">
             ${avatarTag()}
             <strong>@${escapeHtml(m.username)}</strong>
             <span>${escapeHtml(tr(p.membership_type || m.membership_type || "Free"))}</span>
@@ -534,9 +534,9 @@
             <h2 id="ov-panel-h">${t("nav.panel")}</h2>
             <p class="muted">${t("pa.ov.lead") || t("panel.ov.lead") || "Staff moderation, members and reports"}</p>
           </div>
-          <a class="btn btn-sm btn-primary" href="./Panel.html">${t("nav.panel")} →</a>
+          <a class="btn btn-sm btn-primary" href="./panel.html">${t("nav.panel")} →</a>
         </div>
-        <div class="ov-panel-body" id="ov-panel-body"><p class="muted">${t("pa.ov.lead") || "Manage members, reports, market and more"}</p><p style="margin-top:8px"><a class="btn btn-sm btn-ghost" href="./Panel.html">${t("common.open")} ${t("nav.panel")}</a></p></div>
+        <div class="ov-panel-body" id="ov-panel-body"><p class="muted">${t("pa.ov.lead") || "Manage members, reports, market and more"}</p><p style="margin-top:8px"><a class="btn btn-sm btn-ghost" href="./panel.html">${t("common.open")} ${t("nav.panel")}</a></p></div>
       </section>`;
 
     const memberId = m.member_id;
@@ -647,7 +647,7 @@
           <div class="ipx-badges">${iptvBadgesHtml(p, tm, false)}</div>
           ${iptvValidityHtml(tm, p)}
           <div class="ov-iptv-actions">
-            <a class="btn btn-sm btn-primary" href="./Listchannels.html?package=${encodeURIComponent(p.name)}">${t("dash.ov.watch")}</a>
+            <a class="btn btn-sm btn-primary" href="./listchannels.html?package=${encodeURIComponent(p.name)}">${t("dash.ov.watch")}</a>
             <button class="btn btn-sm btn-ghost" type="button" data-section="iptv">${t("dash.ov.iptvDetails")}</button>
           </div>
         </article>`;
@@ -1009,7 +1009,7 @@
     $("#pl-cards").onclick = async (e) => {
       const share = e.target.closest("[data-share-pl]");
       if (share) {
-        const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}Playlist.html?ID=${share.dataset.sharePl}`;
+        const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}playlist.html?ID=${share.dataset.sharePl}`;
         try { await navigator.clipboard.writeText(url); toast(t("dash.shareCopied")); }
         catch { toast(url); }
         return;
@@ -1136,7 +1136,7 @@
       viewOnePlaylist(main, id);
     };
     $("#pl-share").onclick = async () => {
-      const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}Playlist.html?ID=${id}`;
+      const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}playlist.html?ID=${id}`;
       try { await navigator.clipboard.writeText(url); toast(t("dash.shareCopied")); }
       catch { toast(url); }
     };
@@ -2640,7 +2640,7 @@
             <div class="ipx-rows">${C.iptvDetailRows(p)}</div>
             <footer class="ipx-actions">
               ${C.iptvActionsHtml(p)}
-              <a class="btn btn-sm btn-primary" href="./Listchannels.html?package=${encodeURIComponent(p.name)}">${t("common.channels")}</a>
+              <a class="btn btn-sm btn-primary" href="./listchannels.html?package=${encodeURIComponent(p.name)}">${t("common.channels")}</a>
             </footer>
           </article>`;
     main.innerHTML = `
@@ -2703,7 +2703,7 @@
           <p>${escapeHtml(t("ipl.dashLead"))}</p>
           <div class="ipl-dash-acts">
             ${got.ok || !got.setup ? `<button class="btn btn-sm btn-primary" type="button" data-ipl-new>${plus}<span>${escapeHtml(t("ipl.publish"))}</span></button>` : ""}
-            <a class="btn btn-sm btn-ghost" href="./IPTV.html">${escapeHtml(t("ipl.pageLink"))}</a>
+            <a class="btn btn-sm btn-ghost" href="./iptv.html">${escapeHtml(t("ipl.pageLink"))}</a>
           </div>
         </div>
         ${body}`;
@@ -3201,7 +3201,7 @@
           const cap = mode ? (modeName === "lottery" ? mode.winners_needed : mode.quantity) : p.winners_needed;
           const people = cap == null || cap === "" ? `${winCount} ${t("prize.winners")}` : `${winCount}/${cap} ${t("prize.winners")}`;
           const params = new URLSearchParams({ GroupPrize: String(p.group_id ?? 0), Prize: String(p.id), mode: modeName });
-          const href = `./Prize.html?${params.toString()}`;
+          const href = `./prize.html?${params.toString()}`;
           const summary = [groupName(p), t("prize.points", { n: cost }), people, detail].filter(Boolean).join(" · ");
           const badge = row.claimReady ? `<span class="dash-prize-badge ready">${escapeHtml(t("dash.readyToClaim"))}</span>` : mode ? `<span class="dash-prize-badge mode-${escapeHtml(modeName)}">${escapeHtml(t(`prize.mode.${modeName}`))}</span>` : "";
           return `<a class="dash-prize-card glass" href="${escapeHtml(href)}">
@@ -3246,7 +3246,7 @@
     const groupCards = Object.values(groupsByName).length
       ? `<div class="dash-prize-grid">${Object.values(groupsByName).map((group) => {
           const image = /^https?:\/\//i.test(String(group.thumb || "")) ? group.thumb : initialsAvatar(group.name);
-          const href = group.id == null ? "./Prize.html" : `./Prize.html?GroupPrize=${encodeURIComponent(group.id)}`;
+          const href = group.id == null ? "./prize.html" : `./prize.html?GroupPrize=${encodeURIComponent(group.id)}`;
           return `<a class="dash-prize-group-card glass" href="${escapeHtml(href)}"><img src="${escapeHtml(image)}" alt="" loading="lazy" /><span><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(t("dash.nPrizes", { n: group.count }))}</small></span></a>`;
         }).join("")}</div>`
       : `<p class="empty">${escapeHtml(t("dash.noGroups"))}</p>`;
@@ -3263,7 +3263,7 @@
           const fallback = initialsAvatar(title || "CineAura");
           const modeName = R.lc(c.mode);
           const query = p ? new URLSearchParams({ GroupPrize: String(p.group_id ?? 0), Prize: String(p.id), ...(R.MODES.includes(modeName) ? { mode: modeName } : {}) }) : null;
-          const href = query ? `./Prize.html?${query.toString()}` : "";
+          const href = query ? `./prize.html?${query.toString()}` : "";
           const meta = [R.MODES.includes(modeName) ? t(`prize.mode.${modeName}`) : "", t("pza.paid", { n: Number(c.points_paid || 0) })].filter(Boolean).join(" · ");
           const thumb = `<img src="${escapeHtml(p ? imageOf(p) : fallback)}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fallback)}'" />`;
           return `<article class="pzc-item is-${st}" data-claim="${escapeHtml(c.id)}">
@@ -3406,8 +3406,8 @@
   //   Earn points   a points code — the serial of a points package (sql/point_codes.sql) —
   //                 adds the points stored with it, once
   //   Buy points    Patreon (the link is set in Panel > Settings)
-  //   Earn prizes   Prize.html, where points enter the prizes
-  //   Shop now      Market.html, where points buy the members' products
+  //   Earn prizes   prize.html, where points enter the prizes
+  //   Shop now      market.html, where points buy the members' products
   const PT_ICONS = {
     earn: '<path d="M3.5 8.5V6A1.5 1.5 0 0 1 5 4.5h14A1.5 1.5 0 0 1 20.5 6v2.5a2.5 2.5 0 0 0 0 5V16a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 16v-2.5a2.5 2.5 0 0 0 0-5z"/><path d="M14 4.5v13" stroke-dasharray="2 2"/><path d="M8 9.5l1 2 2 .3-1.5 1.4.4 2L8 14.2l-1.9 1 .4-2L5 11.8l2-.3z"/>',
     buy: '<circle cx="14.5" cy="9.5" r="5.5"/><path d="M4.5 4v16"/>',
@@ -3425,7 +3425,7 @@
       // taken by the prize team when a claim was rejected (sql/prize_claims.sql)
       penalty: t("points.mode.penalty"),
       reset: t("points.mode.reset"),
-      // Market.html (sql/market.sql): a purchase, and the points given back (negative amount)
+      // market.html (sql/market.sql): a purchase, and the points given back (negative amount)
       market: t("mkt.spendMode"),
       market_refund: t("mkt.refundMode"),
       // Dashboard > Withdraw (sql/withdrawals.sql): the points of a request, and the points back
@@ -3489,8 +3489,8 @@
         <div class="pts-actions">
           <button class="btn btn-lg btn-primary pts-act" id="pt-earn" type="button">${ptIcon("earn")}<span><b>${t("points.earnBtn")}</b><small>${t("points.earnSub")}</small></span></button>
           <a class="btn btn-lg btn-ghost pts-act" id="pt-buy" href="${escapeHtml(C.PATREON_DEFAULT)}" target="_blank" rel="noopener noreferrer">${ptIcon("buy")}<span><b>${t("points.buyBtn")}</b><small>${t("points.buySub")}</small></span></a>
-          <a class="btn btn-lg btn-ghost pts-act" id="pt-prizes" href="./Prize.html">${ptIcon("prizes")}<span><b>${t("points.prizesBtn")}</b><small>${t("points.prizesSub")}</small></span></a>
-          <a class="btn btn-lg btn-ghost pts-act" id="pt-shop" href="./Market.html">${ptIcon("shop")}<span><b>${t("points.shopBtn")}</b><small>${t("points.shopSub")}</small></span></a>
+          <a class="btn btn-lg btn-ghost pts-act" id="pt-prizes" href="./prize.html">${ptIcon("prizes")}<span><b>${t("points.prizesBtn")}</b><small>${t("points.prizesSub")}</small></span></a>
+          <a class="btn btn-lg btn-ghost pts-act" id="pt-shop" href="./market.html">${ptIcon("shop")}<span><b>${t("points.shopBtn")}</b><small>${t("points.shopSub")}</small></span></a>
         </div>
       </div>
       <div id="pt-body"><p class="muted">${t("points.loading")}</p></div>
@@ -3724,7 +3724,7 @@
           ${r.level_up ? `<p class="pts-ok-level">${t("points.newLevel", { level: escapeHtml(r.level_name || ""), n: Number(r.multiplier || 1) })}</p>` : ""}
           <div class="pts-ok-actions">
             <button class="btn btn-lg btn-primary" type="button" data-close>${t("points.done")}</button>
-            <a class="btn btn-lg btn-ghost" href="./Prize.html">${t("points.prizesBtn")}</a>
+            <a class="btn btn-lg btn-ghost" href="./prize.html">${t("points.prizesBtn")}</a>
           </div>
         </div>`;
       ov.querySelector(".pts-ok [data-close]").focus();
@@ -4135,7 +4135,7 @@
     const nav = $("#dash-root .side-nav");
     if (nav) {
       nav.querySelector("[data-panel-link]")?.remove();
-      if (visible) nav.insertAdjacentHTML("beforeend", `<a href="./Panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`);
+      if (visible) nav.insertAdjacentHTML("beforeend", `<a href="./panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`);
     }
     const ovPanel = document.querySelector("#ov-panel-block");
     if (ovPanel) ovPanel.hidden = !visible;

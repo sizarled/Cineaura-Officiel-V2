@@ -2940,7 +2940,7 @@ Not showing now (see its dates) = Wird gerade nicht angezeigt (siehe Daten)
 Save the bar = Leiste speichern
 The bar was saved. = Die Leiste wurde gespeichert.
 Write a text of 3 to 280 characters to show the bar. = Schreibe einen Text mit 3 bis 280 Zeichen, um die Leiste anzuzeigen.
-The link must start with https:// or be a page of the site (./Market.html). = Der Link muss mit https:// beginnen oder eine Seite der Website sein (./Market.html).
+The link must start with https:// or be a page of the site (./market.html). = Der Link muss mit https:// beginnen oder eine Seite der Website sein (./market.html).
 The button text is too long (40 characters at most). = Der Text der Schaltfläche ist zu lang (höchstens 40 Zeichen).
 Check the dates: the end must come after the start. = Prüfe die Daten: Das Ende muss nach dem Anfang liegen.
 Send a message to the members = Eine Nachricht an die Mitglieder senden
@@ -3516,7 +3516,7 @@ Reach LV1 (10 points earned) to open your store and sell. = Erreiche LV1 (10 ver
 {pct}% of the price ({rate}), paid by the seller once the buyer has received the order and the return period is over. Not for your own purchases. = {pct} % des Preises ({rate}), vom Verkäufer gezahlt, sobald der Käufer die Bestellung erhalten hat und die Rückgabefrist vorbei ist. Nicht für deine eigenen Käufe.
 
 
-# ── نظام البحث — Search.html (js/search.js) ─────────────────────
+# ── نظام البحث — search.html (js/search.js) ─────────────────────
 Search — CineAura = Suche — CineAura
 Search videos, movies, series, channels, profiles, market and prizes = Videos, Filme, Serien, Kanäle, Profile, Markt und Preise durchsuchen
 Search movies = Filme durchsuchen

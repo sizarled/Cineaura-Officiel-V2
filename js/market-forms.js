@@ -1,4 +1,4 @@
-/* CineAura — Market.html, the shared pieces (sql/market.sql): calls, numbers, cards and the
+/* CineAura — market.html, the shared pieces (sql/market.sql): calls, numbers, cards and the
  * dialogs. js/market.js draws the page with them.
  *
  *   M.call(name, args)              a market function -> { ok, data } | { ok:false, setup | network | data }
@@ -249,7 +249,7 @@
   };
 
   // ---------------------------------------------------------------- the store balance
-  // Market.html > Store settings: the store's capital — the points placed in the store,
+  // market.html > Store settings: the store's capital — the points placed in the store,
   // separate from the member's points — plus the points of the orders on their way, and the
   // tier all of it gives. Added from the member's available points, back the same way.
   M.balanceCardHtml = (me) => {
@@ -321,12 +321,12 @@
     wd.addEventListener("click", () => run("market_store_withdraw"));
   };
 
-  M.productHref = (id, ref = "") => `./Market.html?Product=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
-  M.storeHref = (id) => `./Market.html?Store=${encodeURIComponent(id)}`;
-  M.categoryHref = (id) => `./Market.html?Categories=${encodeURIComponent(id)}`;
-  M.profileHref = (u) => `./Profile.html?@${encodeURIComponent(String(u || "").replace(/^@/, ""))}`;
+  M.productHref = (id, ref = "") => `./market.html?Product=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
+  M.storeHref = (id) => `./market.html?Store=${encodeURIComponent(id)}`;
+  M.categoryHref = (id) => `./market.html?Categories=${encodeURIComponent(id)}`;
+  M.profileHref = (u) => `./profile.html?@${encodeURIComponent(String(u || "").replace(/^@/, ""))}`;
   M.absolute = (href) => new URL(href, location.href).href;
-  M.signinHref = (back) => `./login.html?next=${encodeURIComponent(back || `Market.html${location.search}${location.hash}`)}`;
+  M.signinHref = (back) => `./login.html?next=${encodeURIComponent(back || `market.html${location.search}${location.hash}`)}`;
 
   // The embedded video of a product: YouTube, Vimeo, Dailymotion become their player; any
   // other https link is embedded as it is.
@@ -1710,9 +1710,9 @@
     return res?.ok && res.data && res.data.ok === false && map[r] ? t(map[r]) : M.failText(res);
   };
 
-  M.listHref = (id, ref = "") => `./Market.html?List=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
+  M.listHref = (id, ref = "") => `./market.html?List=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
   // a member's page > Market (#market, #market/recs | lists | reviews)
-  M.profileMarketHref = (u, tab = "") => `${u ? M.profileHref(u) : "./Profile.html"}#market${tab ? `/${tab}` : ""}`;
+  M.profileMarketHref = (u, tab = "") => `${u ? M.profileHref(u) : "./profile.html"}#market${tab ? `/${tab}` : ""}`;
 
   const productLine = (p) => `
     <div class="mkt-dlg-product">

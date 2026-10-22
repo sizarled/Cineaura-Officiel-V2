@@ -970,7 +970,7 @@
       const gone = isStore ? !g.store : !g.product || pr.status === "deleted";
       const suspended = isStore ? Boolean(st.suspended) : pr.status === "suspended";
       const why = isStore ? st.suspended_reason : pr.suspended_reason;
-      const href = isStore ? `./Market.html?Store=${encodeURIComponent(g.id)}` : `./Market.html?Product=${encodeURIComponent(g.id)}`;
+      const href = isStore ? `./market.html?Store=${encodeURIComponent(g.id)}` : `./market.html?Product=${encodeURIComponent(g.id)}`;
       const counts = {};
       g.items.forEach((x) => { counts[x.reason] = (counts[x.reason] || 0) + 1; });
       const reasons = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -1763,7 +1763,7 @@
               kind: "message",
               title: t("prof.newMsg"),
               body: `${myStaffName()}: ${body.slice(0, 80)}`,
-              href: "./Profile.html?@" + encodeURIComponent(myStaffName()),
+              href: "./profile.html?@" + encodeURIComponent(myStaffName()),
               from_id: myId,
               from_username: myStaffName(),
             }),

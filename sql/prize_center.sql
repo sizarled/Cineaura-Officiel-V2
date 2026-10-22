@@ -4,7 +4,7 @@
 -- ============================================================
 
 -- 1) Categories. The numeric id is what appears in the URL:
---    ./Prize.html?GroupPrize=<prize_groups.id>&Prize=<prizes.id>
+--    ./prize.html?GroupPrize=<prize_groups.id>&Prize=<prizes.id>
 create table if not exists public.prize_groups (
   id bigint generated always as identity primary key,
   name text not null,

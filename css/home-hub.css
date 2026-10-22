@@ -139,7 +139,7 @@ html[dir="rtl"] .hh-arrow { display: inline-block; transform: scaleX(-1); }
 .hh-store-body b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hh-store-body small { color: var(--muted); font-size: 12.5px; }
 
-/* the tier of a store (as on Market.html) */
+/* the tier of a store (as on market.html) */
 .mkt-tier {
   display: inline-block;
   padding: 1px 7px;

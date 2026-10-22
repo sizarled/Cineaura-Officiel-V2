@@ -415,8 +415,8 @@
     }
   }
 
-  // IPTV "Explore": the free channels card opens Listchannels.html?free=1 (the
-  // playlist IPTV-Free.m3u), the premium one Listchannels.html?premium=1 (the
+  // IPTV "Explore": the free channels card opens listchannels.html?free=1 (the
+  // playlist IPTV-Free.m3u), the premium one listchannels.html?premium=1 (the
   // playlist IPTV-Premuim.m3u, unlocked there with an IPTV account or a watch code).
 
   /* "Get the app": one card per platform (CineAura.APP_PLATFORMS in common.js).

@@ -3626,7 +3626,7 @@
  "Save the bar": "Leiste speichern",
  "The bar was saved.": "Die Leiste wurde gespeichert.",
  "Write a text of 3 to 280 characters to show the bar.": "Schreibe einen Text mit 3 bis 280 Zeichen, um die Leiste anzuzeigen.",
- "The link must start with https:// or be a page of the site (./Market.html).": "Der Link muss mit https:// beginnen oder eine Seite der Website sein (./Market.html).",
+ "The link must start with https:// or be a page of the site (./market.html).": "Der Link muss mit https:// beginnen oder eine Seite der Website sein (./market.html).",
  "The button text is too long (40 characters at most).": "Der Text der Schaltfläche ist zu lang (höchstens 40 Zeichen).",
  "Check the dates: the end must come after the start.": "Prüfe die Daten: Das Ende muss nach dem Anfang liegen.",
  "Send a message to the members": "Eine Nachricht an die Mitglieder senden",
@@ -4539,7 +4539,7 @@
     "vid.shorts.end": "Das war das letzte vertikale Video",
     "vid.shorts.restart": "Von vorn beginnen",
     "vid.f.portrait": "Ein vertikales Video (Hochformat)",
-    "vid.f.portraitHint": "Wird bei einem YouTube-Shorts- oder TikTok-Link automatisch gesetzt. Vertikale Videos erscheinen auf Content.html zentriert mit den Auf-/Ab-Buttons."
+    "vid.f.portraitHint": "Wird bei einem YouTube-Shorts- oder TikTok-Link automatisch gesetzt. Vertikale Videos erscheinen auf content.html zentriert mit den Auf-/Ab-Buttons."
 ,
  "act.firstFreeNote": "Die erste Aktivierung ist immer Free. Silver, Gold und Diamond schalten sich direkt danach frei — als Upgrades, die du mit Punkten zahlst.",
  "act.upgrade": "Upgrade",

@@ -1084,7 +1084,7 @@
         .map((p) => {
           const c = votes[p.post_id] || { up: 0, down: 0 };
           const dest = p.playlist_id
-            ? `./Playlist.html?ID=${encodeURIComponent(p.playlist_id)}`
+            ? `./playlist.html?ID=${encodeURIComponent(p.playlist_id)}`
             : memberProfileHref(p.owner_username);
           return `<article class="review-wall-card" data-post="${escapeHtml(p.post_id)}">
             <div class="review-wall-head">
@@ -1155,7 +1155,7 @@
         .map(
           (pl) => `<article class="watch-playlist-row">
             <div>
-              <strong><a href="./Playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${escapeHtml(pl.name || pl.playlist_id)}</a></strong>
+              <strong><a href="./playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${escapeHtml(pl.name || pl.playlist_id)}</a></strong>
               <div class="muted">${escapeHtml(t("watch.by", { name: pl.owner_username || "member" }))} · ${escapeHtml(
                 Number(counts[pl.playlist_id] || 0) === 1
                   ? t("watch.itemsCountOne")
@@ -1165,7 +1165,7 @@
             </div>
             <div class="watch-playlist-side">
               ${visibilityChip(pl.visibility)}
-              <a class="btn btn-sm btn-ghost" href="./Playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${t("watch.openPlaylist")}</a>
+              <a class="btn btn-sm btn-ghost" href="./playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${t("watch.openPlaylist")}</a>
             </div>
           </article>`
         )
@@ -3343,7 +3343,7 @@
 
   function memberProfileHref(username) {
     const name = String(username || "").replace(/^@/, "").trim();
-    return name ? `./Profile.html?@${encodeURIComponent(name)}` : "./Profile.html";
+    return name ? `./profile.html?@${encodeURIComponent(name)}` : "./profile.html";
   }
 
   async function renderSources() {

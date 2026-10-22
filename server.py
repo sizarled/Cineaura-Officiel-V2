@@ -31,27 +31,27 @@ ROUTES = {
     "/": "index.html",
     "/watch": "watch.html",
     "/watch.html": "watch.html",
-    "/Cast.html": "Cast.html",
-    "/cast.html": "Cast.html",
-    "/cast": "Cast.html",
+    "/cast.html": "cast.html",
+    "/cast.html": "cast.html",
+    "/cast": "cast.html",
     "/register": "register.html",
     "/signup": "register.html",
     "/SignUp": "register.html",
     "/login": "login.html",
-    "/Rest": "Rest.html",
-    "/rest": "Rest.html",
-    "/Rest.html": "Rest.html",
+    "/Rest": "rest.html",
+    "/rest": "rest.html",
+    "/rest.html": "rest.html",
     "/dashboard": "dashboard.html",
-    "/Profile": "Profile.html",
-    "/Profile.html": "Profile.html",
-    "/Playlist.html": "Playlist.html",
+    "/Profile": "profile.html",
+    "/profile.html": "profile.html",
+    "/playlist.html": "playlist.html",
     "/activate": "activate.html",
-    "/Listchannels.html": "Listchannels.html",
-    "/Listchannels": "Listchannels.html",
-    "/Playlist": "Playlist.html",
-    "/Panel": "Panel.html",
+    "/listchannels.html": "listchannels.html",
+    "/Listchannels": "listchannels.html",
+    "/Playlist": "playlist.html",
+    "/Panel": "panel.html",
     "/Prize": "prize.html",
-    "/Prize.html": "prize.html",
+    "/prize.html": "prize.html",
     "/Prizes": "prize.html",
     "/privacy": "privacy.html",
     "/privacy.html": "privacy.html",
@@ -63,20 +63,20 @@ ROUTES = {
     "/help": "support.html",
     "/about": "about.html",
     "/about.html": "about.html",
-    # member videos (sql/content.sql): Content.html?idcontent=CT..., Search.html
+    # member videos (sql/content.sql): content.html?idcontent=CT..., search.html
     "/Content": "content.html",
-    "/Content.html": "content.html",
+    "/content.html": "content.html",
     "/content": "content.html",
     "/Search": "search.html",
-    "/Search.html": "search.html",
+    "/search.html": "search.html",
     "/search": "search.html",
-    # members' IPTV lists (sql/iptv_lists.sql): IPTV.html
+    # members' IPTV lists (sql/iptv_lists.sql): iptv.html
     "/IPTV": "iptv.html",
-    "/IPTV.html": "iptv.html",
+    "/iptv.html": "iptv.html",
     "/iptv": "iptv.html",
-    # the members' market (sql/market.sql): Market.html
+    # the members' market (sql/market.sql): market.html
     "/Market": "market.html",
-    "/Market.html": "market.html",
+    "/market.html": "market.html",
     "/market": "market.html",
 }
 
@@ -85,7 +85,7 @@ def resolve_clean_url(path):
     """Serve /name (no extension) from name.html, case-insensitive.
 
     Shared links are written by hand as often as they are generated, so a
-    differently cased page name (/profile.html for Profile.html) resolves too —
+    differently cased page name (/profile.html for profile.html) resolves too —
     file names are case-sensitive on Linux.
     """
     name = path.strip("/")
@@ -574,7 +574,7 @@ def fetch_m3u(url):
 # ---------- /api/stream: same-origin relay for the IPTV channel player ----------
 # The site is served over https while most IPTV servers speak plain http and send
 # no CORS headers, so the browser refuses to play them directly. The player on
-# Listchannels.html tries a stream directly first and falls back to this relay.
+# listchannels.html tries a stream directly first and falls back to this relay.
 # Only media passes: HLS playlists (rewritten so every variant, segment and key
 # comes back through here), MPEG-TS and other audio/video. Web pages, scripts,
 # JSON or images are refused, so the relay cannot be used to fetch other sites.
@@ -924,7 +924,7 @@ def open_stream(url, headers, timeout=STREAM_TIMEOUT):
 
 
 # ---------- /api/stream-check: does a channel answer right now? ----------
-# "Check channels" on Listchannels.html asks once per channel. The server opens
+# "Check channels" on listchannels.html asks once per channel. The server opens
 # the stream as the relay would, reads only its first bytes and answers with a
 # small JSON verdict, so a check costs almost no bandwidth. An HLS playlist is
 # followed down to one variant and one media segment: a playlist alone proves

@@ -1,7 +1,7 @@
 // Homepage – "All updates" aggregator — real feed of every novelty on CineAura:
 // market products, member videos, IPTV lists, movies AND series (TMDB trending
 // pushed by js/main.js), announcements. "عرض المزيد" takes the visitor to the
-// page of the open section (movies → movies.html, the Market → Market.html, …).
+// page of the open section (movies → movies.html, the Market → market.html, …).
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -21,12 +21,12 @@
 
   // "عرض المزيد" of a chip opens the section's own page.
   const KIND_PAGE = {
-    market: "./Market.html",
-    video: "./Content.html",
-    iptv: "./IPTV.html",
+    market: "./market.html",
+    video: "./content.html",
+    iptv: "./iptv.html",
     movie: "./movies.html",
     series: "./series.html",
-    promo: "./Prize.html",
+    promo: "./prize.html",
     all: "./search.html",
   };
   const KIND_LABEL = {
@@ -168,7 +168,7 @@
       }
     } catch { /* the banner is optional */ }
 
-    // 2) The Market's trending products (sql/market.sql market_home — the home of Market.html).
+    // 2) The Market's trending products (sql/market.sql market_home — the home of market.html).
     try {
       const d = await call("market_home", { p_member: me });
       const rows = Array.isArray(d?.trending) ? d.trending : [];
@@ -179,13 +179,13 @@
           title: m.title || tr("منتج جديد", "Nouveau produit", "New product"),
           meta: `<span>@${esc(m.seller?.username || m.store_name || "Cineaura")}</span>`,
           image: typeof img === "string" ? img : "",
-          href: `./Market.html?Product=${encodeURIComponent(m.id || "")}`,
+          href: `./market.html?Product=${encodeURIComponent(m.id || "")}`,
           date: m.created_at || m.updated_at || new Date().toISOString(), icon: "🛒",
         });
       }
     } catch { /* market SQL missing: no cards, the page ships as before */ }
 
-    // 3) The newest member videos (Content.html's feed — content_search, sort date).
+    // 3) The newest member videos (content.html's feed — content_search, sort date).
     try {
       const d = await call("content_search", { p_member: me, p_sort: "date", p_limit: 12 });
       const rows = Array.isArray(d?.items) ? d.items : [];
@@ -195,13 +195,13 @@
           title: v.title || tr("فيديو جديد", "Nouvelle vidéo", "New video"),
           meta: `<span>@${esc(v.owner || "Cineaura")}</span>`,
           image: v.thumb || v.poster || v.cover || "",
-          href: `./Content.html?idcontent=${encodeURIComponent(v.id || "")}`,
+          href: `./content.html?idcontent=${encodeURIComponent(v.id || "")}`,
           date: v.publish_at || v.created_at || new Date().toISOString(), icon: "▶",
         });
       }
     } catch { /* no videos yet */ }
 
-    // 4) The newest IPTV lists members published (IPTV.html — iptv_lists_search, sort date).
+    // 4) The newest IPTV lists members published (iptv.html — iptv_lists_search, sort date).
     try {
       const d = await call("iptv_lists_search", { p_member: me, p_q: "", p_sort: "date", p_filter: "", p_limit: 8, p_offset: 0 });
       const rows = Array.isArray(d?.items) ? d.items : [];
@@ -211,7 +211,7 @@
           title: l.name || "IPTV",
           meta: `<span>${Number(l.channels) || 0} ${tr("قناة", "chaînes", "channels")}</span>${l.owner ? ` · @${esc(l.owner)}` : ""}`,
           image: l.logo || "",
-          href: `./Listchannels.html?list=${encodeURIComponent(l.id || "")}`,
+          href: `./listchannels.html?list=${encodeURIComponent(l.id || "")}`,
           date: l.updated_at || l.created_at || new Date().toISOString(), icon: "📺",
         });
       }
@@ -252,9 +252,9 @@
     // the section does not look dead.
     if (!items.length) {
       items.push(
-        { kind: "market", badge: tr("المتجر", "Boutique", "Market"), title: tr("تحديث المتجر: منتجات جديدة يومياً", "Actu boutique : nouveaux produits chaque jour", "Store update: new products daily"), meta: "<span>Cineaura Market</span>", image: "", href: "./Market.html", date: new Date().toISOString(), icon: "🛒" },
-        { kind: "video", badge: tr("فيديو", "Vidéo", "Video"), title: tr("أحدث الفيديوهات في المنصة", "Dernières vidéos sur la plateforme", "Latest videos on the platform"), meta: "<span>Cineaura</span>", image: "", href: "./Content.html", date: new Date().toISOString(), icon: "▶" },
-        { kind: "iptv", badge: "IPTV", title: "IPTV — " + tr("قوائم محدثة", "listes mises à jour", "lists updated"), meta: "", image: "", href: "./IPTV.html", date: new Date().toISOString(), icon: "📺" },
+        { kind: "market", badge: tr("المتجر", "Boutique", "Market"), title: tr("تحديث المتجر: منتجات جديدة يومياً", "Actu boutique : nouveaux produits chaque jour", "Store update: new products daily"), meta: "<span>Cineaura Market</span>", image: "", href: "./market.html", date: new Date().toISOString(), icon: "🛒" },
+        { kind: "video", badge: tr("فيديو", "Vidéo", "Video"), title: tr("أحدث الفيديوهات في المنصة", "Dernières vidéos sur la plateforme", "Latest videos on the platform"), meta: "<span>Cineaura</span>", image: "", href: "./content.html", date: new Date().toISOString(), icon: "▶" },
+        { kind: "iptv", badge: "IPTV", title: "IPTV — " + tr("قوائم محدثة", "listes mises à jour", "lists updated"), meta: "", image: "", href: "./iptv.html", date: new Date().toISOString(), icon: "📺" },
         { kind: "movie", badge: tr("الأفلام", "Films", "Movies"), title: "TMDB " + tr("الأكثر رواجاً", "Tendances", "Trending"), meta: "TMDB", image: "", href: "./movies.html", date: new Date().toISOString(), icon: "🎬" },
         { kind: "series", badge: tr("مسلسل", "Série", "Series"), title: "TMDB " + tr("الأكثر رواجاً", "Tendances", "Trending"), meta: "TMDB", image: "", href: "./series.html", date: new Date().toISOString(), icon: "🎞" },
       );

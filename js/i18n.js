@@ -935,7 +935,7 @@
     "vid.shorts.end": "That was the last vertical video",
     "vid.shorts.restart": "Start over",
     "vid.f.portrait": "A vertical video (portrait)",
-    "vid.f.portraitHint": "Checked automatically for a YouTube Shorts or TikTok link. Vertical videos show centered on Content.html with the up/down buttons.",
+    "vid.f.portraitHint": "Checked automatically for a YouTube Shorts or TikTok link. Vertical videos show centered on content.html with the up/down buttons.",
 
     "up.folder": "Your folder's files",
     "up.folderHint": "Everything inside YOUR hub folder on the site's video server, by the five drawers the site uses. Deleting here removes the file itself — links, products or posts using it stop playing.",
@@ -2018,7 +2018,7 @@
     "avatar.badLink": "This link doesn’t open as an image.",
     "set.upgrade": "Upgrade",
 
-    // ── Points codes (Dashboard > Points) and member videos (Your content, Content.html, Search.html) ──
+    // ── Points codes (Dashboard > Points) and member videos (Your content, content.html, search.html) ──
     "nav.videos": "Videos",
     "notif.pointsCode": "Points added",
     "notif.newVideo": "New video",
@@ -2743,7 +2743,7 @@
     "about.s7.t": "Get help",
     "about.s7.p": "Anything not covered here goes to the support team, which answers the contact form, WhatsApp and Telegram within a few hours.",
 
-    // ── IPTV channels: Listchannels.html + channel player (js/channel-player.js) ────
+    // ── IPTV channels: listchannels.html + channel player (js/channel-player.js) ────
     "chan.general": "General",
     "chan.count": "Channels: {n} · Groups: {g}",
     "chan.search": "Search channels",
@@ -3168,7 +3168,7 @@
     "dash.dev.sql": "Adding devices by hand and their type need the updated sql/code_devices.sql: run it again in Supabase.",
     "watch.devAdded": "This device was added to the linked devices.",
 
-    // ── Round 20: activation deadline, Content.html top 50, watch code of 13+ videos, sponsored offers, home videos ──
+    // ── Round 20: activation deadline, content.html top 50, watch code of 13+ videos, sponsored offers, home videos ──
     "acct.bar.activate": "Your account isn’t activated yet. Activate it before {date} ({left}), or it will be fully banned.",
     "acct.bar.renew": "Your membership ended on {end}. Reactivate it before {date} ({left}), or your account will be fully banned.",
     "acct.gate.activate": "Activate it before {date} ({left}): an account that isn’t activated within 30 days of signing up is fully banned.",
@@ -3244,7 +3244,7 @@
     "prof.updF.playlists": "Playlists",
     "prof.updF.recs": "Recommendations",
 
-    // ── Round 22: home menu (Find), IPTV.html and the members' IPTV lists, Search.html > Channels ──
+    // ── Round 22: home menu (Find), iptv.html and the members' IPTV lists, search.html > Channels ──
     "nav.find": "Find",
     "ipl.pageTitle": "IPTV lists — CineAura",
     "ipl.eyebrow": "IPTV",
@@ -3396,7 +3396,7 @@
     "vid.channelsOne": "1 channel",
     "vid.channelsN": "{n} channels",
 
-    // ── Search.html — the search system (js/search.js, sql/search.sql) ──
+    // ── search.html — the search system (js/search.js, sql/search.sql) ──
     "srch.searchPageTitle": "Search — CineAura",
     "srch.searchAll": "Search videos, movies, series, channels, profiles, market and prizes",
     "vid.kind.movies": "Movies",
@@ -3516,7 +3516,7 @@
     "ipl.groupOne": "1 group",
     "ipl.viewOne": "1 view",
 
-    // ── Round 23: pictures from the device (Panel > Prizes, Market), Market.html — the members' market ──
+    // ── Round 23: pictures from the device (Panel > Prizes, Market), market.html — the members' market ──
     "nav.market": "Market",
     "mkt.pageTitle": "Market — CineAura",
     "mkt.eyebrow": "Market",
@@ -4538,7 +4538,7 @@
     "pa.an.saveBanner": "Save the bar",
     "pa.an.bannerSaved": "The bar was saved.",
     "pa.an.errText": "Write a text of 3 to 280 characters to show the bar.",
-    "pa.an.errLink": "The link must start with https:// or be a page of the site (./Market.html).",
+    "pa.an.errLink": "The link must start with https:// or be a page of the site (./market.html).",
     "pa.an.errLabel": "The button text is too long (40 characters at most).",
     "pa.an.errDates": "Check the dates: the end must come after the start.",
     "pa.an.send": "Send a message to the members",

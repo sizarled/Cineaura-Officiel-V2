@@ -1,5 +1,5 @@
 -- ============================================================
--- Premium channels of the home page (Listchannels.html?premium=1)
+-- Premium channels of the home page (listchannels.html?premium=1)
 -- Run in the Supabase SQL editor AFTER iptv.sql and code_devices.sql
 -- (safe to run again).
 --

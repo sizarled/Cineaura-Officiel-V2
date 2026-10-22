@@ -1,4 +1,4 @@
--- Content.html: the orientation split. Portrait (vertical) videos get the centered
+-- content.html: the orientation split. Portrait (vertical) videos get the centered
 -- viewer with the up/down flip buttons on the videos hub; landscape videos stay in
 -- the regular grid, and a portrait video's own page centers its player.
 --

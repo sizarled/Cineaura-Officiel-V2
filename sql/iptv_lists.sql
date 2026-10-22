@@ -1,18 +1,18 @@
 -- ============================================================
--- Members' IPTV lists (IPTV.html, Dashboard > IPTV > Your lists, Search.html > Channels,
--- Listchannels.html?list=IPL…)
+-- Members' IPTV lists (iptv.html, Dashboard > IPTV > Your lists, search.html > Channels,
+-- listchannels.html?list=IPL…)
 -- Run in the Supabase SQL editor AFTER profile.sql, dashboard.sql and content.sql
 -- (safe to run more than once).
 --
 -- What members can do
---   * IPTV.html: a search box and the IPTV lists (M3U playlists) that members published,
+--   * iptv.html: a search box and the IPTV lists (M3U playlists) that members published,
 --     as far as the visitor may see them. "Publish a list": a name, a description, the
 --     playlist (the link of an .m3u file, or a file uploaded to Storage: bucket source,
 --     folder IPTV) and who sees it.
 --   * Dashboard > IPTV > Your lists: the member's own lists; open, edit, read the
 --     channels again, copy the link, delete.
---   * Listchannels.html?list=IPL…: the channels of a list with the channel player.
---   * Search.html > Channels: the channels of the public lists, and of the exclusive
+--   * listchannels.html?list=IPL…: the channels of a list with the channel player.
+--   * search.html > Channels: the channels of the public lists, and of the exclusive
 --     lists whose criteria the member meets.
 --
 -- Visibility
@@ -249,7 +249,7 @@ begin
   return 'ok';
 end $$;
 
--- A list as a card (IPTV.html, the dashboard). Its address is never part of it.
+-- A list as a card (iptv.html, the dashboard). Its address is never part of it.
 create or replace function public._iptvl_card(l public.iptv_lists, p_member text) returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
@@ -423,7 +423,7 @@ begin
   end loop;
   if coalesce(array_length(fresh, 1), 0) > 0 and to_regclass('public.notifications') is not null then
     insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
-    select v, 'iptv_list', 'IPTV list shared with you', nm, './Listchannels.html?list=' || lid, m.member_id, m.username
+    select v, 'iptv_list', 'IPTV list shared with you', nm, './listchannels.html?list=' || lid, m.member_id, m.username
     from unnest(fresh) as v;
     get diagnostics n = row_count;
   end if;
@@ -431,7 +431,7 @@ begin
 end $$;
 
 -- The channels of a list, read by the publisher's browser: p_rows = [{ n: name, g: group,
--- l: logo, k: live | movie | series, c: key of the channel on Listchannels.html }], sent
+-- l: logo, k: live | movie | series, c: key of the channel on listchannels.html }], sent
 -- in parts of at most 2 500 from position p_start (0 = the first part: the old channels go).
 -- 20 000 channels are kept at most. The last part (p_done) saves the totals of the whole
 -- playlist (p_counts: { channels, groups, live, movie, series }, else counted here), its
@@ -516,7 +516,7 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ------------------------------------------------------------------ 4. finding lists
--- IPTV.html: the lists the visitor may see.
+-- iptv.html: the lists the visitor may see.
 --   p_q       words found in the name, the description or the publisher's username
 --   p_sort    relevance | date (last changed) | views | channels | az | za
 --   p_filter  '' (all) | public | exclusive | private | mine
@@ -568,7 +568,7 @@ begin
   return jsonb_build_object('total', total, 'items', items, 'sort', srt);
 end $$;
 
--- Listchannels.html?list=IPL…: the list and where its playlist is, when the visitor may
+-- listchannels.html?list=IPL…: the list and where its playlist is, when the visitor may
 -- see it. Counts one view a day per member (or visitor address), the publisher's aside.
 -- -> { ok: true, list: { card…, description, url (link) | path (upload), epg_url, sig (publisher) } }
 --    { ok: false, reason: not_found | private | signin }
@@ -611,7 +611,7 @@ begin
     'sig', case when l.owner_id = me then l.sig else '' end));
 end $$;
 
--- Search.html > Channels: the channels of the public lists, and of the exclusive lists
+-- search.html > Channels: the channels of the public lists, and of the exclusive lists
 -- whose criteria the member meets (never a private list). Every word must be in the name
 -- of the channel or of its group. A channel listed in several groups of a list shows once.
 --   p_kind  '' | live | movie | series

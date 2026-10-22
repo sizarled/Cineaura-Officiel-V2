@@ -1,5 +1,5 @@
 /* CineAura — member videos, shared by Profile > Your content (js/content-studio.js),
-   Content.html (js/content.js), Search.html (js/search.js), the home page
+   content.html (js/content.js), search.html (js/search.js), the home page
    (js/home-videos.js) and a member's page > Content / Updates (js/profile.js).
 
    Everything goes through the content_* functions of sql/content.sql: the tables
@@ -22,7 +22,7 @@
   const AGES = [3, 6, 13, 16, 18];
   const VISIBILITIES = ["public", "exclusive", "private"];
   const LANGUAGES = [...C.LINK_LANGUAGES, "Other"];
-  // Search.html: the language filter also narrows TMDB results (original_language).
+  // search.html: the language filter also narrows TMDB results (original_language).
   const LANG_ISO = {
     Arabic: "ar", English: "en", French: "fr", Spanish: "es", German: "de", Italian: "it", Portuguese: "pt",
     Turkish: "tr", Russian: "ru", Japanese: "ja", Korean: "ko", Chinese: "zh", Hindi: "hi", Dutch: "nl",
@@ -290,14 +290,14 @@
     }
   }
 
-  const contentHref = (id) => `./Content.html?idcontent=${encodeURIComponent(id || "")}`;
+  const contentHref = (id) => `./content.html?idcontent=${encodeURIComponent(id || "")}`;
   function searchHref(params = {}) {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && String(v) !== "") q.set(k, String(v));
     });
     const s = q.toString();
-    return `./Search.html${s ? `?${s}` : ""}`;
+    return `./search.html${s ? `?${s}` : ""}`;
   }
 
   // ---------------------------------------------------------------- server

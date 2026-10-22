@@ -1,7 +1,7 @@
 /* CineAura — the IPTV lists that members publish (sql/iptv_lists.sql).
  *
- * Shared by IPTV.html (search box, the lists, "Publish a list"), Dashboard > IPTV >
- * Your lists, Search.html > Channels and Listchannels.html?list=IPL… (the channels of a
+ * Shared by iptv.html (search box, the lists, "Publish a list"), Dashboard > IPTV >
+ * Your lists, search.html > Channels and listchannels.html?list=IPL… (the channels of a
  * list with the channel player).
  *
  *   L.openForm({ list, onSaved })  the publish / edit dialog: name, description, the
@@ -10,12 +10,12 @@
  *                                  who sees the list (public / exclusive / private)
  *   L.refresh(list)                reads the playlist again and saves its channels
  *   L.cardHtml(list, opts)         a list as a card
- *   L.channelHtml(item)            a channel found by Search.html > Channels
+ *   L.channelHtml(item)            a channel found by search.html > Channels
  *
  * Saving reads the playlist in the browser first (a link that refuses the browser goes
  * through /api/m3u of server.py), so a list without channels is never published. The
  * names, groups, logos and types of its channels (never their links) are then saved for
- * the channel search, with the id each channel has on Listchannels.html.
+ * the channel search, with the id each channel has on listchannels.html.
  */
 (() => {
   "use strict";
@@ -73,7 +73,7 @@
   const publicUrl = (path) =>
     `${C.SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${String(path || "").split("/").map(encodeURIComponent).join("/")}`;
   const sourceUrl = (l) => (l?.source === "upload" ? (l.path ? publicUrl(l.path) : "") : String(l?.url || ""));
-  const listHref = (id) => `./Listchannels.html?list=${encodeURIComponent(id)}`;
+  const listHref = (id) => `./listchannels.html?list=${encodeURIComponent(id)}`;
   const channelHref = (item) =>
     `${listHref(item.list?.id || "")}${item.key ? `&channel=${encodeURIComponent(item.key)}` : ""}&name=${encodeURIComponent(item.name || "")}`;
   const MANAGE_HREF = "./dashboard.html#iptv-lists";
@@ -235,7 +235,7 @@
   }
 
   // ---------------------------------------------------------------- reading a playlist
-  // rows shaped like public.listchannels, each with its id on Listchannels.html
+  // rows shaped like public.listchannels, each with its id on listchannels.html
   function parse(text) {
     return C.parseM3U(text).map((r) => ({ ...r, id: C.m3uRowId(r) }));
   }
@@ -298,7 +298,7 @@
   }
 
   // read the playlist of a list again and save its channels (Dashboard: "Refresh channels",
-  // the publisher's own visit of Listchannels.html when they changed)
+  // the publisher's own visit of listchannels.html when they changed)
   async function refresh(l, opts = {}) {
     let got;
     try {
@@ -393,7 +393,7 @@
     return t(ERR[reason] || ERR.failed);
   }
 
-  // why Listchannels.html?list= does not open a list for this visitor
+  // why listchannels.html?list= does not open a list for this visitor
   function refusalText(r) {
     const reason = r?.reason || "not_found";
     if (reason === "followers") return t("ipl.no.followers", { name: `@${r.owner || ""}` });

@@ -3635,7 +3635,7 @@
  "Save the bar": "Save the bar",
  "The bar was saved.": "The bar was saved.",
  "Write a text of 3 to 280 characters to show the bar.": "Write a text of 3 to 280 characters to show the bar.",
- "The link must start with https:// or be a page of the site (./Market.html).": "The link must start with https:// or be a page of the site (./Market.html).",
+ "The link must start with https:// or be a page of the site (./market.html).": "The link must start with https:// or be a page of the site (./market.html).",
  "The button text is too long (40 characters at most).": "The button text is too long (40 characters at most).",
  "Check the dates: the end must come after the start.": "Check the dates: the end must come after the start.",
  "Send a message to the members": "Send a message to the members",
@@ -4548,7 +4548,7 @@
     "vid.shorts.end": "That was the last vertical video",
     "vid.shorts.restart": "Start over",
     "vid.f.portrait": "A vertical video (portrait)",
-    "vid.f.portraitHint": "Checked automatically for a YouTube Shorts or TikTok link. Vertical videos show centered on Content.html with the up/down buttons."
+    "vid.f.portraitHint": "Checked automatically for a YouTube Shorts or TikTok link. Vertical videos show centered on content.html with the up/down buttons."
 ,
  "act.firstFreeNote": "The first activation is always Free. Silver, Gold and Diamond unlock right after — as upgrades paid with your points.",
  "act.upgrade": "Upgrade",

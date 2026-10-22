@@ -1,6 +1,6 @@
 /* Staff panel — Prizes section with four tabs: add a prize, manage prizes
    (edit / end / delete / participants), prize claims (review, accept, reject:
-   sql/prize_claims.sql) and statistics. Panel.html?section=prizes&tab=claims
+   sql/prize_claims.sql) and statistics. panel.html?section=prizes&tab=claims
    opens the claims (the staff alert of a new claim links there).
    Loaded before panel.js; panel.js calls window.PanelPrizes.render(main, api). */
 (() => {
@@ -615,7 +615,7 @@
             <button class="btn btn-sm btn-ghost" data-edit="${p.id}" type="button">${t("pza.edit")}</button>
             ${isEnded(p) ? "" : `<button class="btn btn-sm btn-ghost" data-end="${p.id}" type="button">${t("pza.end")}</button>`}
             <button class="btn btn-sm btn-danger" data-del="${p.id}" type="button" ${isEnded(p) ? "" : "disabled"} title="${isEnded(p) ? "" : esc(t("pza.deleteNeedsEnd"))}">${t("common.delete")}</button>
-            <a class="btn btn-sm btn-ghost" href="./Prize.html?GroupPrize=${p.group_id ?? 0}&Prize=${p.id}" target="_blank" rel="noopener">${t("panel.pz.openPage")}</a>
+            <a class="btn btn-sm btn-ghost" href="./prize.html?GroupPrize=${p.group_id ?? 0}&Prize=${p.id}" target="_blank" rel="noopener">${t("panel.pz.openPage")}</a>
           </div>
         </div>`;
     }).join("");
@@ -1020,13 +1020,13 @@
         <div class="pzc-head">
           <div class="pza-member-main">
             ${avatarImg(c.member_id, pe.username, name)}
-            <div><strong>${pe.username ? `<a href="./Profile.html?@${encodeURIComponent(pe.username)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name)}</strong>
+            <div><strong>${pe.username ? `<a href="./profile.html?@${encodeURIComponent(pe.username)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name)}</strong>
               <div class="muted">${esc(c.member_id)}${pe.full_name ? ` · ${esc(pe.full_name)}` : ""}</div></div>
           </div>
           ${badge(`cs-${st}`, t(`pzc.st.${st}`))}
         </div>
         <p class="pzc-prize">
-          ${p ? `<a href="./Prize.html?GroupPrize=${p.group_id ?? 0}&Prize=${p.id}" target="_blank" rel="noopener">${esc(title)}</a>` : `<b>${esc(title)}</b>`}
+          ${p ? `<a href="./prize.html?GroupPrize=${p.group_id ?? 0}&Prize=${p.id}" target="_blank" rel="noopener">${esc(title)}</a>` : `<b>${esc(title)}</b>`}
           <span class="muted">· ${esc(mode === "claim" ? t("pzc.modeDirect") : modeLabel(mode))} · ${esc(t("pza.paid", { n: c.points_paid || 0 }))}</span>
         </p>
         ${R.claimStepsHtml(c, { staff: true })}

@@ -34,7 +34,7 @@
   const MESSAGES = {
     banned: () => t("reg.bannedMsg"),
     disabled: () => `${t("reg.disabledMsg")} <a href="./dashboard.html">${t("nav.dashboard")}</a>.`,
-    exists: () => `${t("reg.existsMsg")} <a href="./login.html">${t("nav.signin")}</a> · <a href="./Rest.html">${t("auth.recovery")}</a>.`,
+    exists: () => `${t("reg.existsMsg")} <a href="./login.html">${t("nav.signin")}</a> · <a href="./rest.html">${t("auth.recovery")}</a>.`,
     created: (id) => t("reg.welcome", { id: `<strong>${id}</strong>` }),
     setup: () => t("reg.setupMsg"),
     invalid_username: () => t("reg.badUser"),

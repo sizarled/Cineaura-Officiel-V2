@@ -1,5 +1,5 @@
 -- ============================================================
--- CineAura — Market.html: the members' market
+-- CineAura — market.html: the members' market
 -- Run this in the Supabase SQL editor (safe to run more than once), AFTER content.sql,
 -- account_deadline.sql and image_uploads.sql.
 --
@@ -7,7 +7,7 @@
 -- member from level LV5 (100,000 points earned, sql/point_levels.sql) can open one store and sell
 -- products for points; every member from LV4 (10,000 points earned) can buy.
 --
---   stores       market_stores       one per member (Market.html > Store settings): logo and
+--   stores       market_stores       one per member (market.html > Store settings): logo and
 --                                    cover (an image link, or uploaded to IPTV/Market/Logo/<id>.jpg
 --                                    and IPTV/Market/Cover/<id>.jpg), name, description, related
 --                                    links, open / closed, reach (city / country / continent /
@@ -30,7 +30,7 @@
 --   recommendations market_recs      of a product, or again of a public recommendation / list
 --   requests     market_requests     "can you get this item?" / a question about a product
 --   coupons      market_coupons, market_coupon_wallet   the coupons a store gives, and the coupons
---                                    of each buyer (Market.html > Coupons; section 17)
+--                                    of each buyer (market.html > Coupons; section 17)
 --
 -- Ids: stores STR + 9 digits, products PRD + 10, categories CAT + 7, orders ORD + 10,
 -- purchase lists MPL + 9, recommendations REC + 10, coupons CPN + 9.
@@ -54,7 +54,7 @@
 --     order takes them out of the balance and gives them back to the buyer (a point_spends
 --     row with a negative amount, mode 'market_refund'). Orders placed before the seventh
 --     version of this file (held = 0) keep the old flow: nothing entered the balance.
---   * Sharing: Market.html?Product=<id>&@<username>. Every product has its share commission,
+--   * Sharing: market.html?Product=<id>&@<username>. Every product has its share commission,
 --     chosen by the seller in the product form: off (the default), or on with 1 to 25%.
 --     A sale made through that link gives the member who shared it that part of the price
 --     (pieces x price, shipping not included), taken from what the seller receives when the
@@ -111,7 +111,7 @@
 --     shared equally with the member who first recommended it (root_referrer_id): the first
 --     and the last of the chain, whoever passed it on in between.
 --
--- Coupons (Market.html > Coupons, section 17): a seller gives coupons (Sales coupons): a code (typed
+-- Coupons (market.html > Coupons, section 17): a seller gives coupons (Sales coupons): a code (typed
 -- or drawn), how many orders it can be used in (once by default; each buyer once), what it takes
 -- off (the price of the products, the shipping, or both) and how much (1 to 100%), an end date
 -- (optional), and who may use it: anybody (public: the store page and its product pages show it,
@@ -139,7 +139,7 @@ alter table public.profiles add column if not exists market_points bigint not nu
 alter table public.profiles add column if not exists market_sales integer not null default 0;
 alter table public.profiles add column if not exists market_ref_points bigint not null default 0;
 alter table public.profiles add column if not exists market_refs integer not null default 0;
-comment on column public.profiles.market_points is 'Points received for the sales of the member''s store (Market.html, sql/market.sql).';
+comment on column public.profiles.market_points is 'Points received for the sales of the member''s store (market.html, sql/market.sql).';
 comment on column public.profiles.market_sales is 'Sales of the member''s store already paid.';
 comment on column public.profiles.market_ref_points is 'Points received for sales made through the member''s share links (the commission each seller chose, up to 25% of the price).';
 comment on column public.profiles.market_refs is 'Sales made through the member''s share links (paid).';
@@ -659,7 +659,7 @@ create index if not exists market_orders_coupon_idx on public.market_orders (cou
 alter table public.market_stores add column if not exists balance bigint not null default 0;
 alter table public.market_orders add column if not exists held bigint not null default 0;
 comment on column public.market_stores.balance is
-  'The store''s capital (points the seller placed in the store, Market.html > Store settings) plus the points of the orders on their way: the tier N1 … B3 follows it. A product''s price may not exceed the capital (the balance less the held points).';
+  'The store''s capital (points the seller placed in the store, market.html > Store settings) plus the points of the orders on their way: the tier N1 … B3 follows it. A product''s price may not exceed the capital (the balance less the held points).';
 comment on column public.market_orders.held is
   'The part of the total currently kept in the store balance: added at the purchase, moved with it to the seller''s personal points when the order is paid, and given back with it when it is refunded. 0 for the orders placed before the seventh version of this file.';
 create index if not exists market_orders_held_idx on public.market_orders (store_id) where held > 0;
@@ -1018,7 +1018,7 @@ begin
 end $$;
 
 -- Adds points from the member's available points to the balance of their store (the capital:
--- Market.html > Store settings). The points leave the available points (profiles.points_spent
+-- market.html > Store settings). The points leave the available points (profiles.points_spent
 -- grows, a point_spends row mode 'market_store'): they are not earned nor lost, and the level,
 -- which counts every point ever earned, never moves.
 --   -> { ok: true, balance, held, capital, tier, available } | { ok: false, reason: member |
@@ -1201,7 +1201,7 @@ language sql immutable as $$
   end
 $$;
 
--- A product as a card (Market.html lists).
+-- A product as a card (market.html lists).
 create or replace function public._mkt_card(p public.market_products) returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
@@ -1338,17 +1338,17 @@ begin
   perform public._mkt_credit(o.seller_id, gets, false);
   if p_tell then
     perform public._mkt_notify(o.seller_id, 'market_paid', 'Points received for a sale',
-      '+' || gets::text || ' PT · ' || o.title, './Market.html#sales/delivered', o.buyer_id);
+      '+' || gets::text || ' PT · ' || o.title, './market.html#sales/delivered', o.buyer_id);
   end if;
   if o.referrer_id is not null and o.commission > 0 then
     -- the referrer, and the member who first recommended it (an equal share, when there is one)
     perform public._mkt_credit(o.referrer_id, o.commission - coalesce(o.root_commission, 0), true);
     perform public._mkt_notify(o.referrer_id, 'market_commission', 'You earned points from a shared link',
-      '+' || (o.commission - coalesce(o.root_commission, 0))::text || ' PT · ' || o.title, './Market.html?Product=' || o.product_id);
+      '+' || (o.commission - coalesce(o.root_commission, 0))::text || ' PT · ' || o.title, './market.html?Product=' || o.product_id);
     if o.root_referrer_id is not null and coalesce(o.root_commission, 0) > 0 then
       perform public._mkt_credit(o.root_referrer_id, o.root_commission, true);
       perform public._mkt_notify(o.root_referrer_id, 'market_root_commission', 'You earned points from your recommendation',
-        '+' || o.root_commission::text || ' PT · ' || o.title, './Market.html?Product=' || o.product_id);
+        '+' || o.root_commission::text || ' PT · ' || o.title, './market.html?Product=' || o.product_id);
     end if;
   end if;
   return true;
@@ -1499,7 +1499,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------ 5. the member
--- The side menu of Market.html.
+-- The side menu of market.html.
 --   -> { ok: true, member: { id, username, country }, store: {…} | null, store_level: { level, earned, need,
 --        need_points, ok }, can_open, counts: {…}, unread }
 --      { ok: false, reason: member }
@@ -1563,7 +1563,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------ 6. the store
--- Market.html > Store settings. d = { name, description, logo_url?, cover_url?, links: [{label,url}],
+-- market.html > Store settings. d = { name, description, logo_url?, cover_url?, links: [{label,url}],
 -- is_open, scope, country, city, sale_mode, shipping, returns, return_days }
 --   -> { ok: true, id, created } | { ok: false, reason: member | blocked | level (level, earned, need,
 --      need_points: a new store needs LV5 (100k)) | name | description | links | logo | cover | scope | country |
@@ -1639,7 +1639,7 @@ begin
   return jsonb_build_object('ok', true, 'id', sid, 'created', created);
 end $$;
 
--- A store page: Market.html?Store=<id> (a suspended store: its seller only)
+-- A store page: market.html?Store=<id> (a suspended store: its seller only)
 --   -> { ok: true, store: {…}, own } | { ok: false, reason: not_found }
 create or replace function public.market_store(p_id text, p_member text)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
@@ -1838,7 +1838,7 @@ begin
     for w_id in select o.id from public.market_orders o where o.product_id = pid and o.status = 'sold' and o.delivery = 'online' loop
       if public._mkt_after_sale(w_id) = 'online' then
         perform public._mkt_notify(o2.buyer_id, 'market_download', 'Your download link is ready', o2.title,
-                                   './Market.html#purchases/shipped', m.member_id)
+                                   './market.html#purchases/shipped', m.member_id)
            from public.market_orders o2 where o2.id = w_id;
       end if;
     end loop;
@@ -1918,7 +1918,7 @@ begin
   insert into public.messages (sender_id, receiver_id, sender_username, receiver_username, body)
     select m.member_id, mm.member_id, m.username, mm.username,
            left(case when note <> '' then note || e'\n\n' else '' end ||
-                p.title || ' · ' || st.name || e'\n' || './Market.html?Product=' || p.id, 2000)
+                p.title || ' · ' || st.name || e'\n' || './market.html?Product=' || p.id, 2000)
       from public.members mm
      where mm.member_id = any (st.vip) and lower(btrim(coalesce(mm.status, ''))) = 'active';
   get diagnostics sent = row_count;
@@ -1926,7 +1926,7 @@ begin
     if vid <> m.member_id then
       perform public._mkt_notify(vid, 'market_vip', st.name,
                                  left(p.title || case when note <> '' then ' — ' || note else '' end, 200),
-                                 './Market.html?Product=' || p.id, m.member_id);
+                                 './market.html?Product=' || p.id, m.member_id);
     end if;
   end loop;
   update public.market_products set vip_notified_at = now() where id = p.id;
@@ -1999,7 +1999,7 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
--- Market.html > Your sales > Products: the member's products (not deleted), newest first.
+-- market.html > Your sales > Products: the member's products (not deleted), newest first.
 create or replace function public.market_my_products(p_member text, p_limit int default 24, p_offset int default 0)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare m public.members; lim int := least(greatest(coalesce(p_limit, 24), 1), 100); off int := greatest(coalesce(p_offset, 0), 0);
@@ -2038,7 +2038,7 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 -- ------------------------------------------------------------------ 8. browsing
--- Market.html (home): the trending products (most pieces sold in the last 30 days), then the
+-- market.html (home): the trending products (most pieces sold in the last 30 days), then the
 -- 5 categories that sell most, 20 products each. Worldwide for guests; for a member, sales in
 -- their country and products their country can buy only.
 --   -> { country, trending: [card], categories: [{ id, name, products: [card] }] }
@@ -2089,13 +2089,13 @@ select jsonb_build_object(
       order by tp.units desc, tp.n desc, tp.name) from tops tp), '[]'::jsonb))
 $$;
 
--- The search box and the lists of Market.html:
+-- The search box and the lists of market.html:
 --   p_type     products | stores | categories
 --   p_sort     new (newest first) | old (oldest first)
 --   p_country  the country of the store ('' = every country)
 --   p_kind     '' | physical | digital (products)
---   p_category Market.html?Categories=<id>: products of one category
---   p_store    Market.html?Store=<id>: products of one store (sold out ones too)
+--   p_category market.html?Categories=<id>: products of one category
+--   p_store    market.html?Store=<id>: products of one store (sold out ones too)
 --   -> { total, items: [card] }
 drop function if exists public.market_search(text, text, text, text, text, text, text, text, int, int);
 create or replace function public.market_search(p_member text, p_q text, p_type text, p_sort text, p_country text,
@@ -2176,7 +2176,7 @@ begin
   return jsonb_build_object('total', total, 'items', items);
 end $$;
 
--- Market.html?Categories=<id>: the name of the category. Its live count hides the exclusive
+-- market.html?Categories=<id>: the name of the category. Its live count hides the exclusive
 -- products the visitor may not see (round 32; p_lang: their interface language, asked by some).
 drop function if exists public.market_category(text);
 create or replace function public.market_category(p_id text, p_member text default '', p_lang text default '')
@@ -2191,7 +2191,7 @@ returns jsonb language sql stable security definer set search_path = public as $
     jsonb_build_object('ok', false, 'reason', 'not_found'))
 $$;
 
--- Market.html?Product=<id>: the product, its store, the reviews a visitor may read and what
+-- market.html?Product=<id>: the product, its store, the reviews a visitor may read and what
 -- the visitor may do (review it, recommend it: their own review and recommendation of it).
 -- p_country: the country of a guest (the browser's guess), only for "ships to your region";
 -- p_lang: the visitor's interface language (some exclusive products ask for one).
@@ -2454,7 +2454,7 @@ begin
     case when st_code = 'requested' then 'market_request' else 'market_order' end,
     case when st_code = 'requested' then 'New purchase request' else 'New order' end,
     q::text || ' × ' || p.title,
-    './Market.html#sales/' || case final when 'requested' then 'requests' when 'shipped' then 'shipped' else 'sold' end, m.member_id);
+    './market.html#sales/' || case final when 'requested' then 'requests' when 'shipped' then 'shipped' else 'sold' end, m.member_id);
   pts := public._points(m.member_id);
   return jsonb_build_object('ok', true, 'id', oid, 'status', final, 'total', v_total, 'discount', v_disc,
                             'available', coalesce((pts->>'available')::bigint, 0),
@@ -2481,8 +2481,8 @@ begin
   select * into o from public.market_orders where id = btrim(coalesce(p_order, '')) for update;
   if not found or me not in (o.seller_id, o.buyer_id) then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   seller := me = o.seller_id; buyer := me = o.buyer_id;
-  href_b := './Market.html#purchases/';
-  href_s := './Market.html#sales/';
+  href_b := './market.html#purchases/';
+  href_s := './market.html#sales/';
 
   if p_action = 'accept' and seller and o.status = 'requested' then
     update public.market_orders set status = 'sold', accepted_at = now(), updated_at = now() where id = o.id;
@@ -2594,7 +2594,7 @@ begin
   end if;
   perform public._mkt_notify(o.seller_id, 'market_address',
     case when first then 'The buyer added the delivery address' else 'The buyer changed the delivery address' end,
-    o.title, './Market.html#sales/sold', m.member_id);
+    o.title, './market.html#sales/sold', m.member_id);
   return jsonb_build_object('ok', true, 'address', (select x.address from public.market_orders x where x.id = o.id), 'saved', kept);
 end $$;
 
@@ -2742,7 +2742,7 @@ begin
   if old.id is null and public._mkt_sees(m.member_id, aud->>'visibility', (aud->>'excl_followers')::boolean,
                                           (aud->>'excl_premium')::boolean, aud->>'excl_countries',
                                           array(select jsonb_array_elements_text(aud->'allowed')), st.owner_id) then
-    perform public._mkt_notify(st.owner_id, 'market_review', 'A member reviewed your product', p.title, './Market.html#ratings/sales', m.member_id);
+    perform public._mkt_notify(st.owner_id, 'market_review', 'A member reviewed your product', p.title, './market.html#ratings/sales', m.member_id);
   end if;
   return jsonb_build_object('ok', true, 'id', rid, 'created', old.id is null, 'verified', ord is not null);
 end $$;
@@ -2823,7 +2823,7 @@ begin
   values (m.member_id, st.owner_id, st.id, p.id, p_kind, v_body) returning id into rid;
   perform public._mkt_notify(st.owner_id, 'market_question',
     case when p_kind = 'question' then 'New question about your product' else 'New item request' end,
-    coalesce(p.title || ' · ', '') || left(v_body, 200), './Market.html#requests/received', m.member_id);
+    coalesce(p.title || ' · ', '') || left(v_body, 200), './market.html#requests/received', m.member_id);
   return jsonb_build_object('ok', true, 'id', rid);
 end $$;
 
@@ -2839,7 +2839,7 @@ begin
   if r.status = 'closed' then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
   if length(v_body) < 1 or length(v_body) > 1000 then return jsonb_build_object('ok', false, 'reason', 'body'); end if;
   update public.market_requests set reply = v_body, status = 'answered', replied_at = now() where id = r.id;
-  perform public._mkt_notify(r.from_id, 'market_reply', 'A store answered your request', left(v_body, 200), './Market.html#requests/sent', m.member_id);
+  perform public._mkt_notify(r.from_id, 'market_reply', 'A store answered your request', left(v_body, 200), './market.html#requests/sent', m.member_id);
   return jsonb_build_object('ok', true);
 end $$;
 
@@ -2915,7 +2915,7 @@ begin
                where o.buyer_id = m.member_id and o.status = 'sold' and o.delivery <> 'online' and not (o.address ? 'name') loop
     if public._mkt_after_sale(w_id) = 'address' then
       n := n + 1;
-      perform public._mkt_notify(o.seller_id, 'market_address', 'The buyer added the delivery address', o.title, './Market.html#sales/sold', m.member_id)
+      perform public._mkt_notify(o.seller_id, 'market_address', 'The buyer added the delivery address', o.title, './market.html#sales/sold', m.member_id)
          from public.market_orders o where o.id = w_id;
     end if;
   end loop;
@@ -3088,7 +3088,7 @@ begin
       update public.market_reports set status = 'resolved', handled_by = who, handled_at = now()
        where kind = 'product' and target_id = pr.id and status = 'open';
       perform public._mkt_notify(pr.owner_id, 'market_deleted', 'The team deleted your product', pr.title || ' · ' || why,
-                                 './Market.html#sales/products');
+                                 './market.html#sales/products');
       return jsonb_build_object('ok', true, 'status', 'deleted');
     end if;
     if p_action = 'suspend' then
@@ -3099,7 +3099,7 @@ begin
       update public.market_reports set status = 'resolved', handled_by = who, handled_at = now()
        where kind = 'product' and target_id = pr.id and status = 'open';
       perform public._mkt_notify(pr.owner_id, 'market_suspended', 'The team suspended your product', pr.title || ' · ' || why,
-                                 './Market.html#sales/products');
+                                 './market.html#sales/products');
       return jsonb_build_object('ok', true, 'status', 'suspended');
     end if;
     if pr.status <> 'suspended' then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
@@ -3110,7 +3110,7 @@ begin
     update public.market_products
        set status = v_status, status_before = null, suspended_reason = '', suspended_with_store = false, updated_at = now()
      where id = pr.id;
-    perform public._mkt_notify(pr.owner_id, 'market_restored', 'The team restored your product', pr.title, './Market.html#sales/products');
+    perform public._mkt_notify(pr.owner_id, 'market_restored', 'The team restored your product', pr.title, './market.html#sales/products');
     return jsonb_build_object('ok', true, 'status', v_status);
   elsif p_kind = 'store' then
     select * into st from public.market_stores where id = v_id for update;
@@ -3125,7 +3125,7 @@ begin
        where store_id = st.id and status = 'suspended' and suspended_with_store;
       update public.market_reports set status = 'resolved', handled_by = who, handled_at = now()
        where kind = 'store' and target_id = st.id and status = 'open';
-      perform public._mkt_notify(st.owner_id, 'market_suspended', 'The team suspended your store', st.name || ' · ' || why, './Market.html#settings');
+      perform public._mkt_notify(st.owner_id, 'market_suspended', 'The team suspended your store', st.name || ' · ' || why, './market.html#settings');
       return jsonb_build_object('ok', true, 'status', 'suspended');
     end if;
     if not st.suspended then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
@@ -3134,7 +3134,7 @@ begin
        set status = case when status_before in ('active', 'hidden') then status_before else 'hidden' end,
            status_before = null, suspended_reason = '', suspended_with_store = false, updated_at = now()
      where store_id = st.id and status = 'suspended' and suspended_with_store;
-    perform public._mkt_notify(st.owner_id, 'market_restored', 'The team restored your store', st.name, './Market.html#settings');
+    perform public._mkt_notify(st.owner_id, 'market_restored', 'The team restored your store', st.name, './market.html#settings');
     return jsonb_build_object('ok', true, 'status', 'active');
   end if;
   return jsonb_build_object('ok', false, 'reason', 'kind');
@@ -3356,7 +3356,7 @@ begin
     ) order by l.updated_at desc) from public.market_lists l where l.member_id = m.member_id), '[]'::jsonb));
 end $$;
 
--- A purchase list page: Market.html?List=<id>. Its products on sale (newest first), for whoever
+-- A purchase list page: market.html?List=<id>. Its products on sale (newest first), for whoever
 -- may see it. -> { ok: true, list, items: [cards] } | { ok: false, reason: not_found }
 drop function if exists public.market_list(text, text);
 create or replace function public.market_list(p_list text, p_member text default '', p_lang text default '')
@@ -3496,7 +3496,7 @@ begin
     perform public._mkt_notify(root_member, 'market_rerec',
       case when v_kind = 'list' then 'A member recommended your purchase list' else 'A member recommended your recommendation again' end,
       '@' || m.username || ' · ' || coalesce(what, ''),
-      case when v_kind = 'list' then './Market.html?List=' || v_list else './Market.html?Product=' || v_product end, m.member_id);
+      case when v_kind = 'list' then './market.html?List=' || v_list else './market.html?Product=' || v_product end, m.member_id);
   end if;
   return jsonb_build_object('ok', true, 'id', rid);
 end $$;
@@ -3857,9 +3857,9 @@ begin
      where id = o.id;
     perform public._mkt_notify(o.buyer_id, 'market_staff_refund', 'The team refunded your order',
       '+' || o.total::text || ' PT · ' || o.title || ' · ' || why,
-      './Market.html#purchases/' || case when v_status = 'returned' then 'returned' else 'requests' end);
+      './market.html#purchases/' || case when v_status = 'returned' then 'returned' else 'requests' end);
     perform public._mkt_notify(o.seller_id, 'market_staff_refund', 'The team cancelled your sale and refunded the buyer',
-      o.title || ' · ' || why, './Market.html#sales/' || case when v_status = 'returned' then 'returned' else 'requests' end);
+      o.title || ' · ' || why, './market.html#sales/' || case when v_status = 'returned' then 'returned' else 'requests' end);
     return jsonb_build_object('ok', true, 'status', v_status, 'points', o.total);
   end if;
 
@@ -3871,9 +3871,9 @@ begin
   gets := public._mkt_seller_gets(o);
   perform public._mkt_pay(o, false);
   perform public._mkt_notify(o.seller_id, 'market_staff_release', 'The team released the points of your sale',
-    '+' || gets::text || ' PT · ' || o.title || ' · ' || why, './Market.html#sales/delivered');
+    '+' || gets::text || ' PT · ' || o.title || ' · ' || why, './market.html#sales/delivered');
   perform public._mkt_notify(o.buyer_id, 'market_staff_release', 'The team closed your order and paid the seller',
-    o.title || ' · ' || why, './Market.html#purchases/received');
+    o.title || ' · ' || why, './market.html#purchases/received');
   return jsonb_build_object('ok', true, 'status', 'delivered', 'points', gets);
 end $$;
 
@@ -3963,7 +3963,7 @@ begin
   with base as (
     select 'review'::text as kind, 'RV' || r.id::text as id, r.member_id as author, r.created_at, r.visibility,
            coalesce(r.audience_before->>'visibility', r.visibility) as vis_before,
-           p.title as title, coalesce(p.images->>0, '') as image, './Market.html?Product=' || p.id as href,
+           p.title as title, coalesce(p.images->>0, '') as image, './market.html?Product=' || p.id as href,
            (select string_agg(x, ' · ') from jsonb_array_elements_text(r.pros) x) as pros,
            (select string_agg(x, ' · ') from jsonb_array_elements_text(r.cons) x) as cons,
            r.order_id is not null as verified, r.suspended_at, r.suspended_reason, r.suspended_by
@@ -3973,13 +3973,13 @@ begin
     select 'list', l.id, l.member_id, l.created_at, l.visibility, coalesce(l.audience_before->>'visibility', l.visibility),
            l.name, coalesce((select p.images->>0 from public.market_list_items i join public.market_products p on p.id = i.product_id
                               where i.list_id = l.id and jsonb_array_length(p.images) > 0 order by i.added_at desc limit 1), ''),
-           './Market.html?List=' || l.id, l.description, '', false, l.suspended_at, l.suspended_reason, l.suspended_by
+           './market.html?List=' || l.id, l.description, '', false, l.suspended_at, l.suspended_reason, l.suspended_by
       from public.market_lists l
      where p_kind = 'lists'
     union all
     select 'rec', r.id, r.member_id, r.created_at, r.visibility, coalesce(r.audience_before->>'visibility', r.visibility),
            coalesce(p.title, l.name, ''), coalesce(p.images->>0, ''),
-           case when r.kind = 'product' then './Market.html?Product=' || r.product_id else './Market.html?List=' || r.list_id end,
+           case when r.kind = 'product' then './market.html?Product=' || r.product_id else './market.html?List=' || r.list_id end,
            r.note, '', r.root_id is not null, r.suspended_at, r.suspended_reason, r.suspended_by
       from public.market_recs r
       left join public.market_products p on p.id = r.product_id
@@ -4030,7 +4030,7 @@ begin
     if not found then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
     author := rv.member_id; was_susp := rv.suspended_at is not null; v_product := rv.product_id;
     label := coalesce((select p.title from public.market_products p where p.id = rv.product_id), '');
-    what := 'review'; href := './Market.html?Product=' || rv.product_id;
+    what := 'review'; href := './market.html?Product=' || rv.product_id;
     aud := jsonb_build_object('visibility', rv.visibility, 'excl_followers', rv.excl_followers, 'excl_premium', rv.excl_premium,
                               'excl_countries', rv.excl_countries, 'allowed', to_jsonb(rv.allowed));
     if p_action = 'suspend' and not was_susp then
@@ -4055,7 +4055,7 @@ begin
     select * into l from public.market_lists where id = v_id for update;
     if not found then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
     author := l.member_id; was_susp := l.suspended_at is not null; label := l.name; what := 'list';
-    href := './Market.html?List=' || l.id;
+    href := './market.html?List=' || l.id;
     aud := jsonb_build_object('visibility', l.visibility, 'excl_followers', l.excl_followers, 'excl_premium', l.excl_premium,
                               'excl_countries', l.excl_countries, 'allowed', to_jsonb(l.allowed));
     if p_action = 'suspend' and not was_susp then
@@ -4081,7 +4081,7 @@ begin
     author := r.member_id; was_susp := r.suspended_at is not null; what := 'recommendation';
     label := coalesce((select p.title from public.market_products p where p.id = r.product_id),
                       (select x.name from public.market_lists x where x.id = r.list_id), '');
-    href := case when r.kind = 'product' then './Market.html?Product=' || r.product_id else './Market.html?List=' || r.list_id end;
+    href := case when r.kind = 'product' then './market.html?Product=' || r.product_id else './market.html?List=' || r.list_id end;
     aud := jsonb_build_object('visibility', r.visibility, 'excl_followers', r.excl_followers, 'excl_premium', r.excl_premium,
                               'excl_countries', r.excl_countries, 'allowed', to_jsonb(r.allowed));
     if p_action = 'suspend' and not was_susp then
@@ -4103,8 +4103,8 @@ begin
     end if;
   end if;
   -- the author is told (the Market tab of their profile, where it is listed)
-  href := case p_kind when 'review' then './Profile.html#market/reviews' when 'list' then './Profile.html#market/lists'
-                      else './Profile.html#market/recs' end;
+  href := case p_kind when 'review' then './profile.html#market/reviews' when 'list' then './profile.html#market/lists'
+                      else './profile.html#market/recs' end;
   perform public._mkt_notify(author,
     case p_action when 'suspend' then 'market_social_suspended' when 'restore' then 'market_social_restored' else 'market_social_deleted' end,
     case p_action when 'suspend' then 'The team suspended your ' || what
@@ -4252,7 +4252,7 @@ begin
   return jsonb_build_object('ok', true, 'id', c.id, 'code', c.code, 'scope', c.scope, 'pct', c.pct);
 end $$;
 
--- ---- the seller: Market.html > Coupons > Sales coupons
+-- ---- the seller: market.html > Coupons > Sales coupons
 -- A new coupon of the member's store.
 --   d = { code (empty: drawn), max_uses (1), scope (product | shipping | both), pct (1-100),
 --         audience (public | exclusive), countries [], min_purchases, max_purchases, min_positive, max_positive,
@@ -4343,7 +4343,7 @@ begin
           n := n + 1;
           if n <= 500 then
             perform public._mkt_notify(r.member_id, 'market_coupon', 'A store gave you a coupon',
-              st.name || ' · -' || c.pct::text || '%', './Market.html#coupons/purchases', m.member_id);
+              st.name || ' · -' || c.pct::text || '%', './market.html#coupons/purchases', m.member_id);
           end if;
         end if;
       end if;
@@ -4400,7 +4400,7 @@ begin
   return res;
 end $$;
 
--- ---- the buyer: Market.html > Coupons > Purchase coupons
+-- ---- the buyer: market.html > Coupons > Purchase coupons
 -- The member's coupons (the exclusive coupons they meet come in first).
 --   p_filter: pending (not used yet) | used
 --   -> { ok, total, counts: { pending, used }, items: [ coupon + { how, got_at, used_at, order_id, order } ] }

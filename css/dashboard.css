@@ -1405,7 +1405,7 @@ html:not([data-theme="day"]) .ipx-badge.epg { color: #a996ff; }
 
 /* ---------- Picture fields (js/common.js pictureFieldHtml): image links, or pictures picked
    on the device and uploaded once the page has saved (sql/image_uploads.sql). Panel > Prizes
-   (prize and group pictures), Market.html (products, store logo and cover). ---------- */
+   (prize and group pictures), market.html (products, store logo and cover). ---------- */
 .pcf {
   display: grid;
   gap: 8px;

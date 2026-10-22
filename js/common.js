@@ -576,7 +576,7 @@
   }
 
   function personHref(id) {
-    return `./Cast.html?person=${id}`;
+    return `./cast.html?person=${id}`;
   }
 
   // TMDB filmography of a person, cached in sessionStorage so the profile
@@ -963,7 +963,7 @@
   }
 
   // ---------- Picture fields: image links, or pictures picked on the device ----------
-  // Prizes and prize groups (Panel > Prizes), products, store logos and covers (Market.html).
+  // Prizes and prize groups (Panel > Prizes), products, store logos and covers (market.html).
   // Like the profile picture, a field takes an image link or a picture from the device; unlike
   // it, what it shows may not exist yet (a new prize, a new product), so a picked picture waits
   // in the field (made smaller, as a JPEG) and goes up only once the page has saved and knows
@@ -1728,8 +1728,8 @@
   const codeLockLeft = () => Math.max(0, readCodeLock().until - Date.now());
 
   /* ---------- Channel lists of the home page: two playlists in Supabase Storage ----------
-     Free channels (Listchannels.html?free=1): IPTV-Free.m3u, played as they are.
-     Premium channels (Listchannels.html?premium=1): IPTV-Premuim.m3u. Its links
+     Free channels (listchannels.html?free=1): IPTV-Free.m3u, played as they are.
+     Premium channels (listchannels.html?premium=1): IPTV-Premuim.m3u. Its links
      carry the words Username and Password (http://line.ottcst.net:80/Username/Password/1784957),
      replaced with the username and password of a premium IPTV account: typed on
      the page, or found with a watch code (sql/iptv_premium.sql). */
@@ -1902,18 +1902,18 @@
 
   function profileHref(username) {
     const name = String(username || "").replace(/^@/, "").trim();
-    return name ? `./Profile.html?@${encodeURIComponent(name)}` : "./Profile.html";
+    return name ? `./profile.html?@${encodeURIComponent(name)}` : "./profile.html";
   }
 
-  // A single post has its own link too: ./Profile.html?post=P123456789
+  // A single post has its own link too: ./profile.html?post=P123456789
   function postHref(postId) {
     const id = String(postId || "").trim();
-    return id ? `./Profile.html?post=${encodeURIComponent(id)}` : "./Profile.html";
+    return id ? `./profile.html?post=${encodeURIComponent(id)}` : "./profile.html";
   }
 
   /* ---------- Sharing a CineAura link ----------
      Facebook · Pinterest · Telegram · WhatsApp · Reddit, plus copy.
-     Every network needs an absolute URL, so a page-relative href ("./Profile.html?post=P1")
+     Every network needs an absolute URL, so a page-relative href ("./profile.html?post=P1")
      is resolved against the current page first. */
   function absoluteUrl(href) {
     const raw = String(href || "");
@@ -2275,7 +2275,7 @@
         /* not a link */
       }
     }
-    return "./Profile.html";
+    return "./profile.html";
   }
 
   function dateFormat(options) {
@@ -3140,10 +3140,10 @@
     ["./search.html", "nav.search"],
     ["./movies.html", "nav.movies"],
     ["./series.html", "nav.series"],
-    ["./Content.html", "nav.videos"],
-    ["./IPTV.html", "nav.iptv"],
-    ["./Prize.html", "nav.prizes"],
-    ["./Market.html", "nav.market"],
+    ["./content.html", "nav.videos"],
+    ["./iptv.html", "nav.iptv"],
+    ["./prize.html", "nav.prizes"],
+    ["./market.html", "nav.market"],
     ["./help.html", "nav.help"],
   ];
   function unifyHeaderNav() {
@@ -3709,9 +3709,9 @@
     return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
   }
 
-  // The id of a playlist row on Listchannels.html (&channel=<id>): its stream link (else
+  // The id of a playlist row on listchannels.html (&channel=<id>): its stream link (else
   // its name) and its group. The members' IPTV lists keep the same id with each channel,
-  // so a result of Search.html > Channels opens that very channel.
+  // so a result of search.html > Channels opens that very channel.
   function m3uRowId(row) {
     const name = String(row?.channel_name || "").trim().toLowerCase().replace(/\s+/g, " ");
     return `m${cyrb53(`${row?.stream_url || name}\n${row?.group_name}`)}`;
@@ -4417,7 +4417,7 @@
     let prof = profile || {};
     // Callers that loaded only some columns: read the stored points (absent on a database
     // that never ran their SQL file — the minutes count then, as before, and the rest is 0).
-    // A caller with no profile at all (Market.html) gets the minutes and the spent points too.
+    // A caller with no profile at all (market.html) gets the minutes and the spent points too.
     const BASIC = ["points_spent", "private_minutes", "public_minutes"];
     if (memberId && [...STORED_POINT_COLUMNS, ...BASIC].some((c) => !(c in prof))) {
       const res = await supabaseRequest(`/rest/v1/profiles?member_id=eq.${restValue(memberId)}&select=*`).catch(() => null);

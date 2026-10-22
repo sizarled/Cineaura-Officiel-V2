@@ -2939,7 +2939,7 @@ Not showing now (see its dates) = Pas affiché en ce moment (voir ses dates)
 Save the bar = Enregistrer le bandeau
 The bar was saved. = Le bandeau a été enregistré.
 Write a text of 3 to 280 characters to show the bar. = Écrivez un texte de 3 à 280 caractères pour afficher le bandeau.
-The link must start with https:// or be a page of the site (./Market.html). = Le lien doit commencer par https:// ou être une page du site (./Market.html).
+The link must start with https:// or be a page of the site (./market.html). = Le lien doit commencer par https:// ou être une page du site (./market.html).
 The button text is too long (40 characters at most). = Le texte du bouton est trop long (40 caractères au maximum).
 Check the dates: the end must come after the start. = Vérifiez les dates : la fin doit venir après le début.
 Send a message to the members = Envoyer un message aux membres
@@ -3515,7 +3515,7 @@ Reach LV1 (10 points earned) to open your store and sell. = Atteignez LV1 (10 po
 {pct}% of the price ({rate}), paid by the seller once the buyer has received the order and the return period is over. Not for your own purchases. = {pct} % du prix ({rate}), versés par le vendeur une fois que l’acheteur a reçu la commande et que le délai de retour est passé. Pas pour vos propres achats.
 
 
-# ── نظام البحث — Search.html (js/search.js) ─────────────────────
+# ── نظام البحث — search.html (js/search.js) ─────────────────────
 Search — CineAura = Recherche — CineAura
 Search videos, movies, series, channels, profiles, market and prizes = Recherchez vidéos, films, séries, chaînes, profils, marché et prix
 Search movies = Rechercher des films

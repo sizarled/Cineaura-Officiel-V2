@@ -1,5 +1,5 @@
 -- ============================================================
--- Member videos ("Your content" on the profile, Content.html, Search.html)
+-- Member videos ("Your content" on the profile, content.html, search.html)
 -- Run in the Supabase SQL editor AFTER profile.sql, points.sql, prize_secure.sql,
 -- point_levels.sql and point_codes.sql (safe to run more than once).
 --
@@ -13,11 +13,11 @@
 --     to a playlist, delete.
 --   * Statistics: the numbers of a period (now = last 60 minutes, today,
 --     yesterday, this week, this month, this year).
---   * Content.html?idcontent=CT…: the player, title, description, publisher,
+--   * content.html?idcontent=CT…: the player, title, description, publisher,
 --     recommend / don't recommend, share, add to a playlist, comments and
---     suggestions. Content.html alone: a search box and the 50 videos with the most
---     watched minutes, recommendations or shares. Search.html finds videos.
---   * A member's page (Profile.html?@name) > Content: their videos (newest, most
+--     suggestions. content.html alone: a search box and the 50 videos with the most
+--     watched minutes, recommendations or shares. search.html finds videos.
+--   * A member's page (profile.html?@name) > Content: their videos (newest, most
 --     watched, most liked, most shared) and their playlists, each one with its
 --     videos, as far as the visitor may find them (content_search with p_owner,
 --     content_playlists_of, content_playlist_get).
@@ -519,7 +519,7 @@ begin
   if c.visibility = 'private' or to_regclass('public.notifications') is null then return 0; end if;
   -- the followers who also find it in Profile > Updates (content_feed)
   insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
-  select f.follower_id, 'content', 'New video', c.title, './Content.html?idcontent=' || c.content_id, c.owner_id, c.owner_username
+  select f.follower_id, 'content', 'New video', c.title, './content.html?idcontent=' || c.content_id, c.owner_id, c.owner_username
   from public.follows f
   where f.following_id = c.owner_id and f.status = 'accepted' and f.follower_id <> c.owner_id
     and not public._content_feed_hidden(c.owner_id, f.follower_id)
@@ -806,7 +806,7 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ------------------------------------------------------------------ 7. watching
--- Content.html: the video, if the viewer may watch it.
+-- content.html: the video, if the viewer may watch it.
 -- -> { ok: true, access: 'ok' | 'signin' | 'followers' | 'premium' | 'country' | 'age',
 --      content: {..., url only when access = ok and the video is rated under 13,
 --                code: true when it is rated 13+ (content_unlock gives the link)},
@@ -839,7 +839,7 @@ begin
     'my_vote', coalesce(v, 0));
 end $$;
 
--- Content.html, a video rated 13+: its link for a watch code (sql/code_devices.sql,
+-- content.html, a video rated 13+: its link for a watch code (sql/code_devices.sql,
 -- code_use: the code's state, its age tier against the rating, one device per code).
 --   p_silent  the code remembered on this device (not typed): only while it is still
 --             linked to this device
@@ -872,9 +872,9 @@ begin
   return res || jsonb_build_object('url', c.video_url, 'age', c.age_rating, 'code', true);
 end $$;
 
--- Search.html and the search box of Content.html.
+-- search.html and the search box of content.html.
 --   p_sort: relevance | views | recs | date | az | za, and for the 50 videos of
---           Content.html: minutes (watched minutes) | shares (recs = most recommended)
+--           content.html: minutes (watched minutes) | shares (recs = most recommended)
 --   p_lang (language), p_country (region of the video), p_age (3 6 13 16 18), p_owner (username), p_tag
 -- Public and exclusive videos, and the private ones the member was given; never
 -- scheduled ones, those of banned publishers, or a rating above a member's age.
@@ -930,7 +930,7 @@ begin
   return jsonb_build_object('total', total, 'items', items, 'sort', srt);
 end $$;
 
--- Content.html, the side column. First the videos under the same tags AND in the
+-- content.html, the side column. First the videos under the same tags AND in the
 -- same language (the publisher's own ones first); when no video matches both, the
 -- videos of the same country. Each group is ordered by how many of the criteria
 -- (shared tags, language, publisher) a video matches; the rest of the list is
@@ -1017,7 +1017,7 @@ begin
   return jsonb_build_object('ok', true, 'logged', n) || case when pts is null then '{}'::jsonb else jsonb_build_object('points', pts) end;
 end $$;
 
--- One counted minute of a video (Content.html calls it once a minute while it plays).
+-- One counted minute of a video (content.html calls it once a minute while it plays).
 -- Shares the 45-second clock of watch_minute() (sql/point_levels.sql), so two pages
 -- playing at once still earn one minute at a time.
 -- -> { ok, country, tier, minutes, viewer?: {gain…}, owner?: {gain} } | { ok: false, reason }
@@ -1115,7 +1115,7 @@ begin
     if to_regclass('public.notifications') is not null then
       insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
       values (c.owner_id, 'content_comment', 'New comment', '@' || m.username || ': ' || left(b, 120),
-              './Content.html?idcontent=' || c.content_id || '#comments', m.member_id, m.username);
+              './content.html?idcontent=' || c.content_id || '#comments', m.member_id, m.username);
     end if;
   end if;
   return jsonb_build_object('ok', true, 'id', row_id)
@@ -1475,18 +1475,18 @@ begin
       if c.suspended_at is not null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content set suspended_at = now(), suspended_reason = why, suspended_by = who where content_id = c.content_id;
       perform public._content_tell(c.owner_id, 'content_suspended', 'The team suspended your video', c.title || ' · ' || why,
-                                   './Content.html?idcontent=' || c.content_id);
+                                   './content.html?idcontent=' || c.content_id);
       return jsonb_build_object('ok', true, 'status', 'suspended');
     elsif p_action = 'restore' then
       if c.suspended_at is null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content set suspended_at = null, suspended_reason = '', suspended_by = '' where content_id = c.content_id;
       perform public._content_tell(c.owner_id, 'content_restored', 'The team restored your video', c.title,
-                                   './Content.html?idcontent=' || c.content_id);
+                                   './content.html?idcontent=' || c.content_id);
       return jsonb_build_object('ok', true, 'status', 'active');
     end if;
     delete from public.content where content_id = c.content_id;
     perform public._content_tell(c.owner_id, 'content_deleted', 'The team deleted your video', c.title || ' · ' || why,
-                                 './Profile.html#content/manage');
+                                 './profile.html#content/manage');
     return jsonb_build_object('ok', true, 'status', 'deleted');
   elsif p_kind = 'playlist' then
     select * into pl from public.content_playlists where playlist_id = v_id for update;
@@ -1495,17 +1495,17 @@ begin
       if pl.suspended_at is not null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content_playlists set suspended_at = now(), suspended_reason = why, suspended_by = who where playlist_id = pl.playlist_id;
       perform public._content_tell(pl.owner_id, 'content_suspended', 'The team suspended your playlist', pl.name || ' · ' || why,
-                                   './Profile.html#playlists');
+                                   './profile.html#playlists');
       return jsonb_build_object('ok', true, 'status', 'suspended');
     elsif p_action = 'restore' then
       if pl.suspended_at is null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content_playlists set suspended_at = null, suspended_reason = '', suspended_by = '' where playlist_id = pl.playlist_id;
-      perform public._content_tell(pl.owner_id, 'content_restored', 'The team restored your playlist', pl.name, './Profile.html#playlists');
+      perform public._content_tell(pl.owner_id, 'content_restored', 'The team restored your playlist', pl.name, './profile.html#playlists');
       return jsonb_build_object('ok', true, 'status', 'active');
     end if;
     delete from public.content_playlists where playlist_id = pl.playlist_id;
     perform public._content_tell(pl.owner_id, 'content_deleted', 'The team deleted your playlist', pl.name || ' · ' || why,
-                                 './Profile.html#playlists');
+                                 './profile.html#playlists');
     return jsonb_build_object('ok', true, 'status', 'deleted');
   end if;
   return jsonb_build_object('ok', false, 'reason', 'kind');

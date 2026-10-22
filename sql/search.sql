@@ -1,11 +1,11 @@
 -- ============================================================
--- CineAura — Search system (Search.html)
+-- CineAura — Search system (search.html)
 -- Run in the Supabase SQL editor AFTER members.sql, profile.sql, dashboard.sql,
 -- content.sql, post_reviews.sql, post_analytics.sql, post_watch_points.sql,
 -- iptv_lists.sql, market.sql, prize_center.sql, prize_modes.sql, prize_admin.sql,
 -- prize_secure.sql and point_levels.sql (safe to run again).
 --
--- Search.html has seven tabs. Each tab shows several result types and every
+-- search.html has seven tabs. Each tab shows several result types and every
 -- result may be narrowed by "added" (today, yesterday, this week, this month,
 -- this year, all time) and ordered by the ranking points below.
 --
@@ -243,7 +243,7 @@ begin
   return 'ok';
 end $$;
 
--- A list as a card (search results, IPTV.html, the dashboard), with the new
+-- A list as a card (search results, iptv.html, the dashboard), with the new
 -- criteria and the viewer's join request, if any.
 create or replace function public._iptvl_card(l public.iptv_lists, p_member text) returns jsonb
 language sql stable security definer set search_path = public as $$

@@ -388,7 +388,7 @@
       placeholder: t("pa.ct.searchVideos"),
       fetch: (st, off) => rpc("content_admin", { p_kind: "videos", p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (v, i) => {
-        const href = `./Content.html?idcontent=${encodeURIComponent(v.id)}`;
+        const href = `./content.html?idcontent=${encodeURIComponent(v.id)}`;
         return `
           <article class="crp-card pa-card${v.suspended ? " pa-susp" : ""}" data-pa-i="${i}">
             <div class="crp-top">
@@ -459,7 +459,7 @@
       placeholder: t("pa.ct.searchLists"),
       fetch: (st, off) => rpc("iptv_lists_admin", { p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (l, i) => {
-        const href = `./Listchannels.html?list=${encodeURIComponent(l.id)}`;
+        const href = `./listchannels.html?list=${encodeURIComponent(l.id)}`;
         const src = l.url || l.path || "";
         return `
           <article class="crp-card pa-card${l.suspended ? " pa-susp" : ""}" data-pa-i="${i}">
@@ -553,7 +553,7 @@
       placeholder: t("pa.mk.searchStores"),
       fetch: (st, off) => rpc("market_admin_stores", { p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (s, i) => {
-        const href = `./Market.html?Store=${encodeURIComponent(s.id)}`;
+        const href = `./market.html?Store=${encodeURIComponent(s.id)}`;
         return `
           <article class="crp-card pa-card${s.suspended ? " pa-susp" : ""}" data-pa-i="${i}">
             <div class="crp-top">
@@ -614,7 +614,7 @@
       placeholder: t("pa.mk.searchProducts"),
       fetch: (st, off) => rpc("market_admin_products", { p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (p, i) => {
-        const href = `./Market.html?Product=${encodeURIComponent(p.id)}`;
+        const href = `./market.html?Product=${encodeURIComponent(p.id)}`;
         const susp = p.status === "suspended";
         return `
           <article class="crp-card pa-card${susp ? " pa-susp" : ""}" data-pa-i="${i}">
@@ -673,7 +673,7 @@
       lead: t("pa.mk.ordersLead"),
       fetch: (st, off) => rpc("market_admin_orders", { p_filter: st.filter, p_q: st.q, p_limit: PAGE, p_offset: off }),
       card: (o, i) => {
-        const href = `./Market.html?Product=${encodeURIComponent(o.product_id)}`;
+        const href = `./market.html?Product=${encodeURIComponent(o.product_id)}`;
         const paid = Boolean(o.settled_at);
         const can = Array.isArray(o.can) ? o.can : [];
         const staff = o.staff;
@@ -731,7 +731,7 @@
         <article class="crp-card pa-card pa-cat" data-pa-i="${i}">
           <div class="crp-top">
             <div class="crp-title">
-              <h3><a href="./Market.html?Categories=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${esc(c.name)}</a></h3>
+              <h3><a href="./market.html?Categories=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${esc(c.name)}</a></h3>
               <p><span dir="ltr">${esc(c.id)}</span> · ${t("pa.mk.catBy", { name: c.by?.username ? "@" + esc(c.by.username) : "—" })} · ${esc(day(c.created_at))}</p>
             </div>
             <span class="crp-count">${t("pa.mk.catCount", { n: num(c.products) })}</span>
@@ -1216,7 +1216,7 @@
       <form class="pa-form-grid" id="pa-bform">
         <label class="wide"><span>${t("pa.an.text")} <small class="muted" id="pa-bcount"></small></span>
           <textarea name="text" rows="2" maxlength="280" placeholder="${esc(t("pa.an.textPh"))}" dir="auto">${esc(b.text || "")}</textarea></label>
-        <label><span>${t("pa.an.link")}</span><input name="link" type="text" maxlength="500" value="${esc(b.link || "")}" placeholder="./Market.html" dir="ltr" /></label>
+        <label><span>${t("pa.an.link")}</span><input name="link" type="text" maxlength="500" value="${esc(b.link || "")}" placeholder="./market.html" dir="ltr" /></label>
         <label><span>${t("pa.an.linkLabel")}</span><input name="link_label" type="text" maxlength="40" value="${esc(b.link_label || "")}" placeholder="${esc(t("pa.an.linkLabelPh"))}" dir="auto" /></label>
         <label><span>${t("pa.an.tone")}</span><select name="tone">${TONES.map((x) => `<option value="${x}"${x === b.tone ? " selected" : ""}>${t(`pa.an.tone.${x}`)}</option>`).join("")}</select></label>
         <label><span>${t("pa.an.starts")}</span><input name="starts_at" type="datetime-local" value="${esc(localInput(b.starts_at))}" /></label>
@@ -1260,7 +1260,7 @@
       <form class="pa-form-grid" id="pa-aform">
         <label class="wide"><span>${t("pa.an.aTitle")}</span><input name="title" type="text" maxlength="120" required placeholder="${esc(t("pa.an.aTitlePh"))}" dir="auto" /></label>
         <label class="wide"><span>${t("pa.an.aBody")}</span><textarea name="body" rows="3" maxlength="500" placeholder="${esc(t("pa.an.aBodyPh"))}" dir="auto"></textarea></label>
-        <label><span>${t("pa.an.link")}</span><input name="href" type="text" maxlength="500" placeholder="./Market.html" dir="ltr" /></label>
+        <label><span>${t("pa.an.link")}</span><input name="href" type="text" maxlength="500" placeholder="./market.html" dir="ltr" /></label>
         <label><span>${t("pa.an.audience")}</span>
           <select name="audience">
             <option value="all">${t("pa.an.aud.all")}</option>

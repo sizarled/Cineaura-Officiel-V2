@@ -1,26 +1,26 @@
-/* CineAura — Market.html: the members' market (sql/market.sql).
+/* CineAura — market.html: the members' market (sql/market.sql).
  *
- * Unlike Prize.html (published by the staff), members sell here, for points:
+ * Unlike prize.html (published by the staff), members sell here, for points:
  *
- *   Market.html                    the search box (products, categories, stores) and its filters
+ *   market.html                    the search box (products, categories, stores) and its filters
  *                                  (newest / oldest, country, physical / digital), then the trending
  *                                  products and the 5 best-selling categories (20 products each) —
  *                                  worldwide for guests, in the member's country once signed in
- *   Market.html?q=…&type=…        a search: products | stores | categories (&sort=new|old&country=&kind=)
- *   Market.html?Categories=<id>    the products of a category, with a search box inside it
- *   Market.html?Store=<id>         a store
- *   Market.html?Product=<id>       a product (…&@username: the share link of a member, who earns the
+ *   market.html?q=…&type=…        a search: products | stores | categories (&sort=new|old&country=&kind=)
+ *   market.html?Categories=<id>    the products of a category, with a search box inside it
+ *   market.html?Store=<id>         a store
+ *   market.html?Product=<id>       a product (…&@username: the share link of a member, who earns the
  *                                  commission its seller chose, up to 25% of the price of a sale
  *                                  made through it — shared equally with the member who first
  *                                  recommended it when that member recommended it again). Its page
  *                                  also recommends it, adds it to a purchase list, reviews it.
- *   Market.html?List=<id>          a purchase list (…&@username: who brings the sale of its products)
- *   Market.html#sales/requests …   the side menu of the member: points (+ add points), notifications,
+ *   market.html?List=<id>          a purchase list (…&@username: who brings the sale of its products)
+ *   market.html#sales/requests …   the side menu of the member: points (+ add points), notifications,
  *                                  your sales (products, sale requests, sold, shipped, delivered,
  *                                  returned), your purchases (buy later, purchase requests, purchased,
  *                                  shipped, received, returned), your rating (given / received),
  *                                  your requests (sent / received) and the store settings
- *   Market.html#coupons/purchases  the coupons: Purchase coupons (got from stores, given by them:
+ *   market.html#coupons/purchases  the coupons: Purchase coupons (got from stores, given by them:
  *                                  waiting / used; copy, download, delete) and Sales coupons (the
  *                                  coupons of your store: make one, pause, delete) — js/market-coupons.js
  *
@@ -76,7 +76,7 @@
   };
 
   // ---------------------------------------------------------------- address
-  // Market.html?Product=… and ?product=… both work
+  // market.html?Product=… and ?product=… both work
   function param(name) {
     const want = name.toLowerCase();
     for (const [k, v] of new URLSearchParams(location.search)) if (k.toLowerCase() === want) return v;
@@ -91,7 +91,7 @@
       return {};
     }
   }
-  // Market.html?Product=PRD…&@alice: alice shared it. Kept for 30 days for that product.
+  // market.html?Product=PRD…&@alice: alice shared it. Kept for 30 days for that product.
   function captureRef() {
     const id = (param("Product") || "").trim();
     if (!id) return;
@@ -166,7 +166,7 @@
     if (f.country) q.set("country", f.country);
     if (f.kind && f.type !== "stores") q.set("kind", f.kind);
     if (![...q.keys()].length) q.set("type", "products");
-    return `./Market.html?${q}`;
+    return `./market.html?${q}`;
   }
   function categoryHref(id, f = {}) {
     const q = new URLSearchParams({ Categories: id });
@@ -174,7 +174,7 @@
     if (f.sort && f.sort !== "new") q.set("sort", f.sort);
     if (f.country) q.set("country", f.country);
     if (f.kind) q.set("kind", f.kind);
-    return `./Market.html?${q}`;
+    return `./market.html?${q}`;
   }
 
   function go(href, { replace = false } = {}) {
@@ -268,7 +268,7 @@
   function drawActs() {
     const box = $("#mkt-acts");
     if (!signedIn()) {
-      box.innerHTML = `<a class="btn btn-sm btn-primary" href="${esc(M.signinHref("Market.html#sales/products"))}">${ICON.plus}<span>${esc(t("mkt.signinSell"))}</span></a>`;
+      box.innerHTML = `<a class="btn btn-sm btn-primary" href="${esc(M.signinHref("market.html#sales/products"))}">${ICON.plus}<span>${esc(t("mkt.signinSell"))}</span></a>`;
       return;
     }
     const store = state.me?.store;
@@ -346,7 +346,7 @@
   function sellEmptyHtml(text) {
     const act = signedIn()
       ? `<button class="btn btn-sm btn-primary" type="button" data-sell>${ICON.plus}<span>${esc(t("mkt.sell"))}</span></button>`
-      : `<a class="btn btn-sm btn-primary" href="${esc(M.signinHref("Market.html#sales/products"))}">${esc(t("mkt.signinSell"))}</a>`;
+      : `<a class="btn btn-sm btn-primary" href="${esc(M.signinHref("market.html#sales/products"))}">${esc(t("mkt.signinSell"))}</a>`;
     return `<div class="vs-none glass mkt-empty"><span class="mkt-empty-ico">${ICON.bigBag}</span><h2>${esc(t("mkt.noneTitle"))}</h2><p class="muted">${esc(text || t("mkt.noneText"))}</p>${act}</div>`;
   }
 
@@ -450,14 +450,14 @@
       return;
     }
     if (!c.data?.ok) {
-      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.catGone"))}</h2><p><a class="btn btn-sm btn-primary" href="./Market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
+      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.catGone"))}</h2><p><a class="btn btn-sm btn-primary" href="./market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
       return;
     }
     const cat = c.data.category;
     document.title = `${cat.name} — ${t("mkt.pageTitle")}`;
     box.innerHTML = `
       <section class="glass mkt-cat-head">
-        <nav class="mkt-crumbs" aria-label="${esc(t("mkt.crumbs"))}"><a href="./Market.html" data-nav>${esc(t("mkt.eyebrow"))}</a><span aria-hidden="true">›</span><span>${esc(t("mkt.categories"))}</span></nav>
+        <nav class="mkt-crumbs" aria-label="${esc(t("mkt.crumbs"))}"><a href="./market.html" data-nav>${esc(t("mkt.eyebrow"))}</a><span aria-hidden="true">›</span><span>${esc(t("mkt.categories"))}</span></nav>
         <h1 dir="auto">${esc(cat.name)}</h1>
         <form class="vs-searchbar mkt-cat-search" data-cat-form role="search">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/></svg>
@@ -515,7 +515,7 @@
       return;
     }
     if (!res.data?.ok) {
-      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.storeGone"))}</h2><p><a class="btn btn-sm btn-primary" href="./Market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
+      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.storeGone"))}</h2><p><a class="btn btn-sm btn-primary" href="./market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
       return;
     }
     const s = res.data.store;
@@ -569,7 +569,7 @@
   // delivered at once, or bought); after its address: that list again.
   function afterCheckout(o) {
     refreshMe();
-    go(`./Market.html#purchases/${o.status === "requested" ? "requests" : o.status === "shipped" ? "shipped" : "purchased"}`);
+    go(`./market.html#purchases/${o.status === "requested" ? "requests" : o.status === "shipped" ? "shipped" : "purchased"}`);
   }
   function afterAddress() {
     refreshMe();
@@ -662,7 +662,7 @@
         : `<button class="btn btn-lg btn-primary" type="button" data-buy>${ICON.cart}<span>${esc(t(request ? "mkt.buyRequest" : "mkt.buyNow"))}</span></button>`;
     return `
       <nav class="mkt-crumbs mkt-pcats" aria-label="${esc(t("mkt.categories"))}">
-        <a href="./Market.html" data-nav>${esc(t("mkt.eyebrow"))}</a><span aria-hidden="true">›</span>
+        <a href="./market.html" data-nav>${esc(t("mkt.eyebrow"))}</a><span aria-hidden="true">›</span>
         ${(p.categories || []).map((c) => `<a class="mkt-cat-chip" href="${esc(M.categoryHref(c.id))}" data-nav dir="auto">${esc(c.name)}</a>`).join("")}
       </nav>
       <article class="mkt-product">
@@ -750,11 +750,11 @@
           <h2>${ICON.lock} ${esc(t("mkt.gate.title"))}</h2>
           <p class="muted">${esc(t("mkt.gate.hint"))}</p>
           ${M.gateCriteriaHtml(res.data.gate)}
-          <p><a class="btn btn-sm btn-primary" href="./Market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p>
+          <p><a class="btn btn-sm btn-primary" href="./market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p>
         </div>`;
         return;
       }
-      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.productGone"))}</h2><p class="muted">${esc(t("mkt.productGoneText"))}</p><p><a class="btn btn-sm btn-primary" href="./Market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
+      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.productGone"))}</h2><p class="muted">${esc(t("mkt.productGoneText"))}</p><p><a class="btn btn-sm btn-primary" href="./market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
       return;
     }
     const d = res.data;
@@ -803,7 +803,7 @@
       box.querySelectorAll("[data-thumb]").forEach((b, k) => b.classList.toggle("on", k === i));
     });
     const needSignin = () => {
-      location.href = M.signinHref(`Market.html?Product=${encodeURIComponent(p.id)}`);
+      location.href = M.signinHref(`market.html?Product=${encodeURIComponent(p.id)}`);
     };
     box.querySelector("[data-buy]")?.addEventListener("click", () => {
       if (!signedIn()) return needSignin();
@@ -860,7 +860,7 @@
   }
 
   // ---------------------------------------------------------------- a purchase list
-  // Market.html?List=<id>&@ref: its products on sale; their links carry ref (else its author), who
+  // market.html?List=<id>&@ref: its products on sale; their links carry ref (else its author), who
   // brings the sale. Its author changes it, takes products out; another member recommends it again.
   async function drawList(r) {
     const seq = ++state.seq;
@@ -874,7 +874,7 @@
     }
     if (!res.data?.ok) {
       document.title = t("mkt.pageTitle");
-      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.ls.gone"))}</h2><p class="muted">${esc(t("mkt.ls.goneText"))}</p><p><a class="btn btn-sm btn-primary" href="./Market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
+      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.ls.gone"))}</h2><p class="muted">${esc(t("mkt.ls.goneText"))}</p><p><a class="btn btn-sm btn-primary" href="./market.html" data-nav>${esc(t("mkt.backToMarket"))}</a></p></div>`;
       return;
     }
     const l = res.data.list;
@@ -885,7 +885,7 @@
     const imgs = (Array.isArray(l.images) ? l.images : []).filter(Boolean).slice(0, 4);
     box.innerHTML = `
       <nav class="mkt-crumbs" aria-label="${esc(t("mkt.ls.eyebrow"))}">
-        <a href="./Market.html" data-nav>${esc(t("mkt.eyebrow"))}</a><span aria-hidden="true">›</span>
+        <a href="./market.html" data-nav>${esc(t("mkt.eyebrow"))}</a><span aria-hidden="true">›</span>
         <a href="${esc(M.profileMarketHref(author, "lists"))}">@${esc(author)}</a><span aria-hidden="true">›</span>
         <span>${esc(t("mkt.ls.eyebrow"))}</span>
       </nav>
@@ -978,7 +978,7 @@
     document.title = `${t(`mkt.nav.${r.section}`)} — ${t("mkt.pageTitle")}`;
     const box = main();
     if (!signedIn()) {
-      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.guestTitle"))}</h2><p class="muted">${esc(t("mkt.guestText"))}</p><p><a class="btn btn-sm btn-primary" href="${esc(M.signinHref(`Market.html#${r.section}${r.tab ? `/${r.tab}` : ""}`))}">${esc(t("nav.signin"))}</a></p></div>`;
+      box.innerHTML = `<div class="vs-none glass"><h2>${esc(t("mkt.guestTitle"))}</h2><p class="muted">${esc(t("mkt.guestText"))}</p><p><a class="btn btn-sm btn-primary" href="${esc(M.signinHref(`market.html#${r.section}${r.tab ? `/${r.tab}` : ""}`))}">${esc(t("nav.signin"))}</a></p></div>`;
       return;
     }
     if (r.section === "settings") return drawSettings(r);
@@ -1591,7 +1591,7 @@
 
   async function sell() {
     if (!signedIn()) {
-      location.href = M.signinHref("Market.html#sales/products");
+      location.href = M.signinHref("market.html#sales/products");
       return;
     }
     // clicked before the side menu arrived: the store and the level first
@@ -1603,14 +1603,14 @@
     // LV5 to open/sell — Store settings shows progress
     if (!state.me?.store && state.me?.can_open === false) {
       C.toast(t("mkt.lv.toast"));
-      go("./Market.html#settings");
+      go("./market.html#settings");
       return;
     }
     // no store yet: one is opened in Store settings, where the capital is placed — a
     // product can only be listed once the capital covers its price (the guarantee)
     if (!state.me?.store) {
       C.toast(t("mkt.p.openFirst"));
-      go("./Market.html#settings");
+      go("./market.html#settings");
       return;
     }
     if (!(await C.guardLevel("sell"))) return;
@@ -1650,12 +1650,12 @@
       const panel = e.target.closest("[data-panel], [data-panel-link]");
       if (panel) {
         e.preventDefault();
-        go(`./Market.html#${panel.dataset.panel || panel.dataset.panelLink}`);
+        go(`./market.html#${panel.dataset.panel || panel.dataset.panelLink}`);
         return;
       }
       const tab = e.target.closest(".mkt-tabs [data-tab]");
       if (tab && state.route.view === "panel") {
-        go(`./Market.html#${state.route.section}/${tab.dataset.tab}`, { replace: true });
+        go(`./market.html#${state.route.section}/${tab.dataset.tab}`, { replace: true });
         return;
       }
       const a = e.target.closest("a[data-nav]");

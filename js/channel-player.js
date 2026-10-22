@@ -1,6 +1,6 @@
 /* CineAura channel player — plays IPTV channels, films and episodes in a dialog.
  *
- * Used by Listchannels.html (members) and by Panel > Reports > Channels ("Test").
+ * Used by listchannels.html (members) and by Panel > Reports > Channels ("Test").
  *
  *   CineAuraChannels.open(channels, index, options)
  *     channels  rows of public.listchannels ({ id, package_name, channel_name,
@@ -296,7 +296,7 @@
     store.set(ROUTE_KEY, book);
   }
 
-  // A channel check (Listchannels.html) answered { ok, kind: "hls" | "media", via: "url" | "alt" }.
+  // A channel check (listchannels.html) answered { ok, kind: "hls" | "media", via: "url" | "alt" }.
   function hintRoute(url, verdict) {
     if (!url || !verdict || !verdict.ok) return;
     const alt = verdict.via === "alt";
@@ -886,7 +886,7 @@
   const current = () => S.list[S.index] || null;
   const $ = (sel) => (S.root ? S.root.querySelector(sel) : null);
 
-  // tell the page how a channel did (Listchannels.html colours its status dot)
+  // tell the page how a channel did (listchannels.html colours its status dot)
   function result(ch, ok) {
     if (!ch || typeof S.opts.onResult !== "function") return;
     try {

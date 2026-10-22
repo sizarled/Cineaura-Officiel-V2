@@ -1,4 +1,4 @@
-// Content.html: the search box can look on YouTube too (scope chip over the box).
+// content.html: the search box can look on YouTube too (scope chip over the box).
 // The YouTube Data API key stays on the server; the page gets back a clean list of
 // results (id, title, channel, thumb) and plays each one in the YouTube iframe
 // embedter, without ever leaving the videos page.

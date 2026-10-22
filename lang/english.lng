@@ -2949,7 +2949,7 @@ Not showing now (see its dates) = Not showing now (see its dates)
 Save the bar = Save the bar
 The bar was saved. = The bar was saved.
 Write a text of 3 to 280 characters to show the bar. = Write a text of 3 to 280 characters to show the bar.
-The link must start with https:// or be a page of the site (./Market.html). = The link must start with https:// or be a page of the site (./Market.html).
+The link must start with https:// or be a page of the site (./market.html). = The link must start with https:// or be a page of the site (./market.html).
 The button text is too long (40 characters at most). = The button text is too long (40 characters at most).
 Check the dates: the end must come after the start. = Check the dates: the end must come after the start.
 Send a message to the members = Send a message to the members
@@ -3525,7 +3525,7 @@ Reach LV1 (10 points earned) to open your store and sell. = Reach LV1 (10 points
 {pct}% of the price ({rate}), paid by the seller once the buyer has received the order and the return period is over. Not for your own purchases. = {pct}% of the price ({rate}), paid by the seller once the buyer has received the order and the return period is over. Not for your own purchases.
 
 
-# ── نظام البحث — Search.html (js/search.js) ─────────────────────
+# ── نظام البحث — search.html (js/search.js) ─────────────────────
 Search — CineAura = Search — CineAura
 Search videos, movies, series, channels, profiles, market and prizes = Search videos, movies, series, channels, profiles, market and prizes
 Search movies = Search movies

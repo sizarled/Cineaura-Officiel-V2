@@ -1,15 +1,15 @@
-/* CineAura — Content.html: member videos (sql/content.sql).
+/* CineAura — content.html: member videos (sql/content.sql).
 
-   Content.html (no video): the search box (it opens Search.html) and under it the
+   content.html (no video): the search box (it opens search.html) and under it the
    50 videos with the most watched minutes, the most recommendations or the most
    shares (?top=minutes | likes | shares), plus the sponsored offers (js/offers.js).
 
-   Content.html?idcontent=CT…: one video. Under the player: the title, the numbers,
+   content.html?idcontent=CT…: one video. Under the player: the title, the numbers,
    the publisher, recommend / don't recommend, share, add to a playlist, the
    description, the sponsored offers (on a narrow screen) and the comments. On the
    side: the sponsored offers (on a wide screen), then suggestions — the same tags,
    language and publisher first, else the same country (content_suggest). A search
-   box on top opens Search.html.
+   box on top opens search.html.
 
    A video rated 13+ (13+, 16+, 18+) asks for a watch code before it plays, for
    everybody: content_get leaves its link out and content_unlock gives it for a code
@@ -65,11 +65,11 @@
   const icon = (k, size = 18) =>
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON[k]}</svg>`;
 
-  // Content.html?yt=<id> — a YouTube video watched on this very page (Round 55):
+  // content.html?yt=<id> — a YouTube video watched on this very page (Round 55):
   // the same layout the member videos use. ytWatchHref is how every YouTube
   // result (hub search, Suggested-on-YouTube rail) names that page.
   const ytVideoId = String(params.get("yt") || "").trim();
-  const ytWatchHref = (id) => `./Content.html?yt=${encodeURIComponent(id)}`;
+  const ytWatchHref = (id) => `./content.html?yt=${encodeURIComponent(id)}`;
   const ytw = { seq: 0 }; // async guard: a navigation while a fetch flies
 
   // Round 57 — the site is free thanks to its sponsors (Adsterra): before the
@@ -95,7 +95,7 @@
         <h1>${esc(t(`vid.err.page.${key}`))}</h1>
         <p class="muted">${esc(t(`vid.err.pageText.${key}`))}</p>
         <div class="vw-error-actions">
-          <a class="btn btn-lg btn-primary" href="./Search.html">${esc(t("vid.browse"))}</a>
+          <a class="btn btn-lg btn-primary" href="./search.html">${esc(t("vid.browse"))}</a>
           ${key === "private" && !V.memberId() ? `<a class="btn btn-lg btn-ghost" href="./login.html?next=${encodeURIComponent(location.pathname.replace(/^\//, "") + location.search)}">${esc(t("common.signin"))}</a>` : ""}
         </div>
       </div>`;
@@ -162,7 +162,7 @@
           <p>${esc(t("vid.ageText", { n: age }))}</p>
           <div class="vw-gate-actions">
             <button class="btn btn-lg btn-primary" type="button" data-age-ok>${esc(t("vid.ageYes", { n: age }))}</button>
-            <a class="btn btn-lg btn-ghost" href="./Search.html">${esc(t("vid.ageNo"))}</a>
+            <a class="btn btn-lg btn-ghost" href="./search.html">${esc(t("vid.ageNo"))}</a>
           </div>
         </div>`;
     }
@@ -589,7 +589,7 @@
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-share-btn" aria-expanded="false" aria-controls="vw-share">${icon("share", 16)}<span>${esc(t("share.title"))}</span></button>
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-pl-btn">${icon("pl", 16)}<span>${esc(t("vid.addToPl"))}</span></button>
           ${c.downloads && state.info && ["file", "hls"].includes(state.info.provider) && c.url ? `<a class="btn btn-sm btn-ghost vw-btn" id="vw-dl" href="${esc(c.url)}" download target="_blank" rel="noopener">${icon("dl", 16)}<span>${esc(t("vid.download"))}</span></a>` : ""}
-          ${mine ? `<a class="btn btn-sm btn-ghost vw-btn" href="./Profile.html#content/manage">${icon("edit", 16)}<span>${esc(t("vid.manage"))}</span></a>` : ""}
+          ${mine ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html#content/manage">${icon("edit", 16)}<span>${esc(t("vid.manage"))}</span></a>` : ""}
         </div>
       </div>
       <div class="glass vw-share" id="vw-share" hidden>${C.shareRowHtml(href, c.title, { label: t("vid.shareLabel") })}</div>
@@ -862,11 +862,11 @@
     const items = res.ok && Array.isArray(res.data) ? res.data : [];
     box.innerHTML = items.length
       ? items.map((x) => V.cardHtml(x, { compact: true })).join("")
-      : `<p class="muted">${esc(t("vid.noSuggestions"))}</p><a class="btn btn-sm btn-ghost" href="./Search.html">${esc(t("vid.browse"))}</a>`;
+      : `<p class="muted">${esc(t("vid.noSuggestions"))}</p><a class="btn btn-sm btn-ghost" href="./search.html">${esc(t("vid.browse"))}</a>`;
     V.observeCards(box);
   }
 
-  // ---------------------------------------------------------------- Content.html alone: the 50 most …
+  // ---------------------------------------------------------------- content.html alone: the 50 most …
   // minutes = watched minutes, likes = recommendations (content_search "recs"), shares
   const TOPS = [
     { key: "minutes", sort: "minutes", icon: "clock" },
@@ -902,7 +902,7 @@
       <p class="muted">${esc(t("vid.hub.lead"))}</p>`;
     // One box, one search, TWO sections under it: the site's videos first
     // ("Videos Members"), YouTube's below ("Video Youtube") — and a YouTube
-    // pick opens this same page in its YouTube mood (Content.html?yt=<id>),
+    // pick opens this same page in its YouTube mood (content.html?yt=<id>),
     // the page where the member videos play.
     if (form) {
       hero.appendChild(form);
@@ -928,7 +928,7 @@
     });
     // "Video Youtube" — the edge function's results (it holds the API key).
     // A pick is a plain link to this same page in its YouTube mood
-    // (Content.html?yt=<id>): the shared player, the YouTube channel as
+    // (content.html?yt=<id>): the shared player, the YouTube channel as
     // publisher, title + description, YouTube suggestions beside it.
     const yt = document.createElement("section");
     yt.className = "vh-yt";
@@ -965,7 +965,7 @@
             <h3 class="vsh-title" id="vsh-title"></h3>
             <div class="vsh-bar">
               <span class="vsh-count" id="vsh-count" dir="ltr"></span>
-              <a class="vsh-open" id="vsh-open" href="./Content.html">${icon("ext", 14)}<span>${esc(t("vid.shorts.open"))}</span></a>
+              <a class="vsh-open" id="vsh-open" href="./content.html">${icon("ext", 14)}<span>${esc(t("vid.shorts.open"))}</span></a>
             </div>
           </div>
         </div>
@@ -1050,7 +1050,7 @@
       grid.innerHTML = `<li class="glass vs-none vh-none">
           <p><b>${esc(t("vid.hub.none"))}</b></p>
           <p class="muted">${esc(t("vid.hub.noneText"))}</p>
-          <a class="btn btn-lg btn-primary" href="./Profile.html#content">${esc(t("vid.hub.create"))}</a>
+          <a class="btn btn-lg btn-primary" href="./profile.html#content">${esc(t("vid.hub.create"))}</a>
         </li>`;
       return;
     }
@@ -1141,7 +1141,7 @@
   }
 
   /* ---------------------------------------------------------------- YouTube watch
-     Content.html?yt=<id> — the SAME page the member videos play on, in its
+     content.html?yt=<id> — the SAME page the member videos play on, in its
      YouTube mood (Round 55): the shared #vw-player, the video's title and
      description straight from YouTube, the publisher block answered by the
      YouTube channel (avatar + name, opens the channel), and beside it the
@@ -1206,7 +1206,7 @@
           </span>
         ${chUrl ? `</a>` : `</div>`}
         <div class="vw-actions">
-          ${V.memberId() ? `<a class="btn btn-sm btn-ghost vw-btn" href="./Profile.html#content" data-yt-import="${esc(watchUrl)}">${icon("pl", 16)}<span>${esc(t("vid.yt.importSelf"))}</span></a>` : ""}
+          ${V.memberId() ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html#content" data-yt-import="${esc(watchUrl)}">${icon("pl", 16)}<span>${esc(t("vid.yt.importSelf"))}</span></a>` : ""}
           <a class="btn btn-sm btn-ghost vw-btn" href="${esc(watchUrl)}" target="_blank" rel="noopener">${icon("ext", 16)}<span>${esc(t("vid.yt.openVideo"))}</span></a>
         </div>
       </div>
@@ -1293,7 +1293,7 @@
         <span class="vw-error-ico">${icon("ext", 28)}</span>
         <h1>${esc(title)}</h1>
         <p class="muted">${esc(t(key))}</p>
-        <div class="vw-error-actions"><a class="btn btn-lg btn-primary" href="./Content.html">${esc(t("vid.browse"))}</a></div>
+        <div class="vw-error-actions"><a class="btn btn-lg btn-primary" href="./content.html">${esc(t("vid.browse"))}</a></div>
       </div>`;
     const side = $("#vw-side");
     if (side) side.hidden = true;
@@ -1474,7 +1474,7 @@
 
   async function boot() {
     C.setupChrome();
-    // a YouTube video is watched on this same page (Content.html?yt=<id>)
+    // a YouTube video is watched on this same page (content.html?yt=<id>)
     if (!state.id && /^[A-Za-z0-9_-]{11}$/.test(ytVideoId)) return renderYouTubeWatch(ytVideoId);
     if (!state.id) return renderHub();
     const res = await V.call("content_get", { p_id: state.id, p_member: V.memberId() });

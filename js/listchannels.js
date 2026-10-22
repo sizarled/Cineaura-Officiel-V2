@@ -1,4 +1,4 @@
-/* Listchannels.html — the channels, movies and series of one IPTV package
+/* listchannels.html — the channels, movies and series of one IPTV package
  * (?package=<name>), or one of the two lists of the home page:
  *   ?free=1     the free channels: the playlist IPTV-Free.m3u (Supabase Storage),
  *               or, when it can't be read, every free package of Panel > IPTV
@@ -46,12 +46,12 @@
  * When the package has a programme guide (EPG), every live channel card that
  * comes near the screen shows what is on now, with how far it has got.
  *
- * ?list=IPL…: an IPTV list published by a member (IPTV.html, sql/iptv_lists.sql,
+ * ?list=IPL…: an IPTV list published by a member (iptv.html, sql/iptv_lists.sql,
  * js/iptv-lists.js). iptv_list_open says whether the visitor may see it (public:
  * everybody, visitors included; exclusive: members who meet its criteria; private:
  * the members it was given to) and where its playlist is; the page reads the playlist
  * and plays it like the lists above. &channel=<id>&name=<channel> (a result of
- * Search.html > Channels) opens that channel, found by its name when the playlist has
+ * search.html > Channels) opens that channel, found by its name when the playlist has
  * changed since. When the publisher opens their own list and its channels changed, the
  * channels kept for the search are saved again.
  */
@@ -564,7 +564,7 @@
   const pageTitle = () =>
     memberList ? state.list?.name || t("ipl.listTitle") : freeMode ? t("home.iptv.free") : premiumMode ? t("home.iptv.premium") : pack;
 
-  // ?list=: the publisher, who may see the list, the way back to IPTV.html
+  // ?list=: the publisher, who may see the list, the way back to iptv.html
   function listMetaHtml() {
     const l = state.list;
     if (!l) return "";
@@ -575,7 +575,7 @@
               ${L.badgeHtml(l)}
               <span>${escapeHtml(t("ipl.by"))} <a href="${escapeHtml(C.profileHref(l.owner))}"><bdi>@${escapeHtml(l.owner || "")}</bdi></a></span>
               ${crit.length ? `<span>${crit.map((x) => `<bdi>${escapeHtml(x)}</bdi>`).join(" · ")}</span>` : ""}
-              <a class="ipl-back" href="./IPTV.html">${escapeHtml(t("ipl.allLists"))}</a>
+              <a class="ipl-back" href="./iptv.html">${escapeHtml(t("ipl.allLists"))}</a>
               ${l.mine ? `<a class="ipl-back" href="${escapeHtml(L.MANAGE_HREF)}">${escapeHtml(t("ipl.manage"))}</a>` : ""}
             </p>
             ${l.description ? `<p class="ipl-head-desc" dir="auto">${escapeHtml(l.description)}</p>` : ""}`;
@@ -588,7 +588,7 @@
     const acts = [];
     if (r.reason === "signin") acts.push(`<a class="btn btn-sm btn-primary" href="${escapeHtml(signinUrl())}" data-signin>${escapeHtml(t("common.signin"))}</a>`);
     if (r.reason === "followers" && r.owner) acts.push(`<a class="btn btn-sm btn-primary" href="${escapeHtml(C.profileHref(r.owner))}">${escapeHtml(t("ipl.seeProfile", { name: `@${r.owner}` }))}</a>`);
-    acts.push(`<a class="btn btn-sm btn-ghost" href="./IPTV.html">${escapeHtml(t("ipl.allLists"))}</a>`);
+    acts.push(`<a class="btn btn-sm btn-ghost" href="./iptv.html">${escapeHtml(t("ipl.allLists"))}</a>`);
     return `
       <section class="glass dash-main chl-page ipl-gate">
         <span class="ipl-gate-ico" aria-hidden="true">${ICON.lock}</span>
@@ -1293,7 +1293,7 @@
 
   // the sign-in page brings the member back to this list, filters included, and
   // to the channel they wanted playing
-  const signinUrl = () => `./login.html?next=${encodeURIComponent(`Listchannels.html?${pageQuery(state.wanted ? { id: state.wanted } : null)}`)}`;
+  const signinUrl = () => `./login.html?next=${encodeURIComponent(`listchannels.html?${pageQuery(state.wanted ? { id: state.wanted } : null)}`)}`;
 
   // A channel asked for while it can't play yet: it is the one that plays after
   // signing in (a guest), or the moment the premium list is unlocked.
@@ -1474,7 +1474,7 @@
     let wanted = (params.get("channel") || "").trim();
     const byName = (params.get("name") || "").trim().slice(0, 200);
     if (memberList && (wanted || byName) && !state.rows.some((r) => String(r.id) === wanted)) {
-      // a result of Search.html > Channels from before the playlist changed: the same name
+      // a result of search.html > Channels from before the playlist changed: the same name
       const same = byName ? sameChannel({ channel_name: byName, stream_url: "" }) : null;
       if (!same) {
         if (state.rows.length) toast(t("ipl.channelGone", { name: byName || wanted }));

@@ -2982,7 +2982,7 @@ Not showing now (see its dates) = غير ظاهر الآن (راجع تاريخ�
 Save the bar = حفظ الشريط
 The bar was saved. = تم حفظ الشريط.
 Write a text of 3 to 280 characters to show the bar. = اكتب نصًا من 3 إلى 280 حرفًا لإظهار الشريط.
-The link must start with https:// or be a page of the site (./Market.html). = يجب أن يبدأ الرابط بـ https:// أو أن يكون صفحة من الموقع (./Market.html).
+The link must start with https:// or be a page of the site (./market.html). = يجب أن يبدأ الرابط بـ https:// أو أن يكون صفحة من الموقع (./market.html).
 The button text is too long (40 characters at most). = نص الزر طويل جدًا (40 حرفًا على الأكثر).
 Check the dates: the end must come after the start. = تحقق من التاريخين: يجب أن تأتي النهاية بعد البداية.
 Send a message to the members = إرسال رسالة إلى الأعضاء
@@ -3558,7 +3558,7 @@ Reach LV1 (10 points earned) to open your store and sell. = ابلغ المست�
 {pct}% of the price ({rate}), paid by the seller once the buyer has received the order and the return period is over. Not for your own purchases. = {pct}% من السعر ({rate})، يدفعها البائع بعد أن يستلم المشتري الطلب وتنتهي مدة الاسترجاع. لا تُحتسب على مشترياتك أنت.
 
 
-# ── نظام البحث — Search.html (js/search.js) ─────────────────────
+# ── نظام البحث — search.html (js/search.js) ─────────────────────
 Search — CineAura = بحث — CineAura
 Search videos, movies, series, channels, profiles, market and prizes = ابحث في الفيديوهات والأفلام والمسلسلات والقنوات والبروفايلات والماركت والجوائز
 Search movies = ابحث عن الأفلام

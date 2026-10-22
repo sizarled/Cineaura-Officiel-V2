@@ -3625,7 +3625,7 @@
  "Save the bar": "Enregistrer le bandeau",
  "The bar was saved.": "Le bandeau a été enregistré.",
  "Write a text of 3 to 280 characters to show the bar.": "Écrivez un texte de 3 à 280 caractères pour afficher le bandeau.",
- "The link must start with https:// or be a page of the site (./Market.html).": "Le lien doit commencer par https:// ou être une page du site (./Market.html).",
+ "The link must start with https:// or be a page of the site (./market.html).": "Le lien doit commencer par https:// ou être une page du site (./market.html).",
  "The button text is too long (40 characters at most).": "Le texte du bouton est trop long (40 caractères au maximum).",
  "Check the dates: the end must come after the start.": "Vérifiez les dates : la fin doit venir après le début.",
  "Send a message to the members": "Envoyer un message aux membres",
@@ -4538,7 +4538,7 @@
     "vid.shorts.end": "C'était la dernière vidéo verticale",
     "vid.shorts.restart": "Recommencer",
     "vid.f.portrait": "Une vidéo verticale (portrait)",
-    "vid.f.portraitHint": "Coché automatiquement pour un lien YouTube Shorts ou TikTok. Sur Content.html, ces vidéos s'affichent centrées avec les boutons haut/bas."
+    "vid.f.portraitHint": "Coché automatiquement pour un lien YouTube Shorts ou TikTok. Sur content.html, ces vidéos s'affichent centrées avec les boutons haut/bas."
 ,
  "act.firstFreeNote": "La première activation est toujours Free. Silver, Gold et Diamond se débloquent juste après — en mises à niveau payées avec vos points.",
  "act.upgrade": "Mise à niveau",

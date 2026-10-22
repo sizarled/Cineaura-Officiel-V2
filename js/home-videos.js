@@ -1,10 +1,10 @@
 /* Home page > Members' videos.
 
    A row of the 12 videos with the most watched minutes (content_search, sql/content.sql),
-   scrolling sideways like Featured Movies, and the Explore button: Content.html, the
+   scrolling sideways like Featured Movies, and the Explore button: content.html, the
    search box and the 50 most watched / liked / shared videos (the three links beside
    it open one list each). Visitors see the public and exclusive videos, members also
-   the private ones they were given (the same rules as Search.html).
+   the private ones they were given (the same rules as search.html).
    Without sql/content.sql, or before any video is published, the row stays hidden and
    Explore is still there.
 */

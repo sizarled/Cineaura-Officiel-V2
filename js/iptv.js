@@ -1,4 +1,4 @@
-/* CineAura — IPTV.html: the IPTV lists published by members (sql/iptv_lists.sql).
+/* CineAura — iptv.html: the IPTV lists published by members (sql/iptv_lists.sql).
  *
  * A search box (name, description, publisher), then the lists the visitor may see:
  * public ones for everybody; for a signed-in member also the exclusive lists whose
@@ -6,7 +6,7 @@
  * given. Tabs All / Public / Exclusive / Private / Mine (members), sort newest, most
  * viewed, most channels, A→Z, Z→A (most relevant while searching). The address keeps
  * every choice: ?q=&sort=&show=. "Publish a list" opens the dialog of
- * js/iptv-lists.js (IPTV.html#publish opens it at once); the member manages their
+ * js/iptv-lists.js (iptv.html#publish opens it at once); the member manages their
  * lists in Dashboard > IPTV > Your lists.
  */
 (() => {
@@ -48,7 +48,7 @@
     $("#ipl-acts").innerHTML = signedIn()
       ? `<button class="btn btn-sm btn-primary" type="button" data-publish>${PLUS}<span>${esc(t("ipl.publish"))}</span></button>
          <a class="btn btn-sm btn-ghost" href="${L.MANAGE_HREF}">${esc(t("ipl.yourLists"))}</a>`
-      : `<a class="btn btn-sm btn-primary" href="./login.html?next=${encodeURIComponent("IPTV.html#publish")}">${PLUS}<span>${esc(t("ipl.signinPublish"))}</span></a>`;
+      : `<a class="btn btn-sm btn-primary" href="./login.html?next=${encodeURIComponent("iptv.html#publish")}">${PLUS}<span>${esc(t("ipl.signinPublish"))}</span></a>`;
   }
 
   function drawTools() {
@@ -79,7 +79,7 @@
   function emptyHtml() {
     const publish = signedIn()
       ? `<button class="btn btn-sm btn-primary" type="button" data-publish>${PLUS}<span>${esc(t("ipl.publish"))}</span></button>`
-      : `<a class="btn btn-sm btn-primary" href="./login.html?next=${encodeURIComponent("IPTV.html#publish")}">${esc(t("ipl.signinPublish"))}</a>`;
+      : `<a class="btn btn-sm btn-primary" href="./login.html?next=${encodeURIComponent("iptv.html#publish")}">${esc(t("ipl.signinPublish"))}</a>`;
     if (state.q) {
       return `<div class="vs-none glass"><h2>${esc(t("vid.noResults"))}</h2><p class="muted">${esc(t("ipl.noResultsText"))}</p></div>`;
     }
@@ -190,7 +190,7 @@
   }
 
   function boot() {
-    // IPTV.html#publish (the sign-in page brings the member back here): the dialog opens
+    // iptv.html#publish (the sign-in page brings the member back here): the dialog opens
     const wantsPublish = location.hash === "#publish";
     C.setupChrome();
     drawActions();

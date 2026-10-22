@@ -107,7 +107,7 @@ end $$;
 -- logo from the free and premium packages, in turn. One entry per channel:
 --   key, id, name, group, logo, package   the row to show (a free one when
 --                                         there is one: the card opens it on
---                                         Listchannels.html?free=1&channel=id)
+--                                         listchannels.html?free=1&channel=id)
 --   free     true when a free package carries it (a premium card leads to
 --            Dashboard > IPTV instead)
 --   views    member-days in the period (0 for the filling)

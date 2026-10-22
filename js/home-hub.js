@@ -111,7 +111,7 @@
   const productCard = (p) => {
     const img = Array.isArray(p.images) && p.images[0] ? p.images[0] : "";
     return `
-      <a class="glass hh-prod" href="./Market.html?Product=${encodeURIComponent(p.id)}">
+      <a class="glass hh-prod" href="./market.html?Product=${encodeURIComponent(p.id)}">
         <span class="hh-prod-img">${img ? `<img src="${esc(img)}" alt="" loading="lazy" decoding="async" />` : SVG(ICON.bag, 34)}</span>
         <span class="hh-prod-body">
           <b class="hh-prod-title" dir="auto">${esc(p.title)}</b>
@@ -121,7 +121,7 @@
       </a>`;
   };
   const storeCard = (s) => `
-    <a class="glass hh-store" href="./Market.html?Store=${encodeURIComponent(s.id)}">
+    <a class="glass hh-store" href="./market.html?Store=${encodeURIComponent(s.id)}">
       <span class="hh-store-logo">${s.logo ? `<img src="${esc(s.logo)}" alt="" loading="lazy" decoding="async" />` : SVG(ICON.bag, 22)}</span>
       <span class="hh-store-body">
         <b dir="auto">${esc(s.name)}</b>
@@ -145,7 +145,7 @@
     const nav = document.getElementById("hh-cats");
     if (cats.length && nav) {
       nav.innerHTML = cats
-        .map((c) => `<a class="hv-chip hh-cat" href="./Market.html?Categories=${encodeURIComponent(c.id)}"><span dir="auto">${esc(c.name)}</span> <b>${num(Array.isArray(c.products) ? c.products.length : 0)}</b></a>`)
+        .map((c) => `<a class="hv-chip hh-cat" href="./market.html?Categories=${encodeURIComponent(c.id)}"><span dir="auto">${esc(c.name)}</span> <b>${num(Array.isArray(c.products) ? c.products.length : 0)}</b></a>`)
         .join("");
       nav.hidden = false;
     }
@@ -164,7 +164,7 @@
     if (!items.length) return;
     document.getElementById("hh-list-grid").innerHTML = items
       .map((l) => `
-        <a class="glass hh-list" href="./Listchannels.html?list=${encodeURIComponent(l.id)}">
+        <a class="glass hh-list" href="./listchannels.html?list=${encodeURIComponent(l.id)}">
           <span class="hh-list-cover" aria-hidden="true">${SVG(ICON.tv, 20)}<b dir="ltr">${esc(num(l.channels))}</b><small>${esc(t("common.channels"))}</small></span>
           <span class="hh-list-body">
             <b dir="auto">${esc(l.name)}</b>

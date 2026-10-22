@@ -3676,7 +3676,7 @@
  "Save the bar": "حفظ الشريط",
  "The bar was saved.": "تم حفظ الشريط.",
  "Write a text of 3 to 280 characters to show the bar.": "اكتب نصًا من 3 إلى 280 حرفًا لإظهار الشريط.",
- "The link must start with https:// or be a page of the site (./Market.html).": "يجب أن يبدأ الرابط بـ https:// أو أن يكون صفحة من الموقع (./Market.html).",
+ "The link must start with https:// or be a page of the site (./market.html).": "يجب أن يبدأ الرابط بـ https:// أو أن يكون صفحة من الموقع (./market.html).",
  "The button text is too long (40 characters at most).": "نص الزر طويل جدًا (40 حرفًا على الأكثر).",
  "Check the dates: the end must come after the start.": "تحقق من التاريخين: يجب أن تأتي النهاية بعد البداية.",
  "Send a message to the members": "إرسال رسالة إلى الأعضاء",
@@ -4610,7 +4610,7 @@
     "vid.shorts.end": "كان هذا آخر فيديو عمودي",
     "vid.shorts.restart": "أعد من البداية",
     "vid.f.portrait": "فيديو عمودي (طولي)",
-    "vid.f.portraitHint": "يُعلَّم تلقائياً مع رابط Shorts من يوتيوب أو تيك توك. الفيديوهات العمودية تظهر في Content.html متوسطةً الشاشة مع زري الأعلى والأسفل."
+    "vid.f.portraitHint": "يُعلَّم تلقائياً مع رابط Shorts من يوتيوب أو تيك توك. الفيديوهات العمودية تظهر في content.html متوسطةً الشاشة مع زري الأعلى والأسفل."
 ,
  "act.firstFreeNote": "التفعيل الأول دائمًا مجاني. تُفتح بعده خطط Silver وGold وDiamond مباشرةً كترقيات تُدفع بنقاطك.",
  "act.upgrade": "ترقية",

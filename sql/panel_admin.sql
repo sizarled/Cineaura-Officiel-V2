@@ -29,7 +29,7 @@
 create table if not exists public.site_banner (
   id integer primary key default 1,
   text text not null default '',
-  link text not null default '',                      -- https://… or a page of the site (./Market.html…)
+  link text not null default '',                      -- https://… or a page of the site (./market.html…)
   link_label text not null default '',
   tone text not null default 'info',                  -- info | success | warning | promo
   active boolean not null default false,

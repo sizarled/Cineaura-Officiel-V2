@@ -1,6 +1,6 @@
 /* ==========================================================
    Member videos: cards, Profile > Your content (js/content-studio.js),
-   Content.html (js/content.js) and Search.html (js/search.js).
+   content.html (js/content.js) and search.html (js/search.js).
    Colours come from the theme variables (facebook.css loads last).
    ========================================================== */
 
@@ -445,7 +445,7 @@ html[dir="rtl"] .vs-table--manage thead th:last-child { box-shadow: 10px 0 12px 
 .vs-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
 .vs-tile b { font-variant-numeric: tabular-nums; }
 
-/* ---------- Content.html ---------- */
+/* ---------- content.html ---------- */
 .vw-page { width: min(1320px, calc(100% - 32px)); margin: 0 auto; padding-top: 6px; }
 .vw-search {
   display: flex;
@@ -654,7 +654,7 @@ html[dir="rtl"] .vw-play-orb svg { margin-inline-start: 0; margin-inline-end: -5
 .vw-error-ico { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--sub-bg); color: var(--muted); }
 .vw-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 
-/* ---------- Search.html ---------- */
+/* ---------- search.html ---------- */
 .vs-page { width: min(1320px, calc(100% - 32px)); margin: 0 auto; padding-top: 6px; display: grid; gap: 20px; }
 .vs-hero { padding: 22px; border-radius: 14px; display: grid; gap: 12px; }
 .vs-hero h1 { font-size: clamp(22px, 3vw, 30px); }
@@ -744,7 +744,7 @@ html[data-theme] .vs-searchbar input { flex: 1; min-width: 0; border: 0; backgro
   .table.vs-table--manage .vs-c-act { position: static; box-shadow: none; background: none; }
 }
 
-/* ---------- a video rated 13+: the watch code (Content.html) ----------
+/* ---------- a video rated 13+: the watch code (content.html) ----------
    The code box sits on the poster; the player grows with it on a narrow screen. */
 .vw-main { container-type: inline-size; }
 .vw-player.is-gated { aspect-ratio: auto; min-height: 56.25cqw; display: grid; }
@@ -765,7 +765,7 @@ html[data-theme] .vs-searchbar input { flex: 1; min-width: 0; border: 0; backgro
 .vw-code-msg.error { color: #ff9a9a; }
 .vw-code-msg.ok { color: #7ee2a0; }
 
-/* ---------- Content.html alone: search + the 50 most watched / liked / shared ---------- */
+/* ---------- content.html alone: search + the 50 most watched / liked / shared ---------- */
 .vw-page.is-hub { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .vh-hero { padding: 26px 22px 22px; border-radius: 14px; display: grid; justify-items: center; gap: 8px; text-align: center; }
 .vh-hero h1 { font-size: clamp(24px, 3.4vw, 34px); }
@@ -968,7 +968,7 @@ html[dir="rtl"] .pc-back svg { transform: scaleX(-1); }
 .pc-susp { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 999px; background: rgba(250, 56, 62, 0.14); color: var(--red, #fa383e); font-size: 11.5px; font-weight: 700; }
 .pc-susp-why { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 
-/* ================================ the YouTube scope (Content.html search) ============ */
+/* ================================ the YouTube scope (content.html search) ============ */
 /* the site / YouTube chips over the search box, then the YouTube results that play
    on this page (embedded), the vertical viewer, and the centered 9:16 player. */
 .vh-scope { margin: 8px 0 0; justify-content: center; }

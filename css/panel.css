@@ -503,7 +503,7 @@ button.pa-cell { cursor: pointer; }
 .pa-sum-title { margin: 14px 0 6px; font-size: 15px; }
 .pa-sum strong small { font-weight: 500; }
 
-/* the tier of a store (as on Market.html) */
+/* the tier of a store (as on market.html) */
 .mkt-tier {
   display: inline-block;
   padding: 1px 7px;

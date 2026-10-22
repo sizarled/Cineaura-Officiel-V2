@@ -2939,7 +2939,7 @@ Not showing now (see its dates) = Nu niet zichtbaar (zie de datums)
 Save the bar = Balk opslaan
 The bar was saved. = De balk is opgeslagen.
 Write a text of 3 to 280 characters to show the bar. = Schrijf een tekst van 3 tot 280 tekens om de balk te tonen.
-The link must start with https:// or be a page of the site (./Market.html). = De link moet met https:// beginnen of een pagina van de site zijn (./Market.html).
+The link must start with https:// or be a page of the site (./market.html). = De link moet met https:// beginnen of een pagina van de site zijn (./market.html).
 The button text is too long (40 characters at most). = De knoptekst is te lang (maximaal 40 tekens).
 Check the dates: the end must come after the start. = Controleer de datums: het einde moet na het begin liggen.
 Send a message to the members = Een bericht naar de leden sturen
@@ -3515,7 +3515,7 @@ Reach LV1 (10 points earned) to open your store and sell. = Bereik LV1 (10 verdi
 {pct}% of the price ({rate}), paid by the seller once the buyer has received the order and the return period is over. Not for your own purchases. = {pct}% van de prijs ({rate}), betaald door de verkoper zodra de koper de bestelling heeft ontvangen en de retourtermijn voorbij is. Niet voor je eigen aankopen.
 
 
-# ── نظام البحث — Search.html (js/search.js) ─────────────────────
+# ── نظام البحث — search.html (js/search.js) ─────────────────────
 Search — CineAura = Zoeken — CineAura
 Search videos, movies, series, channels, profiles, market and prizes = Zoek video’s, films, series, kanalen, profielen, markt en prijzen
 Search movies = Zoek films

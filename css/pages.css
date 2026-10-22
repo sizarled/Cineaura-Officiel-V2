@@ -2628,7 +2628,7 @@ html[data-theme="day"] .share-btn {
 
 /* Profile > Market (viewMarket, js/profile.js): the own store's card — logo,
    name, tier of its balance, balance/capital/held — and the sales + purchases
-   counters linked to their Market.html panels */
+   counters linked to their market.html panels */
 .prof-mkt-store {
   margin: 14px 0 12px;
   padding: 12px;
