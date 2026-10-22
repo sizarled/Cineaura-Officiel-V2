@@ -39,6 +39,20 @@ has("p44: reported_at", pr, "reported_at timestamptz not null default now()");
 ok("p44: js/help-article.js exists", fs.existsSync(path.join(ROOT, "js/help-article.js")));
 has("p44: Article.html loads the editor", read("Article.html"), "help-article.js");
 
+// ---------------- Help v2 bridge (live v1->v2 repair, 2026-10-22)
+const hs = read("sql/help.sql");
+has("bridge: categories table", hs, "create table if not exists public.help_categories");
+has("bridge: articles v2 columns added", hs, "alter table public.help_articles add column if not exists slug text");
+has("bridge: uuid article ids", hs, "article_id uuid not null references public.help_articles(id) on delete cascade");
+has("bridge: uuid join table", hs, "create table if not exists public.help_article_categories");
+has("bridge: votes legacy cols unblocked", hs, "alter table public.help_article_votes alter column voter_key drop not null;");
+has("bridge: votes legacy cols unblocked 2", hs, "alter table public.help_article_votes alter column is_useful drop not null;");
+has("bridge: uuid vote rpc", hs, "public.help_vote(p_article uuid, p_member text, p_helpful boolean)");
+has("bridge: uuid view rpc", hs, "public.help_increment_view(p_id uuid)");
+has("bridge: identity-guarded default", hs, "attidentity");
+has("bridge: category seed", hs, "'getting-started'");
+has("bridge: editor category gate intact", read("js/help-article.js"), '#ed-cats input[name="cats"]:checked');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');
