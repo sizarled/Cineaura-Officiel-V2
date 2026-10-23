@@ -388,7 +388,7 @@
       placeholder: t("pa.ct.searchVideos"),
       fetch: (st, off) => rpc("content_admin", { p_kind: "videos", p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (v, i) => {
-        const href = `./content.html?idcontent=${encodeURIComponent(v.id)}`;
+        const href = `./video.html?id=${encodeURIComponent(v.id)}`;
         return `
           <article class="crp-card pa-card${v.suspended ? " pa-susp" : ""}" data-pa-i="${i}">
             <div class="crp-top">
@@ -541,12 +541,12 @@
   }
 
   // ---------------------------------------------------------------- Articles
-  // Staff write with the very same editor members use (article.html), and the
+  // Staff write with the very same editor members use (article-Editor.html), and the
   // Help submissions waiting for a decision are handled here.
   async function viewArticles(pane) {
     pane.innerHTML = `
       <div class="pa-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <a class="btn btn-sm btn-primary" href="./article.html">${esc(t("pa.ct.newArticle"))}</a>
+        <a class="btn btn-sm btn-primary" href="./article-Editor.html">${esc(t("pa.ct.newArticle"))}</a>
         <span class="muted" style="font-size:13px">${esc(t("pa.ct.articlesLead"))}</span>
       </div>
       <div id="pa-arts"><p class="muted">${esc(t("common.loading"))}</p></div>`;
@@ -561,7 +561,7 @@
     const card = (r) => `
       <article class="crp-card pa-card" data-art="${esc(r.id)}">
         <div class="crp-title">
-          <h3><a href="./content.html?article=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${esc(r.title)}</a></h3>
+          <h3><a href="./articles.html?id=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${esc(r.title)}</a></h3>
           <p>${esc(r.member_id)} · ${esc(when(r.created_at))} · ${esc(r.visibility || "public")}</p>
         </div>
         <div class="crp-tags">
@@ -570,7 +570,7 @@
           ${r.publish_at && new Date(r.publish_at) > new Date() ? tag(t("pa.ct.scheduledFor", { date: when(r.publish_at) })) : ""}
         </div>
         <div class="crp-actions">
-          <a class="btn btn-sm btn-ghost" href="./article.html?edit=${encodeURIComponent(r.id)}">${esc(t("ae.edit"))}</a>
+          <a class="btn btn-sm btn-ghost" href="./article-Editor.html?edit=${encodeURIComponent(r.id)}">${esc(t("ae.edit"))}</a>
           ${r.status === "pending" ? `<button class="btn btn-sm btn-primary" type="button" data-art-act="approve">${esc(t("pa.ct.approve"))}</button>
           <button class="btn btn-sm btn-danger" type="button" data-art-act="reject">${esc(t("pa.ct.reject"))}</button>` : ""}
         </div>

@@ -3746,7 +3746,7 @@ Age-restricted — the video’s page asks for a watch code. = مقيّد بال
 That was the last vertical video = كان هذا آخر فيديو عمودي
 Start over = أعد من البداية
 A vertical video (portrait) = فيديو عمودي (طولي)
-Checked automatically for a YouTube Shorts or TikTok link. Vertical videos show centered on content.html with the up/down buttons. = يُعلَّم تلقائياً مع رابط Shorts من يوتيوب أو تيك توك. الفيديوهات العمودية تظهر في content.html متوسطةً الشاشة مع زري الأعلى والأسفل.
+Checked automatically for a YouTube Shorts or TikTok link. Vertical videos show centered on video.html with the up/down buttons. = يُعلَّم تلقائياً مع رابط Shorts من يوتيوب أو تيك توك. الفيديوهات العمودية تظهر في video.html متوسطةً الشاشة مع زري الأعلى والأسفل.
 Your folder's files = ملفات مجلدك
 Everything inside YOUR hub folder on the site's video server, by the five drawers the site uses. Deleting here removes the file itself — links, products or posts using it stop playing. = كل ما داخل مجلدك أنت فقط على خادم الفيديو، مرتّباً على أدراج الموقع الخمسة. الحذف من هنا يزيل الملف نفسه — الروابط والمنتجات والمنشورات التي تعتمد عليه تتوقف عن التشغيل.
 Reading your folder… = يقرأ مجلدك…
@@ -5128,3 +5128,18 @@ The reminder was cancelled. = أُلغي التذكير.
 Join password = كلمة سر الانضمام
 Wrong password. = كلمة السر غير صحيحة.
 Send for review = إرسال للمراجعة
+
+# ── Content pages: the home + one page per type (round 39) ──
+Content = محتوى
+Home = الرئيسية
+Content types = أنواع المحتوى
+CineAura content = محتوى سيناورا
+Member content = محتوى الأعضاء
+Videos, articles, questions and documents published by the members — the newest of each, and the way into its page. = فيديوهات ومقالات وأسئلة ومستندات ينشرها الأعضاء — الأحدث من كل نوع، والطريق إلى صفحته.
+See all = عرض الكل
+Member videos — watch, recommend and share. = فيديوهات الأعضاء — شاهد، رشّح وشارك.
+Articles written by the members. = مقالات يكتبها الأعضاء.
+Questions asked by the members, and the answers that helped. = أسئلة يطرحها الأعضاء، والإجابات التي أفادت.
+Files the members uploaded — open to read or download. = ملفات رفعها الأعضاء — افتحها للقراءة أو التنزيل.
+No videos published yet. = لا فيديوهات منشورة بعد.
+Community hub = مركز المجتمع

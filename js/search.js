@@ -291,7 +291,7 @@
 
   function reviewCard(x) {
     const href = x.content_id
-      ? `./content.html?idcontent=${encodeURIComponent(x.content_id)}`
+      ? `./video.html?id=${encodeURIComponent(x.content_id)}`
       : x.tmdb
         ? `./watch.html?${x.media === "tv" ? "tv" : "movie"}=${encodeURIComponent(x.tmdb)}`
         : x.id && String(x.id).startsWith("P")

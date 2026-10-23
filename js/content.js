@@ -1,10 +1,19 @@
-/* CineAura — content.html: member videos (sql/content.sql).
+/* CineAura — video.html: member videos (sql/content.sql), and the home of the
+   content pages (content.html) that gathers the members' work.
 
-   content.html (no video): the search box (it opens search.html) and under it the
+   content.html (no parameters): the home. It does not play or list anything of
+   its own — it gathers what the members published, one section per type, each
+   row a link to the page that owns that type (round 39):
+     videos    → video.html      articles  → articles.html
+     questions → answers.html    documents → documents.html
+   A detail link (?article= ?question= ?answer= ?document= ?video= ?idcontent=)
+   or a top list (?top=) is rewritten to its own page by CineAura.routeAliases.
+
+   video.html (no video): the search box (it opens search.html) and under it the
    50 videos with the most watched minutes, the most recommendations or the most
    shares (?top=minutes | likes | shares), plus the sponsored offers (js/offers.js).
 
-   content.html?idcontent=CT…: one video. Under the player: the title, the numbers,
+   video.html?id=CT…: one video. Under the player: the title, the numbers,
    the publisher, recommend / don't recommend, share, add to a playlist, the
    description, the sponsored offers (on a narrow screen) and the comments. On the
    side: the sponsored offers (on a wide screen), then suggestions — the same tags,
@@ -31,7 +40,7 @@
 
   const params = new URLSearchParams(location.search);
   const state = {
-    // canonical alias: content.html?video=ID (round 60+) — idcontent stays supported
+    // canonical alias: video.html?id=ID (round 60+) — idcontent stays supported
     id: String(params.get("idcontent") || params.get("video") || params.get("id") || "").trim(),
     data: null,
     info: null,
@@ -62,15 +71,16 @@
     dl: '<path d="M12 3.5v10.5M7.5 10L12 14.5L16.5 10M4 20h16"/>',
     chev_up: '<path d="M6 15l6-6 6 6"/>',
     chev_down: '<path d="M6 9l6 6 6-6"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
   };
   const icon = (k, size = 18) =>
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON[k]}</svg>`;
 
-  // content.html?yt=<id> — a YouTube video watched on this very page (Round 55):
+  // video.html?yt=<id> — a YouTube video watched on this very page (Round 55):
   // the same layout the member videos use. ytWatchHref is how every YouTube
   // result (hub search, Suggested-on-YouTube rail) names that page.
   const ytVideoId = String(params.get("yt") || "").trim();
-  const ytWatchHref = (id) => `./content.html?yt=${encodeURIComponent(id)}`;
+  const ytWatchHref = (id) => `./video.html?yt=${encodeURIComponent(id)}`;
   const ytw = { seq: 0 }; // async guard: a navigation while a fetch flies
 
   // Round 57 — the site is free thanks to its sponsors (Adsterra): before the
@@ -867,7 +877,7 @@
     V.observeCards(box);
   }
 
-  // ---------------------------------------------------------------- content.html alone: the 50 most …
+  // ---------------------------------------------------------------- video.html alone: the 50 most …
   // minutes = watched minutes, likes = recommendations (content_search "recs"), shares
   const TOPS = [
     { key: "minutes", sort: "minutes", icon: "clock" },
@@ -903,7 +913,7 @@
       <p class="muted">${esc(t("vid.hub.lead"))}</p>`;
     // One box, one search, TWO sections under it: the site's videos first
     // ("Videos Members"), YouTube's below ("Video Youtube") — and a YouTube
-    // pick opens this same page in its YouTube mood (content.html?yt=<id>),
+    // pick opens this same page in its YouTube mood (video.html?yt=<id>),
     // the page where the member videos play.
     if (form) {
       hero.appendChild(form);
@@ -929,7 +939,7 @@
     });
     // "Video Youtube" — the edge function's results (it holds the API key).
     // A pick is a plain link to this same page in its YouTube mood
-    // (content.html?yt=<id>): the shared player, the YouTube channel as
+    // (video.html?yt=<id>): the shared player, the YouTube channel as
     // publisher, title + description, YouTube suggestions beside it.
     const yt = document.createElement("section");
     yt.className = "vh-yt";
@@ -966,7 +976,7 @@
             <h3 class="vsh-title" id="vsh-title"></h3>
             <div class="vsh-bar">
               <span class="vsh-count" id="vsh-count" dir="ltr"></span>
-              <a class="vsh-open" id="vsh-open" href="./content.html">${icon("ext", 14)}<span>${esc(t("vid.shorts.open"))}</span></a>
+              <a class="vsh-open" id="vsh-open" href="./video.html">${icon("ext", 14)}<span>${esc(t("vid.shorts.open"))}</span></a>
             </div>
           </div>
         </div>
@@ -1142,7 +1152,7 @@
   }
 
   /* ---------------------------------------------------------------- YouTube watch
-     content.html?yt=<id> — the SAME page the member videos play on, in its
+     video.html?yt=<id> — the SAME page the member videos play on, in its
      YouTube mood (Round 55): the shared #vw-player, the video's title and
      description straight from YouTube, the publisher block answered by the
      YouTube channel (avatar + name, opens the channel), and beside it the
@@ -1294,7 +1304,7 @@
         <span class="vw-error-ico">${icon("ext", 28)}</span>
         <h1>${esc(title)}</h1>
         <p class="muted">${esc(t(key))}</p>
-        <div class="vw-error-actions"><a class="btn btn-lg btn-primary" href="./content.html">${esc(t("vid.browse"))}</a></div>
+        <div class="vw-error-actions"><a class="btn btn-lg btn-primary" href="./video.html">${esc(t("vid.browse"))}</a></div>
       </div>`;
     const side = $("#vw-side");
     if (side) side.hidden = true;
@@ -1473,9 +1483,84 @@
     }
   }
 
+
+  // ── content.html: the home that gathers the members' work ─────────────────
+  // Every type has its own page now, so this page never plays or lists a type of
+  // its own: it shows the newest videos, articles, questions and documents, and
+  // each of them is a link to its page. The headers are the way in.
+  const HOME_TYPES = [
+    { key: "videos", href: "./video.html", title: "nav.videos", lead: "ct.leadVideos", icon: "▶", box: "home-videos" },
+    { key: "articles", href: "./articles.html", title: "com.tab.articles", lead: "ct.leadArticles", icon: "✍", box: "home-articles" },
+    { key: "questions", href: "./answers.html", title: "com.tab.questions", lead: "ct.leadQuestions", icon: "❓", box: "home-questions" },
+    { key: "documents", href: "./documents.html", title: "doc.tab", lead: "ct.leadDocuments", icon: "📄", box: "home-documents" },
+  ];
+
+  function homeShell() {
+    return `
+      <section class="glass home-hero">
+        <span class="eyebrow">${esc(t("ct.eyebrow"))}</span>
+        <h1>${esc(t("ct.homeTitle"))}</h1>
+        <p class="muted">${esc(t("ct.homeLead"))}</p>
+        <form class="vw-search" id="home-search" action="./search.html" method="get" role="search">
+          ${icon("search", 18)}
+          <input name="q" id="home-q" type="search" autocomplete="off" placeholder="${esc(t("vid.searchPh"))}" data-i18n-placeholder="vid.searchPh" aria-label="${esc(t("vid.searchPh"))}" />
+          <button class="btn btn-sm btn-primary" type="submit" data-i18n="nav.search">${esc(t("nav.search"))}</button>
+        </form>
+        <ul class="home-types">
+          ${HOME_TYPES.map(
+            (x) => `<li><a class="home-type glass" href="${x.href}">
+              <span class="home-type-ico" aria-hidden="true">${x.icon}</span>
+              <strong>${esc(t(x.title))}</strong>
+              <span class="muted">${esc(t(x.lead))}</span>
+              <span class="home-type-go">${esc(t("ct.seeAll"))} →</span>
+            </a></li>`
+          ).join("")}
+        </ul>
+      </section>
+      ${HOME_TYPES.map(
+        (x) => `<section class="home-sec" aria-labelledby="${x.box}-h">
+          <div class="vh-top-head">
+            <h2 id="${x.box}-h">${esc(t(x.title))}</h2>
+            <a class="btn btn-sm btn-ghost" href="${x.href}">${esc(t("ct.seeAll"))} →</a>
+          </div>
+          <div id="${x.box}"><p class="com-note muted">${esc(t("common.loading"))}</p></div>
+        </section>`
+      ).join("")}`;
+  }
+
+  async function renderHome() {
+    const root = $("#home-root");
+    if (!root) return false;
+    document.title = `${t("ct.homeTitle")} — CineAura`;
+    root.innerHTML = homeShell();
+    const note = (box, msg) => box && (box.innerHTML = `<p class="com-empty muted">${esc(msg)}</p>`);
+    // videos — the same cards the videos page draws (one renderer, js/videos.js)
+    (async () => {
+      const box = $("#home-videos");
+      if (!box) return;
+      const res = await V.call("content_search", { p_member: V.memberId(), p_sort: "date", p_limit: 8 });
+      const items = res.ok && Array.isArray(res.data?.items) ? res.data.items.filter((x) => !x.portrait) : [];
+      if (!items.length) return note(box, t("ct.noneVideos"));
+      box.innerHTML = `<ol class="vgrid home-grid">${items.map((x) => `<li>${V.cardHtml(x)}</li>`).join("")}</ol>`;
+      V.observeCards?.(box);
+    })();
+    // articles, questions, documents — the lists' own rows, never a second renderer
+    setTimeout(() => {
+      const box = (id) => document.getElementById(id);
+      if (window.CineAuraCommunity?.homeRows) {
+        window.CineAuraCommunity.homeRows(box("home-articles"), "articles", 4).catch(() => note(box("home-articles"), t("com.loadFail")));
+        window.CineAuraCommunity.homeRows(box("home-questions"), "questions", 4).catch(() => note(box("home-questions"), t("com.loadFail")));
+      }
+      if (window.CineAuraDocs?.homeRows) window.CineAuraDocs.homeRows(box("home-documents"), 4).catch(() => note(box("home-documents"), t("doc.loadFail")));
+    }, 0);
+    return true;
+  }
+
   async function boot() {
     C.setupChrome();
-    // a YouTube video is watched on this same page (content.html?yt=<id>)
+    // content.html: the home of the content pages
+    if ($("#home-root")) return renderHome();
+    // a YouTube video is watched on this same page (video.html?yt=<id>)
     if (!state.id && /^[A-Za-z0-9_-]{11}$/.test(ytVideoId)) return renderYouTubeWatch(ytVideoId);
     if (!state.id) return renderHub();
     const res = await V.call("content_get", { p_id: state.id, p_member: V.memberId() });

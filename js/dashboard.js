@@ -545,7 +545,7 @@
             <p class="muted">${t("dash.ov.contentLead")}</p>
           </div>
           <div class="ov-head-btns">
-            <a class="btn btn-sm btn-primary" href="./article.html">${t("dash.ar.new")}</a>
+            <a class="btn btn-sm btn-primary" href="./article-Editor.html">${t("dash.ar.new")}</a>
             <button class="btn btn-sm btn-ghost" type="button" data-section="documents">${t("dash.nav.documents")}</button>
           </div>
         </div>
@@ -3358,7 +3358,7 @@
     wireTabs(main, "prizeModes");
   }
 
-  /* ---------- Articles: the ones this member wrote (article.html) ----------
+  /* ---------- Articles: the ones this member wrote (article-Editor.html) ----------
      The editor itself is never rebuilt here — the dashboard lists what it saved
      and sends the member back to the one editor. */
   function dashWhen(iso) {
@@ -3388,8 +3388,8 @@
       <h1>${t("dash.nav.articles")}</h1>
       <p class="muted">${t("dash.ar.lead")}</p>
       <div class="dash-acts">
-        <a class="btn btn-primary" href="./article.html">${C.navIcon("create")}<span>${t("dash.ar.new")}</span></a>
-        <a class="btn btn-ghost" href="./content.html#articles">${t("dash.ar.browse")}</a>
+        <a class="btn btn-primary" href="./article-Editor.html">${C.navIcon("create")}<span>${t("dash.ar.new")}</span></a>
+        <a class="btn btn-ghost" href="./articles.html">${t("dash.ar.browse")}</a>
       </div>
       <div class="stat-row">
         <div class="stat"><b data-ar="all">…</b><span>${t("dash.ar.all")}</span></div>
@@ -3441,9 +3441,9 @@
             ${a.description ? `<p class="muted dash-ar-desc">${escapeHtml(a.description)}</p>` : ""}
             <p class="muted dash-ar-meta">${escapeHtml(placeLabel(a.places))} · ${escapeHtml(t("pm.vis." + (a.visibility || "public")))} · 👁 ${Number(a.views || 0)} · ${escapeHtml(dashWhen(a.updated_at || a.created_at))}</p>
             <div class="dash-ar-acts">
-              ${mine ? `<a class="btn btn-sm btn-ghost" href="./article.html?edit=${encodeURIComponent(a.id)}">${t("ae.edit")}</a>` : ""}
+              ${mine ? `<a class="btn btn-sm btn-ghost" href="./article-Editor.html?edit=${encodeURIComponent(a.id)}">${t("ae.edit")}</a>` : ""}
               ${st === "published" || st === "scheduled"
-                ? `<a class="btn btn-sm btn-primary" href="./content.html?article=${encodeURIComponent(a.id)}">${t("dash.ar.read")}</a>`
+                ? `<a class="btn btn-sm btn-primary" href="./articles.html?id=${encodeURIComponent(a.id)}">${t("dash.ar.read")}</a>`
                 : `<span class="muted">${st === "pending" ? t("dash.ar.waiting") : t("dash.ar.draftHint")}</span>`}
             </div>
           </div>

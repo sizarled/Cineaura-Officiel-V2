@@ -2128,7 +2128,7 @@
       </div>`;
     };
     // A new video of somebody I follow: the same lead line as the other entries, then
-    // its card (content.html?idcontent=…).
+    // its card (video.html?id=…).
     const videoHtml = (v) => {
       const owner = String(v.owner || "").replace(/^@/, "");
       const actor = `<a href="${profileHref(owner)}"><strong><bdi>@${escapeHtml(owner)}</bdi></strong></a>`;
@@ -2615,10 +2615,10 @@
       return;
     }
     if (kind === "article") {
-      // the one rich editor (article.html); questions stay inline
+      // the one rich editor (article-Editor.html); questions stay inline
       host.innerHTML = `<div class="glass" style="padding:18px;text-align:center">
         <p>${escapeHtml(t("ae.redirect"))}</p>
-        <a class="btn btn-primary" href="./article.html">${escapeHtml(t("ae.openEditor"))}</a></div>`;
+        <a class="btn btn-primary" href="./article-Editor.html">${escapeHtml(t("ae.openEditor"))}</a></div>`;
       return;
     }
     if (kind === "question") {
@@ -2712,7 +2712,7 @@
               return manageRow(
                 escapeHtml(r.title || r.content_id),
                 `${t(scheduled ? "manage.status.scheduled" : "manage.status.published")} · ${escapeHtml(t("pm.vis." + (r.visibility || "public")))} · ${escapeHtml(String(r.created_at || "").slice(0, 10))} · 👁 ${r.views || 0}`,
-                `./content.html?video=${encodeURIComponent(r.content_id)}`,
+                `./video.html?id=${encodeURIComponent(r.content_id)}`,
                 ""
               );
             })
@@ -2732,7 +2732,7 @@
             manageRow(
               escapeHtml(r.title || ""),
               `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))} · 👁 ${r.views || 0}`,
-              `./content.html?article=${encodeURIComponent(r.id)}`,
+              `./articles.html?id=${encodeURIComponent(r.id)}`,
               `data-del="community_articles" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
             )
           )
@@ -2756,7 +2756,7 @@
               manageRow(
                 escapeHtml(r.title || ""),
                 `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))}`,
-                `./content.html?question=${encodeURIComponent(r.id)}`,
+                `./answers.html?id=${encodeURIComponent(r.id)}`,
                 `data-del="community_questions" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
               )
             )
@@ -2769,7 +2769,7 @@
               manageRow(
                 escapeHtml(String(r.body || "").slice(0, 80)),
                 `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))}`,
-                `./content.html?answer=${encodeURIComponent(r.id)}`,
+                `./answers.html?id=${encodeURIComponent(r.id)}&kind=answer`,
                 `data-del="community_answers" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
               )
             )
@@ -2876,7 +2876,7 @@
       (state.isOwner ? `<p class="muted">${escapeHtml(t("prof.studio.videosNote"))} <a class="btn btn-sm btn-primary" href="?section=create">${escapeHtml(t("prof.studio.open"))}</a></p>` : "") +
       rows
         .map(
-          (r) => `<a class="glass" style="display:flex;gap:12px;align-items:center;padding:10px 12px;margin-bottom:8px;text-decoration:none" href="./content.html?video=${encodeURIComponent(r.content_id)}">
+          (r) => `<a class="glass" style="display:flex;gap:12px;align-items:center;padding:10px 12px;margin-bottom:8px;text-decoration:none" href="./video.html?id=${encodeURIComponent(r.content_id)}">
             ${r.thumb_url ? `<img src="${escapeHtml(r.thumb_url)}" alt="" loading="lazy" style="width:72px;height:44px;object-fit:cover;border-radius:8px" />` : `<span style="width:72px;height:44px;display:grid;place-items:center;border-radius:8px;background:rgba(255,255,255,.06)">🎬</span>`}
             <span style="flex:1;min-width:0;display:flex;flex-direction:column">
               <strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.title || r.content_id)}</strong>

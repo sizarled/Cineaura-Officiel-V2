@@ -3133,14 +3133,16 @@
   }
 
   /* One header menu for every page — only the home page keeps its own landing
-     links (#features, #plans…). Same nine links in the phone menu, above its
+     links (#features, #plans…). The same links in the phone menu, above its
      Sign In/Sign Up rows; the page you're on is marked aria-current. */
   const HEADER_NAV = [
     ["./index.html", "nav.home"],
     ["./search.html", "nav.search"],
     ["./movies.html", "nav.movies"],
     ["./series.html", "nav.series"],
-    ["./content.html", "nav.videos"],
+    // One entry for the whole content area: content.html is its home, and the
+    // bar at the top of every content page leads to each type (round 39).
+    ["./content.html", "nav.content"],
     ["./iptv.html", "nav.iptv"],
     ["./prize.html", "nav.prizes"],
     ["./market.html", "nav.market"],
@@ -5373,6 +5375,77 @@
     new MutationObserver(scheduleNavIcons).observe(document.documentElement, { childList: true, subtree: true });
   } catch {}
 
+  /* ── Content pages: one page per type, and the old addresses keep working ─────
+     content.html is the home that gathers what the members published. Each type
+     has its own page, and one detail is one id on that page:
+        video.html?id=ID        one video      (also ?idcontent= / ?video= / ?yt=)
+        articles.html?id=ID     one article    (also ?article=)
+        answers.html?id=ID      one question (also ?question=) or one answer (?answer=)
+        documents.html?id=ID    one document   (also ?document=)
+       ?top=minutes|likes|shares stayed with the videos, ?type=documents with the
+     documents. Every address the site published before this split is rewritten
+     here to the page that now owns it — the id travels untouched — so a link, a
+     bookmark or a share posted in an earlier round still lands on the same work. */
+  const CONTENT_TYPE_PAGES = { video: "video", articles: "articles", questions: "answers", documents: "documents", videos: "video" };
+  // old query key → [page that owns it, the key the id takes there, extra params]
+  const CONTENT_LEGACY = [
+    ["video", "video", "id"],
+    ["idcontent", "video", "id"],
+    ["yt", "video", "yt"],
+    ["article", "articles", "id"],
+    ["question", "answers", "id"],
+    ["answer", "answers", "id", [["kind", "answer"]]],
+    ["document", "documents", "id"],
+  ];
+  const CONTENT_PAGE_OF = { "video.html": "video", "articles.html": "articles", "answers.html": "answers", "documents.html": "documents", "content.html": "home" };
+  function routeAliases() {
+    const file = (location.pathname.split("/").pop() || "").toLowerCase();
+    const kind = CONTENT_PAGE_OF[file];
+    if (!kind) return false;
+    const params = new URLSearchParams(location.search);
+    const hash = location.hash || "";
+    const send = (page, pairs) => {
+      const q = new URLSearchParams();
+      (pairs || []).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && String(v) !== "") q.set(k, String(v));
+      });
+      const qs = q.toString();
+      location.replace(`./${page}.html${qs ? "?" + qs : ""}${hash}`);
+      return true;
+    };
+    const pairsOf = (key, as, extra) => [[as, params.get(key)]].concat(extra || []);
+    // The home: the work itself lives on the type pages, so any detail key (and
+    // the documents' own tab and the videos' top lists) leaves right away.
+    if (kind === "home") {
+      for (const [key, page, as, extra] of CONTENT_LEGACY) if (params.has(key)) return send(page, pairsOf(key, as, extra));
+      const type = String(params.get("type") || "").toLowerCase();
+      if (CONTENT_TYPE_PAGES[type]) return send(CONTENT_TYPE_PAGES[type], [["id", params.get("id")]]);
+      if (params.has("top")) return send("video", [["top", params.get("top")]]);
+      // a hash names a type on the old tabs: #articles, #questions, #documents
+      const h = hash.replace(/^#/, "").toLowerCase();
+      if (CONTENT_TYPE_PAGES[h] && h !== "videos") return send(CONTENT_TYPE_PAGES[h], []);
+      if (h === "videos") return send("video", []);
+      return false; // plain content.html: the home page itself
+    }
+    // A type page: another type's key is a move. Its own older keys stay
+    // readable — and the address is rewritten to the canonical ?id= — so a link
+    // from an earlier round keeps working and the bar keeps one shape.
+    for (const [key, page, as, extra] of CONTENT_LEGACY) {
+      if (!params.has(key)) continue;
+      if (page !== kind) return send(page, pairsOf(key, as, extra));
+      if (key === "id" || as === "yt" || params.has("id")) continue;
+      // this page, under an older key: same page, canonical address
+      const keep = new URLSearchParams();
+      keep.set("id", params.get(key));
+      (extra || []).forEach(([k, v]) => keep.set(k, v));
+      for (const [k, v] of params) if (k !== key && k !== "id") keep.set(k, v);
+      const qs = keep.toString();
+      location.replace(`./${file}${qs ? "?" + qs : ""}${hash}`);
+      return true;
+    }
+    return false; // a plain type page, or the videos' own ?top= list
+  }
+
   window.CineAura = {
     API_KEY,
     API,
@@ -5635,5 +5708,9 @@
     syncAuthGate,
     sessionWriteBlocked,
     authGateEnabled,
+    routeAliases,
   };
+
+  // Rewrite an old content address before any page code looks at the query string.
+  routeAliases();
 })();

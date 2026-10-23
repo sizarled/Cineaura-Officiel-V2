@@ -1,5 +1,5 @@
 /* CineAura — member videos, shared by Profile > Your content (js/content-studio.js),
-   content.html (js/content.js), search.html (js/search.js), the home page
+   video.html (js/content.js), search.html (js/search.js), the home page
    (js/home-videos.js) and a member's page > Content / Updates (js/profile.js).
 
    Everything goes through the content_* functions of sql/content.sql: the tables
@@ -290,7 +290,7 @@
     }
   }
 
-  const contentHref = (id) => `./content.html?idcontent=${encodeURIComponent(id || "")}`;
+  const contentHref = (id) => `./video.html?id=${encodeURIComponent(id || "")}`;
   function searchHref(params = {}) {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

@@ -1,12 +1,12 @@
-  // New article opens the one rich editor (article.html). Members reach it from
+  // New article opens the one rich editor (article-Editor.html). Members reach it from
   // Create, the hub and the Studio; staff from the Panel — same page, same code.
   function articleForm(box) {
     if (!meId()) return (box.innerHTML = loginNote());
     box.innerHTML = `<div class="com-form glass" style="text-align:center">
         <p class="com-body">${esc(t("ae.redirect"))}</p>
-        <a class="btn btn-primary" href="./article.html">${esc(t("ae.openEditor"))}</a>
+        <a class="btn btn-primary" href="./article-Editor.html">${esc(t("ae.openEditor"))}</a>
       </div>`;
-    location.href = "./article.html";
+    location.href = "./article-Editor.html";
   }
 
 /* CineAura — Community hub (js/community.js, sql/community.sql)
@@ -37,19 +37,23 @@
   const who = (names, id) => (names.get(id) ? `@${names.get(id)}` : "");
   const when = (iso) => String(iso || "").slice(0, 16).replace("T", " ");
   // Question/article links: relative #… on the hub itself, absolute ./community.html#…
-  // when the same renderer is embedded on another page (Content tabs, the profile).
-  // Small view state that must survive a re-render (?type=documents picks a tab).
-  const ui = { ctTab: "" };
+  // when the same renderer is embedded on another page (the type pages, the profile).
   const base = () => (document.getElementById("com-root") ? "" : "./community.html");
   const loginNote = () =>
     meId() ? "" : `<p class="com-note muted">${esc(t("com.login"))} <a class="btn btn-sm btn-primary" href="./login.html">${esc(t("nav.signin"))}</a></p>`;
 
   const gLink = (id) => (base() ? `${base()}?group=${id}` : `?group=${id}`);
   // Deep links: on the hub the detail views live under #q/ #a/ hashes; everywhere
-  // else (profile blocks, the content page lists) they point at content.html by
-  // its canonical deep params ?article=/?question=/?answer= (Round-60 spec).
+  // else they point at the page that owns the type, one id on it (round 39):
+  // articles.html?id= / answers.html?id= (one question or one answer).
+  const DEEP_PAGE = { article: "articles", question: "answers", answer: "answers" };
+  // The list a detail view goes back to: its own type's page (the hub keeps its
+  // own tabs, so # there; everywhere else a real page).
+  const listHref = (kind) => (document.getElementById("com-root") ? (kind === "article" ? "#articles" : "#questions") : `./${DEEP_PAGE[kind]}.html`);
   const dLink = (kind, id) =>
-    document.getElementById("com-root") ? `#${kind === "article" ? "a" : "q"}/${id}` : `./content.html?${kind}=${encodeURIComponent(id)}`;
+    document.getElementById("com-root")
+      ? `#${kind === "article" ? "a" : "q"}/${id}`
+      : `./${DEEP_PAGE[kind] || "answers"}.html?id=${encodeURIComponent(id)}`;
   const groupParam = () => new URLSearchParams(location.search).get("group");
   // Community.html?group=12345 picks the group page; plain Community.html picks
   // the list. #g/123 stays as a legacy alias so old links never break.
@@ -133,14 +137,14 @@
   async function answerView(box, id) {
     const res = await req(`/rest/v1/community_answers?id=eq.${id}&select=*`);
     const a = res.ok && Array.isArray(res.data) ? res.data[0] : null;
-    if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("ct.missing"))} <a href="./content.html">${esc(t("ct.library"))}</a></p>`);
+    if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("ct.missing"))} <a href="${listHref("answer")}">${esc(t("ct.library"))}</a></p>`);
     questionView(box, a.question_id, a.id);
   }
 
   async function questionView(box, id, hlAnswerId) {
     const res = await req(`/rest/v1/community_questions?id=eq.${id}&select=*`);
     const q = res.ok && Array.isArray(res.data) ? res.data[0] : null;
-    if (!q) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="${document.getElementById("com-root") ? "#" : "./content.html"}">${esc(t("com.backList"))}</a></p>`);
+    if (!q) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="${listHref("question")}">${esc(t("com.backList"))}</a></p>`);
     const [ansRes, names] = await Promise.all([
       req(`/rest/v1/community_answers?question_id=eq.${id}&select=*&order=votes.desc,created_at.asc&limit=200`),
       nameMap([q.member_id]),
@@ -155,7 +159,7 @@
       const vr = await req(`/rest/v1/community_answer_votes?member_id=eq.${encodeURIComponent(me)}&answer_id=in.(${idsIn(ids)})&select=answer_id`);
       if (vr.ok && Array.isArray(vr.data)) mine = new Set(vr.data.map((v) => v.answer_id));
     }
-    box.innerHTML = `<a class="com-back" href="${document.getElementById("com-root") ? "#" : "./content.html"}">← ${esc(t("com.backList"))}</a>
+    box.innerHTML = `<a class="com-back" href="${listHref("question")}">← ${esc(t("com.backList"))}</a>
       <article class="com-q glass">
         <h2>${esc(q.title)}</h2>
         <p class="muted">${esc(who(names, q.member_id))} · ${esc(when(q.created_at))}</p>
@@ -257,13 +261,13 @@
     };
   }
 
-  // Article page: the rich body from article.html, plus the same privacy gate the
+  // Article page: the rich body from article-Editor.html, plus the same privacy gate the
   // editor promises (private = listed people, exclusive = every criterion).
   async function articleView(box, id) {
     const A = window.CineAuraArticles;
     const res = await req(`/rest/v1/community_articles?id=eq.${id}&select=*`);
     const a = res.ok && Array.isArray(res.data) ? res.data[0] : null;
-    const back = document.getElementById("com-root") ? "#articles" : "./content.html";
+    const back = listHref("article");
     if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="${back}">${esc(t("com.backList"))}</a></p>`);
 
     const names = await nameMap([a.member_id]);
@@ -295,7 +299,7 @@
       <article class="com-article glass">
         ${cover}
         <h2>${esc(a.title)}</h2>
-        <p class="muted">${esc(who(names, a.member_id))} · ${esc(when(a.publish_at || a.created_at))}${a.language ? ` · ${esc(a.language)}` : ""} · 👁 ${(a.views || 0) + 1}${mine ? ` · <a href="./article.html?edit=${encodeURIComponent(a.id)}">${esc(t("ae.edit"))}</a>` : ""}</p>
+        <p class="muted">${esc(who(names, a.member_id))} · ${esc(when(a.publish_at || a.created_at))}${a.language ? ` · ${esc(a.language)}` : ""} · 👁 ${(a.views || 0) + 1}${mine ? ` · <a href="./article-Editor.html?edit=${encodeURIComponent(a.id)}">${esc(t("ae.edit"))}</a>` : ""}</p>
         ${cats.length ? `<p>${cats.map((c) => `<span class="ar-chip">${esc(c)}</span>`).join("")}</p>` : ""}
       </article>`;
 
@@ -638,7 +642,7 @@
   }
 
   const rowQ = (x) => `<a class="com-row-mini" href="${dLink("question", x.id)}">❓ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 💬 ${x.answers_count || 0}</span></a>`;
-  const rowA = (x, qTitles) => `<a class="com-row-mini" href="./content.html?answer=${x.id}">↩ ${esc(String(x.body || "").slice(0, 90))} <span class="muted">${esc(qTitles.get(x.question_id) || "")} · 👍 ${x.votes || 0}</span></a>`;
+  const rowA = (x, qTitles) => `<a class="com-row-mini" href="${dLink("answer", x.id)}">↩ ${esc(String(x.body || "").slice(0, 90))} <span class="muted">${esc(qTitles.get(x.question_id) || "")} · 👍 ${x.votes || 0}</span></a>`;
   const rowArt = (x) => `<a class="com-row-mini" href="${dLink("article", x.id)}">✍ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 👁 ${x.views || 0}</span></a>`;
   const block = (title, rows, draw, emptyKey) =>
     `<section class="com-block"><h3>${title} <span class="muted">${rows.length}</span></h3>${rows.length ? rows.map(draw).join("") : `<p class="muted">${esc(t(emptyKey))}</p>`}</section>`;
@@ -712,60 +716,110 @@
     return kind === "article" ? articleForm(box) : askForm(box);
   }
 
-  window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer };
+  // ── The content pages (round 39) ───────────────────────────────────────────
+  // content.html is the home that gathers the members' work; each type has its
+  // own page and one id on it:
+  //   articles.html?id=ID   one article   (no id: the articles list)
+  //   answers.html?id=ID    one question or one answer (no id: the questions list)
+  //   documents.html?id=ID  one document  (no id: the documents library)
+  // video.html is the videos' own page and keeps its own code (js/content.js).
+  const PAGE_TITLES = { articles: "com.tab.articles", questions: "com.tab.questions" };
 
-  // Content page (content.html): a type bar above the videos — Videos stay with
-  // their own page code; Articles / Questions & Answers embed the hub lists.
-  function wireContentTabs() {
-    const root = document.getElementById("vw-root");
-    if (!root || document.getElementById("ct-tabs")) return;
-    const originals = [...root.children];
-    const tabs = document.createElement("div");
-    tabs.id = "ct-tabs";
-    tabs.className = "com-tabs ct-tabs";
-    tabs.setAttribute("role", "tablist");
-    const other = document.createElement("div");
-    other.id = "ct-other";
-    other.hidden = true;
-    root.prepend(other);
-    root.prepend(tabs);
-    const TABS = [
-      ["videos", t("nav.videos")],
-      ["articles", t("com.tab.articles")],
-      ["questions", t("com.tab.questions")],
-      ["documents", t("doc.tab")],
-    ];
-    tabs.innerHTML = TABS.map(([k, label], i) => `<button type="button" role="tab" class="follow-tab${i === 0 ? " active" : ""}" data-ct="${k}">${esc(label)}</button>`).join("");
-    if (ui.ctTab) {
-      const wanted = tabs.querySelector(`[data-ct="${ui.ctTab}"]`);
-      if (wanted) setTimeout(() => wanted.click(), 0);
-    }
-    tabs.querySelectorAll("[data-ct]").forEach((b) => {
-      b.onclick = () => {
-        tabs.querySelectorAll("[data-ct]").forEach((x) => x.classList.toggle("active", x === b));
-        const k = b.dataset.ct;
-        if (k === "videos") {
-          originals.forEach((el) => (el.hidden = false));
-          other.hidden = true;
-          return;
-        }
-        originals.forEach((el) => (el.hidden = true));
-        other.hidden = false;
-        if (k === "documents") {
-          other.innerHTML = `<div id="ct-body"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
-          if (window.CineAuraDocs) window.CineAuraDocs.list(other.querySelector("#ct-body"));
-          else other.querySelector("#ct-body").innerHTML = `<p class="com-note">⚠ ${esc(t("doc.loadFail"))}</p>`;
-          return;
-        }
-        other.innerHTML = `<div id="com-acts" style="margin-bottom:10px">${
-          k === "questions"
-            ? `<a class="btn btn-sm btn-primary" href="./community.html#ask">❓ ${esc(t("com.ask"))}</a>`
-            : `<a class="btn btn-sm btn-primary" href="./community.html#new-article">✍ ${esc(t("com.newArticle"))}</a>`
-        }</div><div id="ct-body"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
-        (k === "questions" ? listQuestions : listArticles)(other.querySelector("#ct-body"));
-      };
-    });
+  // One row of the home page: the newest articles or the newest questions, the
+  // same rows the lists draw, so both always look and link the same way.
+  async function homeRows(box, kind, limit) {
+    const table = kind === "questions" ? "community_questions" : "community_articles";
+    const res = await req(`/rest/v1/${table}?select=*&order=created_at.desc&limit=${Math.max(1, Number(limit) || 4)}`);
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    if (!res.ok) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))}</p>`);
+    if (!rows.length) return (box.innerHTML = `<p class="com-empty muted">${esc(t(kind === "questions" ? "com.emptyQ" : "com.emptyA"))}</p>`);
+    const names = await nameMap(rows.map((r) => r.member_id));
+    box.innerHTML = rows
+      .map((r) =>
+        kind === "questions"
+          ? `<a class="com-row glass" href="${dLink("question", r.id)}">
+          <span class="com-row-main"><strong>${esc(r.title)}</strong>
+          <span class="muted">${esc(who(names, r.member_id))} · ${esc(when(r.created_at))}</span></span>
+          <span class="com-chip">💬 ${r.answers_count || 0} ${esc(t("com.answersN"))}</span>
+        </a>`
+          : `<a class="com-row glass" href="${dLink("article", r.id)}">
+          <span class="com-row-main"><strong>${esc(r.title)}</strong>
+          <span class="muted">${esc(who(names, r.member_id))} · ${esc(when(r.created_at))}${r.tags ? ` · ${esc(r.tags)}` : ""}</span></span>
+          <span class="com-chip">👁 ${r.views || 0}</span>
+        </a>`
+      )
+      .join("");
   }
+
+  // The head of one type page: its name, what it holds, and the one action that
+  // adds to it (the hub's own composers — no second form here).
+  function pageHead(kind) {
+    const isQ = kind === "questions";
+    return `<div class="pg-head">
+        <span class="eyebrow">${esc(t("ct.eyebrow"))}</span>
+        <h1>${esc(t(PAGE_TITLES[kind]))}</h1>
+        <p class="muted">${esc(t(isQ ? "ct.leadQuestions" : "ct.leadArticles"))}</p>
+        <div class="pg-acts">
+          ${isQ
+            ? `<a class="btn btn-sm btn-primary" href="./community.html#ask">❓ ${esc(t("com.ask"))}</a>`
+            : `<a class="btn btn-sm btn-primary" href="./article-Editor.html">✍ ${esc(t("com.newArticle"))}</a>`}
+          <a class="btn btn-sm btn-ghost" href="./community.html#${isQ ? "questions" : "articles"}">${esc(t("ct.hub"))}</a>
+        </div>
+      </div>`;
+  }
+
+  // content.html?article=ID and friends still arrive on a type page (see
+  // CineAura.routeAliases); this reads the id either way.
+  function pageId(params) {
+    return String(params.get("id") || "").trim();
+  }
+
+  async function bootPage(root, kind) {
+    if (!root) return false;
+    const params = new URLSearchParams(location.search);
+    const id = pageId(params);
+    if (id) {
+      if (!/^\d+$/.test(id)) {
+        root.innerHTML = `<p class="com-note">⚠ ${esc(t("ct.invalid"))} <a class="btn btn-sm btn-primary" href="./${kind === "questions" ? "answers" : "articles"}.html">${esc(t("ct.library"))}</a></p>`;
+        return true;
+      }
+      root.innerHTML = `<p class="com-note muted">${esc(t("common.loading"))}</p>`;
+      if (kind === "documents") {
+        const draw = () => {
+          if (window.CineAuraDocs) window.CineAuraDocs.documentView(root, id);
+          else root.innerHTML = `<p class="com-note">⚠ ${esc(t("doc.loadFail"))}</p>`;
+        };
+        if (window.CineAuraDocs) draw();
+        else setTimeout(draw, 120);
+      } else if (kind === "questions") {
+        // ?kind=answer picks one answer; a bare id is a question
+        if (String(params.get("kind") || "").toLowerCase() === "answer") answerView(root, Number(id));
+        else questionView(root, Number(id));
+      } else {
+        articleView(root, Number(id));
+      }
+      return true;
+    }
+    if (kind === "documents") {
+      root.innerHTML = `<div class="pg-head">
+          <span class="eyebrow">${esc(t("ct.eyebrow"))}</span>
+          <h1>${esc(t("doc.tab"))}</h1>
+          <p class="muted">${esc(t("ct.leadDocuments"))}</p>
+          <div class="pg-acts"><a class="btn btn-sm btn-primary" href="./profile.html?section=create">${esc(t("vid.hub.create"))}</a></div>
+        </div><div id="pg-docs"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
+      const box = root.querySelector("#pg-docs");
+      if (window.CineAuraDocs) window.CineAuraDocs.list(box);
+      else box.innerHTML = `<p class="com-note">⚠ ${esc(t("doc.loadFail"))}</p>`;
+      return false;
+    }
+    root.innerHTML = `${pageHead(kind)}<div id="pg-list"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
+    const box = root.querySelector("#pg-list");
+    if (kind === "questions") listQuestions(box);
+    else listArticles(box);
+    return false;
+  }
+
+  window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer, bootPage, homeRows };
 
   window.addEventListener("hashchange", () => {
     const root = document.getElementById("com-root");
@@ -777,63 +831,13 @@
     const root = document.getElementById("com-root");
     if (root) paint(root);
   });
-  // Auto-boot only on the hub page itself (the profile embeds this file for
-  // memberView only — no #com-root there, nothing to paint).
-  // UNIVERSAL DETAIL ROUTER — content.html?article=ID | ?question=ID | ?answer=ID.
-  // Matches the spec exactly: every route is one query param; zero params → the
-  // library; more than one → an invalid-route notice; non-numeric id → same.
-  // ?video=ID (alias of idcontent) is left to js/content.js, which plays it.
-  function contentDeepView() {
-    const root = document.getElementById("vw-root");
-    if (!root) return false;
-    const params = new URLSearchParams(window.location.search);
-    const routes = ["video", "article", "question", "answer", "document"];
-    const selected = routes.filter((key) => params.has(key));
-    if (!selected.length) {
-      // content.html?type=documents opens the library already on that tab
-      const only = String(params.get("type") || "").trim();
-      if (only === "documents") ui.ctTab = "documents";
-      return false; // the library + its type tabs
-    }
-    if (selected[0] === "video") return false; // js/content.js plays the video itself
-    const hide = () => {
-      [...root.children].forEach((el) => (el.hidden = true));
-      const box = document.createElement("div");
-      box.id = "ct-deep";
-      root.prepend(box);
-      return box;
-    };
-    const invalid = () => {
-      hide().innerHTML = `<p class="com-note">⚠ ${esc(t("ct.invalid"))} <a class="btn btn-sm btn-primary" href="./content.html">${esc(t("ct.library"))}</a></p>`;
-      return true;
-    };
-    if (selected.length > 1) return invalid();
-    const type = selected[0];
-    const id = String(params.get(type) || "").trim();
-    if (!id || !/^\d+$/.test(id)) return invalid();
-    const box = hide();
-    box.innerHTML = `<p class="com-note muted">${esc(t("common.loading"))}</p>`;
-    if (type === "document") {
-      // js/documents.js may still be parsing when this page boots, so wait a
-      // tick instead of declaring the link broken.
-      const draw = () => {
-        if (window.CineAuraDocs) window.CineAuraDocs.documentView(box, id);
-        else box.innerHTML = `<p class="com-note">⚠ ${esc(t("doc.loadFail"))}</p>`;
-      };
-      if (window.CineAuraDocs) draw();
-      else setTimeout(draw, 120);
-      return true;
-    }
-    if (type === "article") articleView(box, Number(id));
-    else if (type === "question") questionView(box, Number(id));
-    else answerView(box, Number(id));
-    return true;
-  }
-
+  // Auto-boot only where this file owns the page: the hub (#com-root) and the
+  // type pages (#page-root). The profile embeds it for memberView only.
   const boot = () => {
     const root = document.getElementById("com-root");
     if (root) paint(root);
-    if (!contentDeepView()) wireContentTabs();
+    const page = document.getElementById("page-root");
+    if (page) bootPage(page, String(page.dataset.kind || "articles"));
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

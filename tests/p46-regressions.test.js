@@ -124,7 +124,7 @@ has("community: votes counter trigger", cs, "_com_answer_votes");
 has("community: public read policies", cs, 'com_q_read      on public.community_questions    for select using (true)');
 has("community: pgrst reload", cs, "notify pgrst, 'reload schema';");
 const cj = read("js/community.js");
-has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer };");
+has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer, bootPage, homeRows };");
 has("community: question route", cj, '#q/${row.id}');
 has("community: deep-link router", cj, "const hashRoute = ()");
 has("community: helpful vote toggle", cj, "community_answer_votes");
@@ -161,7 +161,7 @@ has("groups: group page", cj2, "async function groupView(box, id)");
 has("groups: join/leave toggle", cj2, "com-join");
 has("groups: default face is groups", cj2, 'return { view: "groups", tab: "discover" };');
 has("groups: legacy article/question routes kept", cj2, 'h.match(/^(q|a|g)\\/(\\d+)$/)');
-has("groups: content page tabs wiring", cj2, "function wireContentTabs()");
+has("content pages: one type bar, marked up on every page", read("articles.html") + read("video.html") + read("answers.html") + read("documents.html"), 'class="com-tabs ct-bar"');
 has("groups: content.html loads community module", read("content.html"), 'src="js/community.js"');
 has("groups: engine discover label", read("js/i18n.js"), '"grp.discover": "Discover Groups"');
 
@@ -192,11 +192,11 @@ const cc = read("js/content.js");
 has("deep: ?video= alias of idcontent", cc, 'params.get("idcontent") || params.get("video")');
 const cj4 = read("js/community.js");
 has("deep: dLink helper", cj4, "const dLink = (kind, id) =>");
-has("deep: router reads one param per type", cj4, 'const routes = ["video", "article", "question", "answer", "document"];');
-has("deep: invalid mixed route", cj4, "if (selected.length > 1) return invalid();");
-has("deep: numeric id guard", cj4, "if (!id || !/^\\d+$/.test(id)) return invalid();");
-has("deep: video left to content.js", cj4, 'if (selected[0] === "video") return false;');
-has("deep: boot gives the router priority", cj4, "if (!contentDeepView()) wireContentTabs();");
+has("pages: one type page each, one id on it", cj4, 'const DEEP_PAGE = { article: "articles", question: "answers", answer: "answers" };');
+has("pages: one boot for the three type pages", cj4, "async function bootPage(root, kind) {");
+has("pages: invalid id guard", cj4, 'if (!/^\\d+$/.test(id)) {');
+has("pages: the boot reads the page kind", cj4, 'bootPage(page, String(page.dataset.kind || "articles"));');
+has("pages: the aliases are exported", cj4, "openComposer, bootPage, homeRows };");
 has("deep: answer view with parent question", cj4, "questionView(box, a.question_id, a.id);");
 has("deep: answer highlight anchor", cj4, 'data-ans="${a.id}"');
 
@@ -225,7 +225,7 @@ has("profile: social tabs map to post kinds", pfr, 'POST_TYPES = { posts: ["post
 has("profile: social tabs render own rows only", pfr, "owner_id=eq.${restValue(memberId)}&select=*&order=created_at.desc&limit=80");
 has("profile: real status chips are visibility-based", pfr, "escapeHtml(visLabel(p.visibility))");
 const cjr = read("js/community.js");
-has("community: memberGroups exported", cjr, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer };");
+has("community: memberGroups exported", cjr, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer, bootPage, homeRows };");
 has("community: memberGroups covers created + joined", cjr, "community_groups?owner_id=eq.${id}");
 has("community: memberGroups links groups by query id", cjr, 'href="${gLink(g.id)}"');
 const djm = read("js/dashboard.js");
@@ -239,7 +239,7 @@ has("studio: delete listener bound once", pj3, 'if (!main.dataset.mgBound)');
 has("studio: content statistics tab counts real rows", pfr, 'const [vids, arts, qs, as, posts, mp] = await Promise.all([');
 has("studio: stats reuse the points engine", pfr, "await window.CineAura.memberPoints(me, {})");
 has("studio: stats cover views, likes, votes, comments, recs, points", pfr, '${tile(views, t("prof.stats.views"))}');
-has("studio: Your content videos are view-only", pfr, 'href="./content.html?video=${encodeURIComponent(r.content_id)}"');
+has("studio: Your content videos are view-only", pfr, 'href="./video.html?id=${encodeURIComponent(r.content_id)}"');
 has("studio: posts hand off to Manage posts", pfr, '${t("manage.postsDeep")} <a class="btn btn-sm btn-ghost" href="?section=posts">');
 has("studio: video studio embedded without its own URL hash", read("js/content-studio.js"), "if (!state.solo && location.hash !== hash)");
 has("studio: hub composers shared, not copied", read("js/community.js"), "return kind === \"article\" ? articleForm(box) : askForm(box);");
@@ -260,9 +260,10 @@ has("documents: private rows gated at read time", dcm, "if (!canSee(row, me))");
 has("documents: delete re-reads the owner", dcm, "if (!row || row.member_id !== me) {");
 has("documents: orphan file removed when the row fails", dcm, "await removeFile(path, bucket); // never leave an orphan file behind");
 const cjd = read("js/community.js");
-has("documents: content.html router accepts ?document=", cjd, 'const routes = ["video", "article", "question", "answer", "document"];');
-has("documents: library tab added", cjd, '["documents", t("doc.tab")]');
-has("documents: ?type=documents selects the tab", cjd, 'if (only === "documents") ui.ctTab = "documents";');
+has("documents: one page owns the detail", cjd, 'if (kind === "documents") {');
+has("documents: the type page draws the library", cjd, 'window.CineAuraDocs.list(box);');
+has("documents: rows point at their page", read("js/documents.js"), './documents.html?id=${encodeURIComponent(r.id)}');
+has("documents: the home rows reuse the library row", read("js/documents.js"), "async function homeRows(box, limit) {");
 const pfd = read("js/profile.js");
 has("documents: studio create kind", pfd, '"video", "post", "document", "article"');
 has("documents: studio manage tab", pfd, 'const MANAGE_TABS = ["videos", "documents", "articles", "qa", "posts", "recs"];');
@@ -285,7 +286,7 @@ has("documents: manager honours the studio sort", dcm, 'if (opts.sort === "views
 
 // ---------------- Article editor: one editor for members and staff (2026-10-23) --
 const aem = read("js/article-editor.js");
-has("article editor: one module, mounted by article.html", aem, "window.CineAuraArticles = { mount, sanitize, canRead, bodyHtml, critOf };");
+has("article editor: one module, mounted by article-Editor.html", aem, "window.CineAuraArticles = { mount, sanitize, canRead, bodyHtml, critOf };");
 has("article editor: sanitises on the way in and out", aem, "function sanitize(html)");
 has("article editor: scripts and on* attributes dropped", aem, 'if (["SCRIPT", "STYLE", "OBJECT", "EMBED", "LINK", "META"].includes(tag)) return el.remove();');
 has("article editor: links forced safe", aem, 'el.setAttribute("rel", "noopener noreferrer nofollow");');
@@ -297,16 +298,16 @@ has("article editor: reader gate mirrors the promises", aem, "function canRead(r
 has("article editor: private gate by listed users", aem, "return Boolean(viewer && users.includes(viewer.username));");
 has("article editor: body rendered sanitised on the public page", aem, "if (row.body_html) return sanitize(row.body_html);");
 const cja = read("js/community.js");
-has("article editor: New article opens it", cja, 'location.href = "./article.html";');
+has("article editor: New article opens it", cja, 'location.href = "./article-Editor.html";');
 has("article editor: article page uses the rich body", cja, "const body = A ? A.bodyHtml(a) :");
 has("article editor: drafts stay private", cja, 'if (a.status === "draft" && !mine)');
 const pfa = read("js/profile.js");
-has("article editor: studio Article opens it", pfa, '<a class="btn btn-primary" href="./article.html">${escapeHtml(t("ae.openEditor"))}</a>');
+has("article editor: studio Article opens it", pfa, '<a class="btn btn-primary" href="./article-Editor.html">${escapeHtml(t("ae.openEditor"))}</a>');
 const pna = read("js/panel-admin.js");
 has("article editor: panel has an Articles tab", pna, '["articles", t("pa.ct.articles")]');
-has("article editor: panel writes with the same editor", pna, '<a class="btn btn-sm btn-primary" href="./article.html">${esc(t("pa.ct.newArticle"))}</a>');
+has("article editor: panel writes with the same editor", pna, '<a class="btn btn-sm btn-primary" href="./article-Editor.html">${esc(t("pa.ct.newArticle"))}</a>');
 has("article editor: panel approval leaves a trace", pna, 'body: JSON.stringify({ article_id: Number(id), reviewer_id: ctx.state.staff?.member_id || "", decision: approve ? "approved" : "rejected" })');
-has("article editor: page ships the module and styles", read("article.html"), "js/article-editor.js");
+has("article editor: page ships the module and styles", read("article-Editor.html"), "js/article-editor.js");
 
 // ---------------- Documents are scanned before they are stored (2026-10-23) ----
 const vtfn = read("supabase/functions/vt-scan/index.ts");
@@ -333,8 +334,8 @@ has("scan: deployment note ships with the function", read("supabase/functions/vt
 // ---------------- The dashboard carries what the editors publish (2026-10-23) ---
 has("dashboard: articles and documents have their own sections", dj, '["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]]');
 has("dashboard: router knows both", dj, "articles: viewArticles,\n      documents: viewDocuments,");
-has("dashboard: the article list sends the member to the one editor", dj, 'href="./article.html?edit=${encodeURIComponent(a.id)}"');
-has("dashboard: new article opens the editor", dj, '<a class="btn btn-primary" href="./article.html">${C.navIcon("create")}<span>${t("dash.ar.new")}</span></a>');
+has("dashboard: the article list sends the member to the one editor", dj, 'href="./article-Editor.html?edit=${encodeURIComponent(a.id)}"');
+has("dashboard: new article opens the editor", dj, '<a class="btn btn-primary" href="./article-Editor.html">${C.navIcon("create")}<span>${t("dash.ar.new")}</span></a>');
 has("dashboard: article state is read from the row, not guessed", dj, 'if (a.publish_at && Date.parse(a.publish_at) > Date.now()) return "scheduled";');
 has("dashboard: a pending Help article is labelled waiting, not published", dj, 'st === "pending" ? t("dash.ar.waiting") : t("dash.ar.draftHint")');
 has("dashboard: documents reuse the Studio uploader", dj, "window.CineAuraDocs.renderUpload(upBox, { member: m, onDone: load });");
@@ -385,7 +386,7 @@ has("customize groups: the save keeps both orders", cus, 'c.groups[page]=readGro
 has("customize groups: the dashboard shows the headings order", dj, 'groupsEl.textContent = `${t("dash.cust.groups")}: ${L.groupOrder(cfg)');
 
 // ---------------- The article page actually boots (2026-10-23) ---------------
-has("article page: the chrome is booted, so a signed-in member stays signed in", read("article.html"), "window.CineAura.setupChrome?.();");
+has("article page: the chrome is booted, so a signed-in member stays signed in", read("article-Editor.html"), "window.CineAura.setupChrome?.();");
 has("article editor: the language list exists (it was deleted and broke boot)", aem, "const LANGS = Object.keys(LANG_NAME);");
 has("article editor: <dialog> falls back where showModal is missing", aem, "if (typeof dlg.showModal === \"function\") {");
 has("article editor: the preview carries the reader simulator", aem, 'id="ae-sim"');
@@ -406,5 +407,60 @@ has("p43: feed suppresses own down-votes", js, "!downIds.has(r.post_id)");
 has("p43: report button on cards", js, "data-report-post");
 has("p43: report dialog", js, "postReportDlg(");
 has("p43: down-vote hides for viewer", js, "/rest/v1/post_votes?member_id=eq.${restValue(state.me.member.member_id)}&vote=eq.down&select=post_id");
+
+// ---------------- Content pages split per type (round 39) ----------------------
+// content.html is the home that gathers the members' work; each type moved to
+// its own page with one ?id= on it, and the editor is article-Editor.html.
+const chm = read("js/common.js");
+const chome = read("content.html");
+const cvideo = read("video.html");
+const cjs_home = read("js/content.js");
+has("pages: the address layer exists", chm, "function routeAliases() {");
+has("pages: it runs before any page code", chm, "routeAliases();\n})();");
+has("pages: the page map", chm, 'const CONTENT_PAGE_OF = { "video.html": "video", "articles.html": "articles", "answers.html": "answers", "documents.html": "documents", "content.html": "home" };');
+has("pages: ?idcontent= still opens a video", chm, '["idcontent", "video", "id"]');
+has("pages: ?video= still opens a video", chm, '["video", "video", "id"]');
+has("pages: ?yt= stays with the videos", chm, '["yt", "video", "yt"]');
+has("pages: ?article= moves to the articles page", chm, '["article", "articles", "id"]');
+has("pages: a question moves to the answers page", chm, '["question", "answers", "id"]');
+has("pages: an answer shares the answers page", chm, '["answer", "answers", "id", [["kind", "answer"]]],');
+has("pages: ?document= moves to the documents page", chm, '["document", "documents", "id"]');
+has("pages: ?top= stays with the videos", chm, 'if (params.has("top")) return send("video", [["top", params.get("top")]]);');
+has("pages: ?type= names the type pages", chm, 'const CONTENT_TYPE_PAGES = { video: "video", articles: "articles", questions: "answers", documents: "documents", videos: "video" };');
+has("pages: the old tabs are hashes", chm, 'if (CONTENT_TYPE_PAGES[h] && h !== "videos") return send(CONTENT_TYPE_PAGES[h], []);');
+ok("pages: every content page exists", ["content.html", "video.html", "articles.html", "answers.html", "documents.html", "article-Editor.html"].every((f) => fs.existsSync(path.join(ROOT, f))));
+ok("pages: the old article.html is gone", !fs.existsSync(path.join(ROOT, "article.html")));
+has("pages: content.html is the home", chome, '<div id="home-root">');
+ok("pages: content.html no longer plays videos", !chome.includes('id="vw-root"') && !chome.includes('id="vw-player"'));
+has("pages: each type page names its kind", read("articles.html") + read("answers.html") + read("documents.html"), 'data-kind="questions"');
+has("pages: video.html keeps the player stage", cvideo, 'id="vw-root"');
+has("pages: video.html keeps the ?top= hub", cjs_home, 'const fromUrl = String(params.get("top") || "").toLowerCase();');
+has("home: the home builds four sections", cjs_home, "const HOME_TYPES = [");
+has("home: the newest videos use the videos renderer", cjs_home, 'V.call("content_search", { p_member: V.memberId(), p_sort: "date", p_limit: 8 })');
+has("home: articles and questions reuse the hub rows", cjs_home, 'window.CineAuraCommunity.homeRows(box("home-articles"), "articles", 4)');
+has("home: documents reuse the library rows", cjs_home, 'window.CineAuraDocs.homeRows(box("home-documents"), 4)');
+has("home: each type card is a link to its page", cjs_home, '<a class="home-type glass" href="${x.href}">');
+has("home: the home boots instead of the player", cjs_home, 'if ($("#home-root")) return renderHome();');
+has("pages: the nav has a Content entry", chm, '["./content.html", "nav.content"]');
+has("pages: the videos are one tap from the content home", chm, '["./content.html", "nav.content"]');
+has("pages: videos.js links by ?id=", read("js/videos.js"), 'const contentHref = (id) => `./video.html?id=${encodeURIComponent(id || "")}`;');
+has("pages: search links by ?id=", read("js/search.js"), "? `./video.html?id=${encodeURIComponent(x.content_id)}`");
+has("pages: the panel review opens the article page", read("js/panel-admin.js"), 'href="./articles.html?id=${encodeURIComponent(r.id)}"');
+has("pages: a finished article opens its page", read("js/article-editor.js"), "location.href = `./articles.html?id=${row.id}`");
+has("pages: the dashboard list opens the article page", read("js/dashboard.js"), './articles.html?id=${encodeURIComponent(a.id)}');
+has("pages: profile questions open the answers page", read("js/profile.js"), "`./answers.html?id=${encodeURIComponent(r.id)}`");
+has("pages: the answers page tells a question from an answer", read("js/community.js"), 'if (String(params.get("kind") || "").toLowerCase() === "answer") answerView(root, Number(id));');
+has("pages: the editor page is article-Editor.html", read("article-Editor.html"), "js/article-editor.js");
+has("pages: i18n home title", read("js/i18n.js"), '"ct.homeTitle": "Member content"');
+has("pages: i18n type leads", read("js/i18n.js"), '"ct.leadDocuments": "Files the members uploaded — open to read or download.",');
+has("pages: the seven packs carry the new keys", read("lang/arabic.js") + read("lang/french.js") + read("lang/german.js") + read("lang/spanish.js") + read("lang/dutch.js") + read("lang/italian.js"), '"ct.types":');
+has("pages: the arabic mirror carries them", read("lang/arabic.lng"), "Content types = أنواع المحتوى");
+has("pages: the article view has its reader module", read("articles.html") + read("community.html"), "js/article-editor.js");
+has("pages: the article page styles ship", read("articles.html"), "css/article-editor.css");
+has("pages: a detail goes back to its own list", read("js/community.js"), "const listHref = (kind) =>");
+has("pages: a question goes back to the answers page", read("js/community.js"), 'listHref("question")');
+has("pages: documents rows reuse one link shape", read("js/documents.js"), "async function homeRows(box, limit) {");
+has("pages: the home styles exist", read("css/community.css"), ".home-types {");
+has("pages: a type page boots the chrome", read("articles.html"), "window.CineAura.setupChrome();");
 
 done();

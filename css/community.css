@@ -245,3 +245,106 @@
   outline: 2px solid var(--accent, #7c5cff);
   outline-offset: 2px;
 }
+
+/* ── Content pages: the home + one page per type (round 39) ───────────────── */
+.ct-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.ct-bar .follow-tab {
+  text-decoration: none;
+}
+.ct-bar .follow-tab.active {
+  color: var(--cyan-2);
+  border-bottom-color: var(--cyan-2);
+  font-weight: 700;
+}
+
+.home-hero {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 26px 22px 22px;
+  border-radius: 16px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.home-hero h1 {
+  margin: 0;
+  font-size: clamp(24px, 3.4vw, 34px);
+}
+.home-hero > p {
+  margin: 0;
+  max-width: 680px;
+}
+.home-hero .vw-search {
+  width: 100%;
+  max-width: 680px;
+  margin: 8px auto 0;
+}
+.home-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.home-type {
+  display: grid;
+  gap: 4px;
+  height: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  color: inherit;
+  text-align: start;
+  text-decoration: none;
+}
+.home-type:hover {
+  border-color: var(--cyan-2);
+}
+.home-type-ico {
+  font-size: 20px;
+  line-height: 1;
+}
+.home-type .muted {
+  font-size: 13px;
+}
+.home-type-go {
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--cyan-2);
+}
+.home-sec {
+  display: grid;
+  gap: 10px;
+  margin-top: 26px;
+}
+.home-sec h2 {
+  margin: 0;
+  font-size: 21px;
+}
+.home-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pg-head {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.pg-head h1 {
+  margin: 0;
+}
+.pg-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}

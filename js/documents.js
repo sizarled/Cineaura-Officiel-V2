@@ -8,8 +8,9 @@
    Public API
      CineAuraDocs.renderUpload(host, { member })   Studio › Create content › Document
      CineAuraDocs.renderManage(box, memberId)      Studio › Manage content › Documents
-     CineAuraDocs.list(box)                        content.html › Documents tab
-     CineAuraDocs.documentView(box, id)            content.html?document=ID
+     CineAuraDocs.list(box)                        documents.html (the library)
+     CineAuraDocs.documentView(box, id)            documents.html?id=ID
+     CineAuraDocs.homeRows(box, limit)             the newest documents on content.html
 */
 (() => {
   "use strict";
@@ -361,11 +362,11 @@
       C().toast(t("doc.uploaded"));
       ctx.onDone?.(created);
       host.innerHTML = `<p class="com-note">${esc(t("doc.uploaded"))}
-        ${created ? `<a class="btn btn-sm btn-primary" href="./content.html?document=${encodeURIComponent(created.id)}">${esc(t("doc.open"))}</a>` : ""}</p>`;
+        ${created ? `<a class="btn btn-sm btn-primary" href="./documents.html?id=${encodeURIComponent(created.id)}">${esc(t("doc.open"))}</a>` : ""}</p>`;
     };
   }
 
-  /* ---------- content.html › Documents tab --------------------------------- */
+  /* ---------- documents.html — the library --------------------------------- */
   async function list(box, opts = {}) {
     box.innerHTML = `<p class="com-note muted">${esc(t("common.loading"))}</p>`;
     const kind = FORMATS.some((f) => f.kind === opts.kind) ? opts.kind : "";
@@ -396,7 +397,7 @@
       rows
         .map((r) => {
           const u = names.get(r.member_id);
-          return `<a class="doc-row glass" href="./content.html?document=${encodeURIComponent(r.id)}">
+          return `<a class="doc-row glass" href="./documents.html?id=${encodeURIComponent(r.id)}">
             ${badge(r.kind)}
             <span class="doc-row-main">
               <strong>${esc(r.title)}</strong>
@@ -420,17 +421,17 @@
     input?.addEventListener("search", () => list(box, { kind, q: input.value }));
   }
 
-  /* ---------- content.html?document=ID ------------------------------------- */
+  /* ---------- documents.html?id=ID ----------------------------------------- */
   async function documentView(box, id) {
     box.innerHTML = `<p class="com-note muted">${esc(t("common.loading"))}</p>`;
     const res = await req(`/rest/v1/community_documents?id=eq.${encodeURIComponent(id)}&select=*`);
     const row = res.ok && Array.isArray(res.data) ? res.data[0] : null;
     if (!row)
-      return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("doc.missing"))} <a class="btn btn-sm btn-primary" href="./content.html">${esc(t("ct.library"))}</a></p>`);
+      return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("doc.missing"))} <a class="btn btn-sm btn-primary" href="./documents.html">${esc(t("ct.library"))}</a></p>`);
 
     const me = meId();
     if (!canSee(row, me))
-      return (box.innerHTML = `<p class="com-note">🔒 ${esc(t("doc.private"))} <a class="btn btn-sm btn-primary" href="./content.html">${esc(t("ct.library"))}</a></p>`);
+      return (box.innerHTML = `<p class="com-note">🔒 ${esc(t("doc.private"))} <a class="btn btn-sm btn-primary" href="./documents.html">${esc(t("ct.library"))}</a></p>`);
 
     const names = await nameMap([row.member_id]);
     const author = names.get(row.member_id) || null;
@@ -469,7 +470,7 @@
           <button class="btn btn-ghost ${liked ? "btn-primary" : ""}" type="button" id="doc-like">♥ ${row.likes || 0}</button>
           <button class="btn btn-ghost" type="button" id="doc-share">🔗 ${esc(t("doc.share"))}</button>
           <button class="btn btn-ghost" type="button" id="doc-report">🚩 ${esc(t("doc.report"))}</button>
-          <a class="btn btn-ghost" href="./content.html">← ${esc(t("ct.library"))}</a>
+          <a class="btn btn-ghost" href="./documents.html">← ${esc(t("ct.library"))}</a>
         </div>
         <p class="muted doc-counts">👁 ${row.views || 0} ${esc(t("doc.views"))} · ⬇ ${row.downloads || 0} ${esc(t("doc.downloads"))}</p>
 
@@ -574,7 +575,7 @@
               <strong>${esc(r.title)}</strong>
               <span class="muted">${esc(t("pm.vis." + (r.visibility || "public")))} · ${esc(sizeText(r.size_bytes))} · ${esc(when(r.created_at))} · 👁 ${r.views || 0} · ⬇ ${r.downloads || 0} · ♥ ${r.likes || 0}</span>
             </span>
-            <a class="btn btn-sm btn-ghost" href="./content.html?document=${encodeURIComponent(r.id)}">${esc(t("manage.open"))}</a>
+            <a class="btn btn-sm btn-ghost" href="./documents.html?id=${encodeURIComponent(r.id)}">${esc(t("manage.open"))}</a>
             ${me === r.member_id ? `<button class="btn btn-sm btn-danger" type="button" data-docdel="${esc(r.id)}" data-path="${esc(r.storage_path)}">${esc(t("manage.del"))}</button>` : ""}
           </article>`
         )
@@ -629,7 +630,7 @@
       }</p>`);
     box.innerHTML = rows
       .map(
-        (r) => `<a class="doc-row glass" href="./content.html?document=${encodeURIComponent(r.id)}">
+        (r) => `<a class="doc-row glass" href="./documents.html?id=${encodeURIComponent(r.id)}">
           ${badge(r.kind)}
           <span class="doc-row-main">
             <strong>${esc(r.title)}</strong>
@@ -642,5 +643,28 @@
       .join("");
   }
 
-  window.CineAuraDocs = { list, documentView, renderUpload, renderManage, memberDocuments, FORMATS, MAX_BYTES, MAX_PER_MEMBER };
+  // One row of the content home (content.html): the newest documents, drawn
+  // with the same .doc-row the library uses, each one a link to its page.
+  async function homeRows(box, limit) {
+    const res = await req(`/rest/v1/community_documents?select=*&visibility=eq.public&order=created_at.desc&limit=${Math.max(1, Number(limit) || 4)}`);
+    if (!res.ok) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("doc.loadFail"))}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    if (!rows.length) return (box.innerHTML = `<p class="com-empty muted">${esc(t("doc.empty"))}</p>`);
+    const names = await nameMap(rows.map((r) => r.member_id));
+    box.innerHTML = rows
+      .map((r) => {
+        const u = names.get(r.member_id);
+        return `<a class="doc-row glass" href="./documents.html?id=${encodeURIComponent(r.id)}">
+          ${badge(r.kind)}
+          <span class="doc-row-main">
+            <strong>${esc(r.title)}</strong>
+            <span class="muted">${u ? `@${esc(u.username)}` : ""} · ${esc(when(r.created_at))} · ${esc(sizeText(r.size_bytes))}</span>
+          </span>
+          <span class="doc-row-stats muted">👁 ${r.views || 0} · ⬇ ${r.downloads || 0} · ♥ ${r.likes || 0}</span>
+        </a>`;
+      })
+      .join("");
+  }
+
+  window.CineAuraDocs = { list, documentView, renderUpload, renderManage, memberDocuments, homeRows, FORMATS, MAX_BYTES, MAX_PER_MEMBER };
 })();

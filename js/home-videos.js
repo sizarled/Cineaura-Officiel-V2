@@ -1,7 +1,7 @@
 /* Home page > Members' videos.
 
    A row of the 12 videos with the most watched minutes (content_search, sql/content.sql),
-   scrolling sideways like Featured Movies, and the Explore button: content.html, the
+   scrolling sideways like Featured Movies, and the Explore button: video.html, the
    search box and the 50 most watched / liked / shared videos (the three links beside
    it open one list each). Visitors see the public and exclusive videos, members also
    the private ones they were given (the same rules as search.html).

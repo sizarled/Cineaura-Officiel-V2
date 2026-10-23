@@ -1,4 +1,4 @@
-/* CineAura — the article editor (article.html) and the article reader pieces.
+/* CineAura — the article editor (article-Editor.html) and the article reader pieces.
    One editor for members and staff: Profile › Create › Article, Community › New
    article and Panel › Content › New article all land here.
 
@@ -1133,7 +1133,7 @@
     const row = Array.isArray(res.data) ? res.data[0] : null;
     C().toast(payload.status === "pending" ? t("ae.sentReview") : t("ae.published"));
     $("ae-state").textContent = payload.status === "pending" ? t("ae.pending") : t("ae.published");
-    if (row?.id) setTimeout(() => (location.href = `./content.html?article=${row.id}`), 700);
+    if (row?.id) setTimeout(() => (location.href = `./articles.html?id=${row.id}`), 700);
   }
 
   window.CineAuraArticles = { mount, sanitize, canRead, bodyHtml, critOf };
