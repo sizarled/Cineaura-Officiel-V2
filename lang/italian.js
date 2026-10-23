@@ -5091,7 +5091,6 @@
  "Privacy, follow policy and your public presence live in your Profile settings.": "Privacy, politica di follow e presenza pubblica si gestiscono nelle impostazioni del Profilo.",
  "Appearance, account and your delivery address live in the Dashboard settings.": "Aspetto, account e il tuo indirizzo di consegna si gestiscono nelle impostazioni della Dashboard.",
  "nav.community": "Community",
- "prof.community": "Community",
  "com.pageTitle": "Community — CineAura",
  "com.eyebrow": "Community",
  "com.title": "Community",
@@ -5143,5 +5142,12 @@
  "Sign in to take part.": "Accedi per partecipare.",
  "Open Community": "Apri la community",
  "No questions yet.": "Nessuna domanda ancora.",
- "No answers yet.": "Nessuna risposta ancora."
+ "No answers yet.": "Nessuna risposta ancora.",
+ "prof.ct.all": "Tutti i contenuti",
+ "prof.ct.videos": "Video",
+ "prof.ct.questions": "Domande",
+ "prof.ct.answers": "Risposte",
+ "All content": "Tutti i contenuti",
+ "Questions": "Domande",
+ "Answers": "Risposte"
 };

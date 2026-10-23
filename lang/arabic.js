@@ -5127,7 +5127,6 @@
  "Privacy, follow policy and your public presence live in your Profile settings.": "الخصوصية وسياسة المتابعة وظهورك العام توجد في إعدادات البروفايل.",
  "Appearance, account and your delivery address live in the Dashboard settings.": "المظهر والحساب وعنوان التسليم توجد في إعدادات لوحة التحكم.",
  "nav.community": "المجتمع",
- "prof.community": "المجتمع",
  "com.pageTitle": "المجتمع — CineAura",
  "com.eyebrow": "المجتمع",
  "com.title": "المجتمع",
@@ -5179,5 +5178,12 @@
  "Sign in to take part.": "سجّل الدخول للمشاركة.",
  "Open Community": "افتح المجتمع",
  "No questions yet.": "لا أسئلة بعد.",
- "No answers yet.": "لا إجابات بعد."
+ "No answers yet.": "لا إجابات بعد.",
+ "prof.ct.all": "كل المحتوى",
+ "prof.ct.videos": "فيديوهات",
+ "prof.ct.questions": "أسئلة",
+ "prof.ct.answers": "إجابات",
+ "All content": "كل المحتوى",
+ "Questions": "أسئلة",
+ "Answers": "إجابات"
 };

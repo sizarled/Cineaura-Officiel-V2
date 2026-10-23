@@ -5091,7 +5091,6 @@
  "Privacy, follow policy and your public presence live in your Profile settings.": "Privacy, volgbeleid en je publieke aanwezigheid vind je in je Profielinstellingen.",
  "Appearance, account and your delivery address live in the Dashboard settings.": "Uiterlijk, account en je bezorgadres vind je in de Dashboard-instellingen.",
  "nav.community": "Community",
- "prof.community": "Community",
  "com.pageTitle": "Community — CineAura",
  "com.eyebrow": "Community",
  "com.title": "Community",
@@ -5143,5 +5142,12 @@
  "Sign in to take part.": "Log in om mee te doen.",
  "Open Community": "Community openen",
  "No questions yet.": "Nog geen vragen.",
- "No answers yet.": "Nog geen antwoorden."
+ "No answers yet.": "Nog geen antwoorden.",
+ "prof.ct.all": "Alle inhoud",
+ "prof.ct.videos": "Video's",
+ "prof.ct.questions": "Vragen",
+ "prof.ct.answers": "Antwoorden",
+ "All content": "Alle inhoud",
+ "Questions": "Vragen",
+ "Answers": "Antwoorden"
 };

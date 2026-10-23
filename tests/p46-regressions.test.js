@@ -78,7 +78,7 @@ has("helpcats: engine addMain", read("js/i18n.js"), '"helpcats.addMain": "Add se
 has("helpcats: engine articles-tab label", read("js/i18n.js"), '"help.tabArticles": "Articles"');
 
 // ---------------- Profile sidebar: Profile label + member order (2026-10-22)
-has("profile nav: journey order with Community", read("js/profile.js"), 'NAV_SECTIONS = ["home", "market", "community", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"]');
+has("profile nav: order, Your content unified", read("js/profile.js"), 'NAV_SECTIONS = ["home", "market", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"]');
 has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "Profile"');
 
 // ---------------- Dashboard sidebar journey groups (2026-10-22)
@@ -124,7 +124,7 @@ has("community: votes counter trigger", cs, "_com_answer_votes");
 has("community: public read policies", cs, 'com_q_read      on public.community_questions    for select using (true)');
 has("community: pgrst reload", cs, "notify pgrst, 'reload schema';");
 const cj = read("js/community.js");
-has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView };");
+has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks };");
 has("community: question route", cj, '#q/${row.id}');
 has("community: deep-link router", cj, "const hashRoute = ()");
 has("community: helpful vote toggle", cj, "community_answer_votes");
@@ -133,8 +133,11 @@ ok("community: page exists", fs.existsSync(path.join(ROOT, "community.html")));
 has("community: page loads module", read("community.html"), 'src="js/community.js"');
 has("community: page styling", fs.existsSync(path.join(ROOT, "css/community.css")) ? read("css/community.css") : "", ".com-tabs .follow-tab.active");
 const pf2 = read("js/profile.js");
-has("community: profile section delegate", pf2, 'CineAuraCommunity.memberView(m, state.hostMember?.member_id');
-has("community: profile deep-link whitelist", pf2, '"home","market","community","create","content","posts","messages","search","following","blocked","settings"');
+has("content hub: type filter tabs", pf2, 'CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers"]');
+has("content hub: videos delegate to studio", pf2, "window.CineAuraStudio.render(body.querySelector(\"#ct-videos\"), { member })");
+has("content hub: community blocks by memberBlocks", pf2, "window.CineAuraCommunity.memberBlocks(body, hostId, vt)");
+has("content hub: engine tab all", read("js/i18n.js"), '"prof.ct.all": "All content"');
+has("community: profile deep-link whitelist", pf2, '"home","market","create","content","posts","messages","search","following","blocked","settings"');
 has("community: Create offers Article + Question", pf2, './community.html#new-article');
 has("community: Create offers Question", pf2, './community.html#ask');
 has("community: profile.html loads module", read("profile.html"), 'src="js/community.js"');

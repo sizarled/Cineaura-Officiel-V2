@@ -257,7 +257,7 @@
 
   // Profile > Community: the visited member's contributions (articles, their
   // questions, their answers), every row linking back into the hub.
-  async function memberView(main, memberId) {
+  async function fetchContribs(memberId) {
     const [q, a, arts] = await Promise.all([
       req(`/rest/v1/community_questions?member_id=eq.${encodeURIComponent(memberId)}&select=*&order=created_at.desc&limit=100`),
       req(`/rest/v1/community_answers?member_id=eq.${encodeURIComponent(memberId)}&select=*&order=created_at.desc&limit=100`),
@@ -273,23 +273,42 @@
       const qr = await req(`/rest/v1/community_questions?id=in.(${idsIn(ids)})&select=id,title`);
       if (qr.ok && Array.isArray(qr.data)) qr.data.forEach((x) => qTitles.set(x.id, x.title));
     }
-    const rowQ = (x) => `<a class="com-row-mini" href="./community.html#q/${x.id}">❓ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 💬 ${x.answers_count || 0}</span></a>`;
-    const rowA = (x) => `<a class="com-row-mini" href="./community.html#q/${x.question_id}">↩ ${esc(String(x.body || "").slice(0, 90))} <span class="muted">${esc(qTitles.get(x.question_id) || "")} · 👍 ${x.votes || 0}</span></a>`;
-    const rowArt = (x) => `<a class="com-row-mini" href="./community.html#a/${x.id}">✍ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 👁 ${x.views || 0}</span></a>`;
-    const block = (title, rows, draw, emptyKey) =>
-      `<section class="com-block"><h3>${title} <span class="muted">${rows.length}</span></h3>${rows.length ? rows.map(draw).join("") : `<p class="muted">${esc(t(emptyKey))}</p>`}</section>`;
+    return { qs, ans, ats, failed, qTitles };
+  }
+
+  const rowQ = (x) => `<a class="com-row-mini" href="./community.html#q/${x.id}">❓ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 💬 ${x.answers_count || 0}</span></a>`;
+  const rowA = (x, qTitles) => `<a class="com-row-mini" href="./community.html#q/${x.question_id}">↩ ${esc(String(x.body || "").slice(0, 90))} <span class="muted">${esc(qTitles.get(x.question_id) || "")} · 👍 ${x.votes || 0}</span></a>`;
+  const rowArt = (x) => `<a class="com-row-mini" href="./community.html#a/${x.id}">✍ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 👁 ${x.views || 0}</span></a>`;
+  const block = (title, rows, draw, emptyKey) =>
+    `<section class="com-block"><h3>${title} <span class="muted">${rows.length}</span></h3>${rows.length ? rows.map(draw).join("") : `<p class="muted">${esc(t(emptyKey))}</p>`}</section>`;
+  const KINDS = {
+    articles: (d) => block(esc(t("com.tab.articles")), d.ats, rowArt, "com.noneArts"),
+    questions: (d) => block(esc(t("com.tab.questions")), d.qs, rowQ, "com.noneQ"),
+    answers: (d) => block("↩ " + esc(t("com.answersN")), d.ans, (x) => rowA(x, d.qTitles), "com.noneA"),
+  };
+
+  // One (or all) contribution blocks of a member — used standalone by memberView
+  // and inside Profile > Your content by its type filter (js/profile.js).
+  async function memberBlocks(box, memberId, kind) {
+    const d = await fetchContribs(memberId);
+    const draw = kind && KINDS[kind] ? [KINDS[kind]] : [KINDS.articles, KINDS.questions, KINDS.answers];
+    box.innerHTML =
+      (d.failed ? `<p class="com-note">⚠ ${esc(t("com.loadFail"))}</p>` : "") + draw.map((fn) => fn(d)).join("");
+  }
+
+  // Profile > Community-style view: the visited member's contributions with the
+  // creation shortcuts and the link back to the hub.
+  async function memberView(main, memberId) {
     main.innerHTML = `<p class="eyebrow">${esc(t("com.eyebrow"))}</p><h1>${esc(t("com.title"))}</h1>
-      ${failed ? `<p class="com-note">⚠ ${esc(t("com.loadFail"))}</p>` : ""}
       <div class="com-acts"><a class="btn btn-sm btn-primary" href="./community.html#ask">❓ ${esc(t("com.ask"))}</a>
       <a class="btn btn-sm btn-primary" href="./community.html#new-article">✍ ${esc(t("com.newArticle"))}</a>
       <a class="btn btn-sm btn-ghost" href="./community.html">🌐 ${esc(t("com.openHub"))}</a></div>
-      ${block(esc(t("com.tab.articles")), ats, rowArt, "com.noneArts")}
-      ${block(esc(t("com.tab.questions")), qs, rowQ, "com.noneQ")}
-      ${block("↩ " + esc(t("com.answersN")), ans, rowA, "com.noneA")}`;
+      <div id="com-mb"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
+    await memberBlocks(main.querySelector("#com-mb"), memberId);
     if (window.CineAura && window.CineAura.hydrateAvatars) window.CineAura.hydrateAvatars(main);
   }
 
-  window.CineAuraCommunity = { viewCommunity, memberView };
+  window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks };
   window.addEventListener("hashchange", () => {
     const root = document.getElementById("com-root");
     if (root) paint(root);

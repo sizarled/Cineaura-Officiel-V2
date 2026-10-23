@@ -61,7 +61,7 @@
     host: null,
     hostMember: null,
     isOwner: false,
-    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","market","community","create","content","posts","messages","search","following","blocked","settings"].includes(s || "") ? s : "home"; })(),
+    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","market","create","content","posts","messages","search","following","blocked","settings"].includes(s || "") ? s : "home"; })(),
     homeTab: "activity",
     followRow: null,
     followTab: "sent",
@@ -513,13 +513,12 @@
   // Sidebar entries. Every one of them reads or writes the signed-in member's
   // own rows, so a signed-out visitor gets no sidebar at all — only the public
   // home of the profile being visited.
-  // Points live in Dashboard > Points; "Your content" (js/content-studio.js) holds the
-  // member's videos: Create, Manage, Statistics. "market" opens the own store
-  // (viewMarket, sql/market.sql); "community" lists the member's articles, questions
-  // and answers (js/community.js, sql/community.sql).
-  // Order: Profile → Market → Community → Create → Your content → Manage posts →
-  // Messages → Search → Following → Blocked → Settings.
-  const NAV_SECTIONS = ["home", "market", "community", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"];
+  // Points live in Dashboard > Points; "Your content" is the unified hub (videos
+  // from js/content-studio.js + articles/questions/answers from js/community.js);
+  // "market" opens the own store (viewMarket, sql/market.sql).
+  // Order: Profile → Market → Create → Your content → Manage posts → Messages →
+  // Search → Following → Blocked → Settings.
+  const NAV_SECTIONS = ["home", "market", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"];
 
   function signedIn() {
     return Boolean(state.me?.member?.member_id);
@@ -640,7 +639,6 @@
       posts: viewManagePosts,
       content: viewContent,
       market: viewMarket,
-      community: (m) => window.CineAuraCommunity ? window.CineAuraCommunity.memberView(m, state.hostMember?.member_id || "") : (m.innerHTML = "<p>Community module not loaded</p>"),
       messages: viewMessages,
       search: viewSearch,
       following: viewFollowing,
@@ -4425,13 +4423,35 @@
     </div>`;
   }
 
-  // ---------- Your content (the member's videos, js/content-studio.js) ----------
+  // ---------- Your content: one hub for everything the member made ----------
+  // Type filter: All - Videos (content studio) - Articles - Questions - Answers
+  // (community contributions, js/community.js, sql/community.sql).
+  const CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers"];
   function viewContent(main) {
-    if (!window.CineAuraStudio) {
-      main.innerHTML = `<p class="empty">${escapeHtml(t("vid.setup"))}</p>`;
+    const vt = CONTENT_TYPES.includes(state.contentType) ? state.contentType : "all";
+    main.innerHTML = `<div class="tabs follow-tabs" role="tablist" style="flex-wrap:wrap">
+        ${CONTENT_TYPES.map((k) => `<button type="button" role="tab" class="follow-tab${k === vt ? " active" : ""}" data-vt="${k}">${escapeHtml(t("prof.ct." + k))}</button>`).join("")}
+      </div><div id="content-body" style="margin-top:14px"></div>`;
+    main.querySelectorAll("[data-vt]").forEach((b) => (b.onclick = () => { state.contentType = b.dataset.vt; viewContent(main); }));
+    const body = main.querySelector("#content-body");
+    const member = state.me.member;
+    const hostId = state.hostMember?.member_id || member.member_id;
+    if (vt === "videos" || vt === "all") {
+      if (!window.CineAuraStudio) {
+        body.innerHTML = `<p class="empty">${escapeHtml(t("vid.setup"))}</p>`;
+        if (vt === "all") body.innerHTML += `<div id="ct-com"></div>`;
+      } else if (vt === "all") {
+        body.innerHTML = `<div id="ct-videos"></div><div id="ct-com"></div>`;
+        window.CineAuraStudio.render(body.querySelector("#ct-videos"), { member });
+      } else {
+        window.CineAuraStudio.render(body, { member });
+      }
+      if (vt === "all" && window.CineAuraCommunity) window.CineAuraCommunity.memberBlocks(body.querySelector("#ct-com"), hostId);
+      else if (vt === "all" && !window.CineAuraCommunity) body.querySelector("#ct-com").innerHTML = `<p class="com-note">⚠ ${escapeHtml(t("com.loadFail"))}</p>`;
       return;
     }
-    window.CineAuraStudio.render(main, { member: state.me.member });
+    if (window.CineAuraCommunity) window.CineAuraCommunity.memberBlocks(body, hostId, vt);
+    else body.innerHTML = `<p class="com-note">⚠ ${escapeHtml(t("com.loadFail"))}</p>`;
   }
 
   // ---------- Market (the member's own store + orders, sql/market.sql) ----------

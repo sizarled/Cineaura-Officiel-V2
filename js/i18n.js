@@ -5619,7 +5619,6 @@
     "dash.settings.profNote": "Privacy, follow policy and your public presence live in your Profile settings.",
     "prof.settingsDashNote": "Appearance, account and your delivery address live in the Dashboard settings.",
     "nav.community": "Community",
-    "prof.community": "Community",
     "com.pageTitle": "Community — CineAura",
     "com.eyebrow": "Community",
     "com.title": "Community",
@@ -5650,6 +5649,10 @@
     "com.noneArts": "No articles yet.",
     "com.noneQ": "No questions yet.",
     "com.noneA": "No answers yet.",
+    "prof.ct.all": "All content",
+    "prof.ct.videos": "Videos",
+    "prof.ct.questions": "Questions",
+    "prof.ct.answers": "Answers",
 
   };
 
