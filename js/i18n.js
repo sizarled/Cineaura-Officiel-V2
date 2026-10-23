@@ -312,7 +312,7 @@
     "lang.it": "Italian",
 
     // ── Profile & posts ─────────────────────────────────────────────
-    "prof.home": "Home",
+    "prof.home": "Profile",
     "prof.create": "Create",
     "prof.messages": "Messages",
     "prof.search": "Search",

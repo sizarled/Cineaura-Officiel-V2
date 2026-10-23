@@ -514,9 +514,10 @@
   // own rows, so a signed-out visitor gets no sidebar at all — only the public
   // home of the profile being visited.
   // Points live in Dashboard > Points; "Your content" (js/content-studio.js) holds the
-  // member's videos: Create, Manage, Statistics. Right under it "market" opens the
-  // own store (viewMarket, sql/market.sql).
-  const NAV_SECTIONS = ["home", "create", "posts", "content", "market", "messages", "search", "following", "blocked", "settings"];
+  // member's videos: Create, Manage, Statistics. "market" opens the own store
+  // (viewMarket, sql/market.sql). Order: Profile → Your content → Messages →
+  // Following → Market → Create → Manage posts → Search → Blocked → Settings.
+  const NAV_SECTIONS = ["home", "content", "messages", "following", "market", "create", "posts", "search", "blocked", "settings"];
 
   function signedIn() {
     return Boolean(state.me?.member?.member_id);

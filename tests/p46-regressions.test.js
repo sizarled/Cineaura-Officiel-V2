@@ -77,6 +77,10 @@ has("helpcats: engine nav label kept as tab label", read("js/i18n.js"), '"panel.
 has("helpcats: engine addMain", read("js/i18n.js"), '"helpcats.addMain": "Add section"');
 has("helpcats: engine articles-tab label", read("js/i18n.js"), '"help.tabArticles": "Articles"');
 
+// ---------------- Profile sidebar: Profile label + member order (2026-10-22)
+has("profile nav: new member order", read("js/profile.js"), 'NAV_SECTIONS = ["home", "content", "messages", "following", "market", "create", "posts", "search", "blocked", "settings"]');
+has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "Profile"');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');
