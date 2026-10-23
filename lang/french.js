@@ -5081,5 +5081,7 @@
  "dash.grp.account": "Compte",
  "Main": "Principal",
  "Performance": "Performance",
- "Earnings": "Gains"
+ "Earnings": "Gains",
+ "mkt.addrLink": "Adresse de livraison",
+ "Delivery address": "Adresse de livraison"
 };

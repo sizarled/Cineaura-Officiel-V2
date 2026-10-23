@@ -94,6 +94,15 @@ has("dashboard nav: heading styling", read("css/dashboard.css"), ".side-nav .sid
 has("dashboard nav: headings hidden in phone strip", read("css/mobile.css"), ".dash-side .side-nav .side-grp");
 has("dashboard nav: engine group label", read("js/i18n.js"), '"dash.grp.main": "Main"');
 
+// ---------------- Profile<->Dashboard cross-navigation + summaries (2026-10-22)
+const pfv = read("js/profile.js");
+has("profile: level chip links to dashboard level", pfv, 'href="./dashboard.html#level"');
+has("profile: points chip links to dashboard points", pfv, 'href="./dashboard.html#points"');
+has("profile: sidebar dashboard cross-link", pfv, 'class="prof-side-dash" href="./dashboard.html"');
+has("profile: market links the delivery address", pfv, 'href="./dashboard.html#address"');
+has("profile: cross-link styling", read("css/profile.css"), ".prof-side-dash {");
+has("profile: address link label key", read("js/i18n.js"), '"mkt.addrLink": "Delivery address"');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

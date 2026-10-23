@@ -53,6 +53,24 @@
   border-bottom: 1px solid var(--line);
 }
 
+/* Cross-navigation: the member's Dashboard, straight from their profile sidebar */
+.prof-side-dash {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.prof-side-dash:hover {
+  background: rgba(1, 180, 228, 0.1);
+  color: var(--text);
+}
+
 .prof-side-id img {
   width: 44px;
   height: 44px;

@@ -5117,5 +5117,7 @@
  "dash.grp.account": "الحساب",
  "Main": "الرئيسية",
  "Performance": "الأداء",
- "Earnings": "الأرباح"
+ "Earnings": "الأرباح",
+ "mkt.addrLink": "عنوان التسليم",
+ "Delivery address": "عنوان التسليم"
 };

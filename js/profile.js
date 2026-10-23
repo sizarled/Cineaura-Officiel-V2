@@ -155,10 +155,10 @@
           <b class="prof-age">${escapeHtml(accountAgeText(age))}</b>
           <span>${escapeHtml(t("prof.accountAge"))}</span>
         </div>
-        <div class="stat ov-level" data-own-level hidden>
+        <a class="stat prof-stat-link ov-level" data-own-level href="./dashboard.html#level" title="${escapeHtml(t("dash.nav.level"))}" hidden>
           <b><bdi dir="ltr" data-lv-name></bdi></b>
           <span data-lv-mult></span>
-        </div>
+        </a>
       </div>`;
   }
 
@@ -562,6 +562,7 @@
               <span class="muted">${state.isOwner ? t("prof.you") : t("prof.visiting")}</span>
             </span>
           </a>
+          <a class="prof-side-dash" href="./dashboard.html">${window.CineAura.navIcon("overview")}<span>${t("nav.dashboard")}</span></a>
           <nav>${profNavHtml()}
           </nav>
         </aside>`
@@ -4487,6 +4488,7 @@
           <div class="prof-mkt-acts">
             ${s ? `<a class="btn btn-sm btn-ghost" href="${escapeHtml(M.storeHref(s.id))}"><span>${escapeHtml(t("mkt.yourStore"))}</span></a>` : ""}
             <a class="btn btn-sm btn-ghost" href="./market.html#settings"><span>${escapeHtml(t("mkt.nav.settings"))}</span></a>
+            <a class="btn btn-sm btn-ghost" href="./dashboard.html#address"><span>${escapeHtml(t("mkt.addrLink"))}</span></a>
             <a class="btn btn-sm btn-ghost" href="./market.html"><span>${escapeHtml(t("mkt.eyebrow"))}</span></a>
           </div>
         </div>

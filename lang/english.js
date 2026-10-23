@@ -5081,5 +5081,7 @@
  "dash.grp.account": "Account",
  "Main": "Main",
  "Performance": "Performance",
- "Earnings": "Earnings"
+ "Earnings": "Earnings",
+ "mkt.addrLink": "Delivery address",
+ "Delivery address": "Delivery address"
 };
