@@ -19,6 +19,22 @@
 
   function t(k, fb){ const C=window.CineAura; return C&&C.t? C.t(k): fb||k; }
 
+  // The reorder list used to print raw ids ("articles", "documents"). Name them
+  // with the same strings the sidebar uses, so the new sections are readable.
+  const PREFIX={ home:"", watch:"", content:"vid.", market:"mkt.", dashboard:"dash.nav.", profile:"prof." };
+  function labelFor(page, id){
+    const C=window.CineAura;
+    if(!id || id.startsWith("shortcut-")) return id;
+    if(!C || !C.t) return id;
+    const tries=[];
+    if(page==="dashboard") tries.push("dash.nav."+id);
+    if(page==="profile") tries.push("prof."+id, "prof.nav."+id);
+    if(page==="watch") tries.push("watch."+id);
+    tries.push(id);
+    for(const k of tries){ const v=C.t(k); if(v && v!==k) return v; }
+    return id;
+  }
+
   function buildOverlay(){
     if(overlay) return overlay;
     overlay=document.createElement("div");
@@ -144,8 +160,10 @@
     const cfg=getConfig();
     const page=activePage;
     const defIds=PAGE_DEFS[page]? PAGE_DEFS[page].ids() : [];
-    const order=(cfg.pages&&cfg.pages[page])? cfg.pages[page].slice() : defIds.slice();
-    // ensure all ids present (include any missing)
+    const L=window.CineAuraLayouts;
+    const raw=(cfg.pages&&cfg.pages[page])? cfg.pages[page].slice() : defIds.slice();
+    // new sections land next to their neighbours, never dumped at the end
+    const order=L&&L.normalizeOrder? L.normalizeOrder(page, raw) : raw;
     defIds.forEach(id=>{ if(!order.includes(id)) order.push(id); });
     const banner=document.createElement("div"); banner.className="lz-panel"; banner.style.borderColor="var(--cyan)"; banner.style.background="color-mix(in srgb, var(--cyan) 8%, var(--surface))";
     banner.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>📄</span><b>${PAGE_DEFS[page].label}</b><span class="lz-hint" style="flex:1">رتّب هنا ثم اضغط <b>👁 معاينة</b> لترى النتيجة قبل الحفظ. المحرّر المرئي المباشر أُزيل — استخدم المعاينة ثم تطبيق.</span><button class="btn btn-sm btn-ghost" type="button" id="lz-open-live">↗ فتح الصفحة</button></div>`;
@@ -155,29 +173,91 @@
       location.href=(page==="home"?"index.html":page==="watch"?"watch.html":page==="content"?"content.html":page==="market"?"market.html":page==="dashboard"?"dashboard.html":"profile.html");
     };
     const panel=document.createElement("div"); panel.className="lz-panel";
-    panel.innerHTML=`<h4>ترتيب أقسام — ${PAGE_DEFS[page].label}</h4><p class="lz-hint">اسحب لإعادة الترتيب، ثم اضغط <b>معاينة قبل التطبيق</b> لمشاهدة التغيير مباشرة دون حفظ. إن أعجبتك المعاينة اضغط <b>تطبيق</b> أو <b>حفظ التعديلات</b>.</p>`;
+    const grouped = page==="dashboard" && !!(L && Array.isArray(L.DASH_GROUPS));
+    panel.innerHTML=`<h4>ترتيب أقسام — ${PAGE_DEFS[page].label}</h4><p class="lz-hint">${
+      grouped
+        ? "الأقسام موزّعة على مجموعات: اسحب القسم داخل مجموعته، واستخدم ↑ ↓ لنقل المجموعة كاملة (العنوان مع ما تحته)."
+        : "اسحب لإعادة الترتيب"
+    } ثم اضغط <b>معاينة قبل التطبيق</b> لمشاهدة التغيير مباشرة دون حفظ.</p>`;
     const list=document.createElement("div"); list.className="lz-list"; list.id="lz-order-list";
-    order.forEach(id=>{
+
+    const makeRow=(id)=>{
       const row=document.createElement("div"); row.className="lz-item"; row.draggable=true; row.dataset.id=id;
-      const isOn = true; // all on by default; could store enabled map
-      row.innerHTML=`<span class="lz-handle">↕</span><span class="lz-name">${id}</span><label class="lz-toggle"><input type="checkbox" ${isOn?"checked":""} /> ظاهر</label>`;
-      // drag
-      row.addEventListener("dragstart", e=>{ row.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", id); });
+      row.innerHTML=`<span class="lz-handle">↕</span><span class="lz-name">${labelFor(page, id)}</span><label class="lz-toggle"><input type="checkbox" checked /> ظاهر</label>`;
+      row.addEventListener("dragstart", (e)=>{ row.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", id); });
       row.addEventListener("dragend", ()=> row.classList.remove("dragging"));
-      list.appendChild(row);
-    });
-    // drop handling
-    list.addEventListener("dragover", e=>{ e.preventDefault(); const dragging=list.querySelector(".dragging"); const after=getDragAfter(list, e.clientY); if(!dragging) return; if(after==null) list.appendChild(dragging); else list.insertBefore(dragging, after); });
+      return row;
+    };
+
+    if(grouped){
+      const gOrder=L.groupOrder? L.groupOrder(cfg) : L.DASH_GROUPS.map((g)=>g.key);
+      gOrder.forEach((key)=>{
+        const def=L.DASH_GROUPS.find((g)=>g.key===key);
+        if(!def) return;
+        const block=document.createElement("div"); block.className="lz-grp"; block.dataset.grp=key;
+        const head=document.createElement("div"); head.className="lz-grp-head";
+        head.innerHTML=`<span class="lz-grp-name">${t("dash.grp."+key, key)}</span>
+          <span class="lz-grp-btns">
+            <button class="btn btn-sm btn-ghost" type="button" data-gup aria-label="${t("dash.cust.grpUp")}" title="${t("dash.cust.grpUp")}">↑</button>
+            <button class="btn btn-sm btn-ghost" type="button" data-gdown aria-label="${t("dash.cust.grpDown")}" title="${t("dash.cust.grpDown")}">↓</button>
+          </span>`;
+        block.appendChild(head);
+        const inner=document.createElement("div"); inner.className="lz-list lz-grp-list";
+        const wanted=order.filter((id)=> def.ids.includes(id));
+        def.ids.forEach((id)=>{ if(!wanted.includes(id)) wanted.push(id); });
+        wanted.forEach((id)=> inner.appendChild(makeRow(id)));
+        // a drop is accepted inside the group only: a section keeps its group
+        inner.addEventListener("dragover", (e)=>{
+          e.preventDefault();
+          const dragging=list.querySelector(".lz-item.dragging");
+          if(!dragging || !inner.contains(dragging)) return;
+          const after=getDragAfter(inner, e.clientY);
+          if(after==null) inner.appendChild(dragging); else inner.insertBefore(dragging, after);
+        });
+        block.appendChild(inner);
+        list.appendChild(block);
+      });
+      const syncGroupBtns=()=>{
+        const blocks=[...list.querySelectorAll(".lz-grp")];
+        blocks.forEach((b, i)=>{
+          const up=b.querySelector("[data-gup]"), down=b.querySelector("[data-gdown]");
+          if(up) up.disabled = i===0;
+          if(down) down.disabled = i===blocks.length-1;
+        });
+      };
+      list.addEventListener("click", (e)=>{
+        const up=e.target.closest("[data-gup]"), down=e.target.closest("[data-gdown]");
+        if(!up && !down) return;
+        const block=(up||down).closest(".lz-grp");
+        if(!block) return;
+        if(up && block.previousElementSibling) list.insertBefore(block, block.previousElementSibling);
+        if(down && block.nextElementSibling) list.insertBefore(block.nextElementSibling, block);
+        syncGroupBtns();
+      });
+      syncGroupBtns();
+    } else {
+      order.forEach((id)=> list.appendChild(makeRow(id)));
+      list.addEventListener("dragover", (e)=>{ e.preventDefault(); const dragging=list.querySelector(".dragging"); const after=getDragAfter(list, e.clientY); if(!dragging) return; if(after==null) list.appendChild(dragging); else list.insertBefore(dragging, after); });
+    }
     panel.appendChild(list);
+
+    // what the two buttons below read from the DOM
+    const readOrder=()=> grouped
+      ? [...list.querySelectorAll(".lz-grp")].flatMap((b)=> [...b.querySelectorAll(".lz-item")].map((el)=> el.dataset.id))
+      : [...list.querySelectorAll(".lz-item")].map((el)=> el.dataset.id);
+    const readGroups=()=> [...list.querySelectorAll(".lz-grp")].map((b)=> b.dataset.grp);
+    const putInConfig=(c)=>{
+      c.pages[page]=readOrder();
+      if(grouped){ c.groups=c.groups||{}; c.groups[page]=readGroups(); }
+      return c;
+    };
     const acts=document.createElement("div"); acts.style.display="flex"; acts.style.gap="8px"; acts.style.flexWrap="wrap";
     const btnPreview=document.createElement("button"); btnPreview.className="btn btn-sm"; btnPreview.style.border="1px solid var(--cyan)"; btnPreview.style.color="var(--cyan)"; btnPreview.textContent="👁 معاينة الترتيب"; btnPreview.onclick=()=>{
-      const newOrder=[...list.querySelectorAll(".lz-item")].map(el=>el.dataset.id);
-      const c=collectPendingConfig(); c.pages[page]=newOrder; c.customized=true;
+      const c=putInConfig(collectPendingConfig()); c.customized=true;
       startPreviewWith(c, "معاينة ترتيب "+PAGE_DEFS[page].label);
     };
     const btnSave=document.createElement("button"); btnSave.className="btn btn-sm btn-primary"; btnSave.textContent="حفظ الترتيب"; btnSave.onclick=()=>{
-      const newOrder=[...list.querySelectorAll(".lz-item")].map(el=>el.dataset.id);
-      const c=collectPendingConfig(); c.pages[page]=newOrder; c.customized=true;
+      const c=putInConfig(collectPendingConfig()); c.customized=true;
       if(previewActive) { previewTemp=c; confirmPreview(); }
       else { window.CineAuraLayouts.saveConfig(c); window.CineAuraLayouts.applyAll(c); applyToast("تم حفظ الترتيب"); }
     };
@@ -345,7 +425,7 @@
 
     // custom icon key mapping
     const mapPanel=document.createElement("div"); mapPanel.className="lz-panel";
-    mapPanel.innerHTML=`<h4>ربط الأيقونة بالقسم</h4><p class="lz-hint">اختر أيقونة رفعتها واربطها بعنصر واجهة (شعار، تبويب، زر)</p><div class="lz-color-row"><select id="lz-icon-key"><option value="logo">الشعار</option><option value="nav.home">الرئيسية</option><option value="nav.search">البحث</option><option value="nav.movies">أفلام</option><option value="nav.series">مسلسلات</option><option value="nav.dashboard">الداشبورد</option></select><select id="lz-icon-file-sel"></select><button class="btn btn-sm btn-primary" id="lz-icon-bind">ربط</button></div><div id="lz-icon-bindings" class="lz-list" style="margin-top:8px"></div>`;
+    mapPanel.innerHTML=`<h4>ربط الأيقونة بالقسم</h4><p class="lz-hint">اختر أيقونة رفعتها واربطها بعنصر واجهة (شعار، تبويب، زر)</p><div class="lz-color-row"><select id="lz-icon-key"><option value="logo">الشعار</option>${["overview","level","points","upload","articles","documents","links","codes","playlists","iptv","views","analytics","reports","history","withdraw","prizes","settings"].map(id=>`<option value="nav.${id}">${labelFor("dashboard", id)}</option>`).join("")}${["home","market","community","create","content","posts","messages","search","following","blocked"].map(id=>`<option value="nav.${id}">${labelFor("profile", id)}</option>`).join("")}</select><select id="lz-icon-file-sel"></select><button class="btn btn-sm btn-primary" id="lz-icon-bind">ربط</button></div><div id="lz-icon-bindings" class="lz-list" style="margin-top:8px"></div>`;
     root.appendChild(mapPanel);
     const sel=mapPanel.querySelector("#lz-icon-file-sel");
     // populate from existing icons (local)
@@ -404,13 +484,41 @@
   }
   function getBindings(){ try{ return JSON.parse(localStorage.getItem("cineaura_icon_bindings")||"{}"); }catch{return {}} }
   function setBindings(o){ localStorage.setItem("cineaura_icon_bindings", JSON.stringify(o)); }
+  // Applies the icons the member bound: the logo, and one icon per section of
+  // the dashboard / profile sidebars (data-section / data-sec).
   function applyIconBindings(){
     const map=getBindings();
     Object.entries(map).forEach(([key,url])=>{
+      if(!url) return;
       if(key==="logo"){
-        const mark=document.querySelector(".logo-mark"); if(mark) mark.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:contain">`;
+        const mark=document.querySelector(".logo-mark");
+        if(mark && !mark.querySelector(`img[data-icon-bound]`)) mark.innerHTML=`<img src="${url}" data-icon-bound="logo" style="width:100%;height:100%;object-fit:contain" alt="">`;
+        return;
       }
+      const sec=key.replace(/^nav\./, "").replace(/^section\./, "");
+      const els=document.querySelectorAll(`#dash-root .side-nav [data-section="${sec}"], #prof-root nav [data-sec="${sec}"]`);
+      els.forEach(el=>{
+        const svg=el.querySelector("svg.nav-ico");
+        if(!svg) return;
+        if(el.querySelector(`img[data-icon-bound="${sec}"]`)) return;
+        const img=document.createElement("img");
+        img.src=url; img.alt=""; img.width=18; img.height=18;
+        img.setAttribute("data-icon-bound", sec);
+        img.style.cssText="width:18px;height:18px;object-fit:contain";
+        svg.replaceWith(img);
+      });
     });
+  }
+  // the sidebars re-render on every section change: keep the icons on them
+  function watchNavIcons(){
+    if(watchNavIcons.on) return; watchNavIcons.on=true;
+    let timer=0;
+    const obs=new MutationObserver(()=>{
+      clearTimeout(timer);
+      timer=setTimeout(()=>{ try{ applyIconBindings(); }catch{} }, 120);
+    });
+    obs.observe(document.body,{childList:true,subtree:true});
+    document.addEventListener("cineaura:layout-applied", ()=> setTimeout(applyIconBindings, 60));
   }
   function renderIconBindings(cont){
     if(!cont) return;
@@ -474,8 +582,8 @@
       const profCont=short.querySelector("#lz-short-prof");
       const selDash=new Set(cfg2.shortcuts?.dashboard_in_profile||[]);
       const selProf=new Set(cfg2.shortcuts?.profile_in_dashboard||[]);
-      dashCont.innerHTML=dashIds.map(id=>`<label class="lz-item" style="cursor:pointer"><input type="checkbox" data-sd="${id}" ${selDash.has(id)?"checked":""}> ${id}</label>`).join("");
-      profCont.innerHTML=profIds.map(id=>`<label class="lz-item" style="cursor:pointer"><input type="checkbox" data-sp="${id}" ${selProf.has(id)?"checked":""}> ${id}</label>`).join("");
+      dashCont.innerHTML=dashIds.map(id=>`<label class="lz-item" style="cursor:pointer"><input type="checkbox" data-sd="${id}" ${selDash.has(id)?"checked":""}> ${labelFor("dashboard", id)}</label>`).join("");
+      profCont.innerHTML=profIds.map(id=>`<label class="lz-item" style="cursor:pointer"><input type="checkbox" data-sp="${id}" ${selProf.has(id)?"checked":""}> ${labelFor("profile", id)}</label>`).join("");
       dashCont.querySelectorAll("[data-sd]").forEach(cb=> cb.onchange=()=>{
         const c=getConfig(); c.shortcuts=c.shortcuts||{}; c.shortcuts.dashboard_in_profile=[...dashCont.querySelectorAll("[data-sd]:checked")].map(x=>x.dataset.sd);
         window.CineAuraLayouts.saveConfig(c); applyToast("تم حفظ الاختصارات");
@@ -731,40 +839,37 @@
   function applyToast(msg){
     const C=window.CineAura; if(C&&C.toast) C.toast(msg); else console.log(msg);
   }
-  function open(){
-    buildOverlay(); render(); overlay.hidden=false; document.documentElement.classList.add("lz-lock");
+  // the colours a member saved must survive a reload, not just the preview
+  function applySavedStyle(){
+    try{
+      const cfg=getConfig();
+      if(cfg && cfg.customStyle) previewCustomStyle(cfg.customStyle);
+    }catch{}
+  }
+  function getActiveStyle(){ return getStyle(); }
+
+  function open(opts){
+    buildOverlay();
+    if(opts && PAGE_DEFS[opts.page]) activePage=opts.page;
+    if(opts && opts.tab) activeTab=opts.tab;
+    render(); overlay.hidden=false; document.documentElement.classList.add("lz-lock");
     updatePreviewBtns();
   }
   function close(){
     if(!overlay||overlay.hidden) return; if(previewActive) { /* keep preview alive after closing customizer so user can see page */ }
     overlay.hidden=true; document.documentElement.classList.remove("lz-lock");
   }
-  function attachDashboardButtons(){
-    // Dashboard settings page — add two buttons next to existing save
-    const root=document.getElementById("dash-root");
-    if(!root) return;
-    // observe for settings render
-    const obs=new MutationObserver(()=>{
-      const pane=root.querySelector('[data-dpane="set1"]');
-      if(pane && !pane.querySelector("#lz-customize-btn")){
-        const wrap=document.createElement("div"); wrap.style.display="flex"; wrap.style.gap="8px"; wrap.style.flexWrap="wrap"; wrap.style.margin="12px 0";
-        wrap.innerHTML=`<button class="btn btn-sm btn-primary" id="lz-customize-btn" type="button">🎨 تخصيص الموقع</button><button class="btn btn-sm btn-ghost" id="lz-reset-btn" type="button">↺ العودة للوضع الافتراضي</button>`;
-        pane.appendChild(wrap);
-        wrap.querySelector("#lz-customize-btn").onclick=open;
-        wrap.querySelector("#lz-reset-btn").onclick=()=>{
-          const L=window.CineAuraLayouts; if(L){ const c=L.resetToDefault(); L.applyAll(c); applyToast("تمت العودة للافتراضي"); }
-        };
-        obs.disconnect();
-      }
-    });
-    obs.observe(root,{childList:true, subtree:true});
-  }
   // global expose
-  window.CineAuraCustomizer={ open, close, render };
+  window.CineAuraCustomizer={ open, close, render, applyIconBindings, applySavedStyle, getActiveStyle, PAGE_DEFS };
 
-  // auto-attach when dashboard loads
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", attachDashboardButtons);
-  else attachDashboardButtons();
+  // the dashboard now has its own "تخصيص الموقع" section; the old observer that
+  // injected a button into Settings is gone (one entry point per surface).
+  function init(){
+    try{ applySavedStyle(); }catch{}
+    try{ applyIconBindings(); watchNavIcons(); }catch{}
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
   // also listen for dashboard navigation
   document.addEventListener("cineaura:layout-applied", ()=>{ /* maybe refresh */ });
 

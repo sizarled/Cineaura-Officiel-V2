@@ -4,11 +4,11 @@
  * Featured Series. The order comes from public.channel_top()
  * (sql/channel_views.sql): the live channels members watched most over the last
  * 30 days. A member counts once per channel and day, after 15 seconds of
- * picture in the channel player of Listchannels.html (js/channel-player.js).
+ * picture in the channel player of listchannels.html (js/channel-player.js).
  * While few channels have been watched, the first channels of the free and
  * premium packages fill the row, in turn.
  *
- * Every card says what it is, and opens that channel on Listchannels.html:
+ * Every card says what it is, and opens that channel on listchannels.html:
  *   Free     "Watch Now": the free channels, this one playing at once
  *            (?free=1&channel=<id>). A guest sees the list with Sign In, and
  *            comes back to the channel playing.
@@ -159,7 +159,7 @@
   // premium one once the premium list is unlocked with an IPTV account or a
   // watch code (guests too), at once where the list is not asked.
   function hrefOf(item) {
-    return `./Listchannels.html?${item.free ? "free" : "premium"}=1&channel=${encodeURIComponent(item.id)}`;
+    return `./listchannels.html?${item.free ? "free" : "premium"}=1&channel=${encodeURIComponent(item.id)}`;
   }
 
   // ---------- painting ----------

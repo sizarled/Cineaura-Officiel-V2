@@ -1,15 +1,24 @@
-/* CineAura — Content.html: member videos (sql/content.sql).
+/* CineAura — video.html: member videos (sql/content.sql), and the home of the
+   content pages (content.html) that gathers the members' work.
 
-   Content.html (no video): the search box (it opens Search.html) and under it the
+   content.html (no parameters): the home. It does not play or list anything of
+   its own — it gathers what the members published, one section per type, each
+   row a link to the page that owns that type (round 39):
+     videos    → video.html      articles  → articles.html
+     questions → answers.html    documents → documents.html
+   A detail link (?article= ?question= ?answer= ?document= ?video= ?idcontent=)
+   or a top list (?top=) is rewritten to its own page by CineAura.routeAliases.
+
+   video.html (no video): the search box (it opens search.html) and under it the
    50 videos with the most watched minutes, the most recommendations or the most
    shares (?top=minutes | likes | shares), plus the sponsored offers (js/offers.js).
 
-   Content.html?idcontent=CT…: one video. Under the player: the title, the numbers,
+   video.html?id=CT…: one video. Under the player: the title, the numbers,
    the publisher, recommend / don't recommend, share, add to a playlist, the
    description, the sponsored offers (on a narrow screen) and the comments. On the
    side: the sponsored offers (on a wide screen), then suggestions — the same tags,
    language and publisher first, else the same country (content_suggest). A search
-   box on top opens Search.html.
+   box on top opens search.html.
 
    A video rated 13+ (13+, 16+, 18+) asks for a watch code before it plays, for
    everybody: content_get leaves its link out and content_unlock gives it for a code
@@ -31,7 +40,8 @@
 
   const params = new URLSearchParams(location.search);
   const state = {
-    id: String(params.get("idcontent") || params.get("id") || "").trim(),
+    // canonical alias: video.html?id=ID (round 60+) — idcontent stays supported
+    id: String(params.get("idcontent") || params.get("video") || params.get("id") || "").trim(),
     data: null,
     info: null,
     playing: false,
@@ -56,9 +66,34 @@
     ext: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>',
+    play: '<path d="M7 4.5L19 12L7 19.5V4.5Z"/>',
+    dl: '<path d="M12 3.5v10.5M7.5 10L12 14.5L16.5 10M4 20h16"/>',
+    chev_up: '<path d="M6 15l6-6 6 6"/>',
+    chev_down: '<path d="M6 9l6 6 6-6"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
   };
   const icon = (k, size = 18) =>
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON[k]}</svg>`;
+
+  // video.html?yt=<id> — a YouTube video watched on this very page (Round 55):
+  // the same layout the member videos use. ytWatchHref is how every YouTube
+  // result (hub search, Suggested-on-YouTube rail) names that page.
+  const ytVideoId = String(params.get("yt") || "").trim();
+  const ytWatchHref = (id) => `./video.html?yt=${encodeURIComponent(id)}`;
+  const ytw = { seq: 0 }; // async guard: a navigation while a fetch flies
+
+  // Round 57 — the site is free thanks to its sponsors (Adsterra): before the
+  // member video's VERY FIRST play — once per video per browser session — one
+  // tap on the direct link opens it in a new tab and playback starts at once.
+  // The same link also rests inside the page as labeled banner boxes.
+  const AD_LINK = "https://asiafilm.org/4/e476b83b0c777b7828ac79fef485bd1a";
+  const adDone = (id) => {
+    try { return sessionStorage.getItem(`cineaura_ad_${id}`) === "1"; } catch { return false; }
+  };
+  const markAdDone = (id) => {
+    try { sessionStorage.setItem(`cineaura_ad_${id}`, "1"); } catch { /* asked again next time */ }
+  };
 
   // ---------------------------------------------------------------- page states
   function showError(reason) {
@@ -71,7 +106,7 @@
         <h1>${esc(t(`vid.err.page.${key}`))}</h1>
         <p class="muted">${esc(t(`vid.err.pageText.${key}`))}</p>
         <div class="vw-error-actions">
-          <a class="btn btn-lg btn-primary" href="./Search.html">${esc(t("vid.browse"))}</a>
+          <a class="btn btn-lg btn-primary" href="./search.html">${esc(t("vid.browse"))}</a>
           ${key === "private" && !V.memberId() ? `<a class="btn btn-lg btn-ghost" href="./login.html?next=${encodeURIComponent(location.pathname.replace(/^\//, "") + location.search)}">${esc(t("common.signin"))}</a>` : ""}
         </div>
       </div>`;
@@ -138,7 +173,7 @@
           <p>${esc(t("vid.ageText", { n: age }))}</p>
           <div class="vw-gate-actions">
             <button class="btn btn-lg btn-primary" type="button" data-age-ok>${esc(t("vid.ageYes", { n: age }))}</button>
-            <a class="btn btn-lg btn-ghost" href="./Search.html">${esc(t("vid.ageNo"))}</a>
+            <a class="btn btn-lg btn-ghost" href="./search.html">${esc(t("vid.ageNo"))}</a>
           </div>
         </div>`;
     }
@@ -147,6 +182,39 @@
         <span class="vw-play-orb"><svg width="30" height="30" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.2L13.2 8L4 13.8V2.2Z"/></svg></span>
         <span class="vw-play-txt">${esc(t("vid.play"))}</span>
       </button>`;
+  }
+
+  /* The sponsored step in front of the play button (Adsterra direct link):
+     the poster stands, over it the ask — one tap opens the link in a new tab
+     and startPlayback takes over at once. Ordered honestly: a lock beats all,
+     then the age confirm (a guest, 16+), then the watch code, then this. */
+  function adGateApplies(c) {
+    if (adDone(c.id)) return false;
+    const age = Number(c.age) || 3;
+    if (c.code === undefined && !V.memberId() && age >= 16 && !ageConfirmed(age)) return false;
+    return true;
+  }
+  function adGateHtml(c) {
+    return `${posterHtml(c)}
+      <div class="vw-gate vw-adgate" role="group" aria-labelledby="vw-adg-h">
+        <span class="vw-chip vw-adgate-chip">${esc(t("ads.label"))}</span>
+        <h2 id="vw-adg-h">${esc(t("vid.ad.preTitle"))}</h2>
+        <p>${esc(t("vid.ad.preText"))}</p>
+        <div class="vw-gate-actions">
+          <a class="btn btn-lg btn-primary" href="${esc(AD_LINK)}" target="_blank" rel="noopener sponsored nofollow" data-ad-play>${icon("ext", 16)}<span>${esc(t("vid.ad.preBtn"))}</span></a>
+        </div>
+      </div>`;
+  }
+  function idlePanelHtml(c) {
+    return adGateApplies(c) ? adGateHtml(c) : playerIdleHtml(c);
+  }
+  // the banner boxes of the same direct link, resting inside the page
+  function adBannerHtml(place) {
+    return `<aside class="vw-ad" data-ad="${esc(place)}" role="complementary" aria-label="${esc(t("ads.label"))}">
+      <span class="vw-chip vw-ad-chip">${esc(t("ads.label"))}</span>
+      <p class="vw-ad-txt">${esc(t("vid.ad.bannerText"))}</p>
+      <a class="btn btn-sm btn-ghost vw-ad-btn" href="${esc(AD_LINK)}" target="_blank" rel="noopener sponsored nofollow">${icon("ext", 15)}<span>${esc(t("ads.visit"))}</span></a>
+    </aside>`;
   }
 
   // ---------------------------------------------------------------- watch code (13+)
@@ -328,7 +396,7 @@
     const box = $("#vw-player");
     if (box) {
       box.classList.remove("is-gated");
-      box.innerHTML = playerIdleHtml(state.data.content);
+      box.innerHTML = idlePanelHtml(state.data.content);
     }
     const under = $(".vw-under");
     if (under) under.innerHTML = underHtml();
@@ -495,6 +563,8 @@
     document.title = `${c.title} — CineAura`;
     state.info = c.url ? V.parseVideo(c.url) : null;
     const needCode = gated();
+    // a portrait (vertical) video stands centered on the page, 9:16 (sql/content_portrait.sql)
+    $("#vw-main")?.classList.toggle("vw-portrait", Boolean(c.portrait));
     const href = V.contentHref(c.id);
     const chips = [
       Number(c.age) > 3 ? chip(V.ageLabel(c.age), "is-age") : "",
@@ -503,7 +573,8 @@
       c.country ? chip(V.regionLabel(c.country)) : "",
     ].join("");
     $("#vw-main").innerHTML = `
-      <div class="vw-player${needCode ? " is-gated" : ""}" id="vw-player">${access !== "ok" ? lockedHtml(c, access) : needCode ? codeGateHtml(c) : playerIdleHtml(c)}</div>
+      ${adBannerHtml("top")}
+      <div class="vw-player${needCode ? " is-gated" : ""}" id="vw-player">${access !== "ok" ? lockedHtml(c, access) : needCode ? codeGateHtml(c) : idlePanelHtml(c)}</div>
       <div class="vw-under">${underHtml()}</div>
       <h1 class="vw-title">${esc(c.title)}</h1>
       ${c.suspended ? `<div class="vw-suspended" role="status">${icon("lock", 16)}<p><b>${esc(t("vid.suspendedOwner"))}</b> ${esc(t("vid.suspendedWhy", { reason: c.suspended.reason || "" }))}</p></div>` : ""}
@@ -528,16 +599,18 @@
           </div>
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-share-btn" aria-expanded="false" aria-controls="vw-share">${icon("share", 16)}<span>${esc(t("share.title"))}</span></button>
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-pl-btn">${icon("pl", 16)}<span>${esc(t("vid.addToPl"))}</span></button>
-          ${mine ? `<a class="btn btn-sm btn-ghost vw-btn" href="./Profile.html#content/manage">${icon("edit", 16)}<span>${esc(t("vid.manage"))}</span></a>` : ""}
+          ${c.downloads && state.info && ["file", "hls"].includes(state.info.provider) && c.url ? `<a class="btn btn-sm btn-ghost vw-btn" id="vw-dl" href="${esc(c.url)}" download target="_blank" rel="noopener">${icon("dl", 16)}<span>${esc(t("vid.download"))}</span></a>` : ""}
+          ${mine ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html?section=create">${icon("edit", 16)}<span>${esc(t("vid.manage"))}</span></a>` : ""}
         </div>
       </div>
       <div class="glass vw-share" id="vw-share" hidden>${C.shareRowHtml(href, c.title, { label: t("vid.shareLabel") })}</div>
-      <section class="glass vw-desc">
+      <section class="glass vw-desc" id="vw-desc">
         <div class="vw-desc-text${String(c.description || "").length > 420 ? " is-long" : ""}" id="vw-desc-text">${c.description ? linkify(c.description) : `<span class="muted">${esc(t("vid.noDesc"))}</span>`}</div>
         ${String(c.description || "").length > 420 ? `<button class="vw-more" type="button" id="vw-more" aria-expanded="false">${esc(t("vid.showMore"))}</button>` : ""}
         ${Array.isArray(c.tags) && c.tags.length ? `<div class="vw-tags">${c.tags.map((x) => `<a href="${V.searchHref({ tag: x })}"><bdi>#${esc(x)}</bdi></a>`).join("")}</div>` : ""}
         <p class="vw-desc-foot muted">${esc(t("vid.publishedOn", { date: V.fullDate(c.publish_at) }))} · <a href="${V.searchHref({ owner: owner.username })}">${esc(t("vid.moreFrom", { name: owner.username }))}</a></p>
       </section>
+      ${adBannerHtml("desc")}
       <div class="vw-offers vw-offers--inline" id="vw-offers-m" hidden></div>
       <section class="vw-comments" id="comments" aria-labelledby="vw-com-h">
         <h2 id="vw-com-h">${esc(t("vid.comments"))} <span class="vw-count" id="vw-com-count">${access === "ok" ? esc(V.fmtNum(c.comments)) : ""}</span></h2>
@@ -550,7 +623,27 @@
     if (access === "ok") {
       V.track([c.id], "view");
       loadComments();
+      loadYouTubeMeta();
     }
+  }
+
+  /* Round 53 — a YouTube video stands where the embedded-link videos stand:
+     the same player, the same description section — but its words come from
+     YouTube itself: the channel (avatar + link), the video's description, its
+     tags when it has any (V.fetchYouTubeMeta / videos.list, server-held key).
+     On any failure the site's own description simply stays. */
+  async function loadYouTubeMeta() {
+    const info = state.info;
+    if (!info || info.provider !== "youtube") return;
+    const res = await V.fetchYouTubeMeta(info.id);
+    const sec = $("#vw-desc");
+    if (!sec || !sec.isConnected || state.info !== info) return;
+    if (!res.ok) return; // the site's own description stays — nothing faked
+    const date = res.video.publishedAt || state.data.content.publish_at;
+    sec.classList.add("is-yt");
+    sec.innerHTML = V.youTubeMetaHtml(res.video, {
+      footHtml: `<p class="vw-desc-foot muted">${esc(t("vid.publishedOn", { date: V.fullDate(date) }))} · <a href="${V.searchHref({ owner: state.data.owner.username })}">${esc(t("vid.moreFrom", { name: state.data.owner.username }))}</a></p>`,
+    });
   }
 
   function paintVote() {
@@ -576,8 +669,16 @@
         } catch {
           /* asked again next time */
         }
-        $("#vw-player").innerHTML = playerIdleHtml(state.data.content);
+        $("#vw-player").innerHTML = idlePanelHtml(state.data.content);
         $("#vw-player [data-play]")?.focus();
+        return;
+      }
+      // the sponsored step before the first play: the direct link opens in a
+      // new tab (the anchor itself), and the video starts right here at once
+      const adBtn = e.target.closest("[data-ad-play]");
+      if (adBtn) {
+        markAdDone(state.id);
+        startPlayback();
         return;
       }
       const voteBtn = e.target.closest("[data-vote]");
@@ -601,6 +702,17 @@
         const open = txt.classList.toggle("is-open");
         e.target.closest("#vw-more").setAttribute("aria-expanded", String(open));
         e.target.closest("#vw-more").textContent = t(open ? "vid.showLess" : "vid.showMore");
+        return;
+      }
+      // the same toggle, on the block the YouTube record painted (Round 53)
+      const ytMore = e.target.closest("[data-yt-more]");
+      if (ytMore) {
+        const txt = ytMore.parentElement?.querySelector("[data-ytdesc]");
+        if (txt) {
+          const open = txt.classList.toggle("is-open");
+          ytMore.setAttribute("aria-expanded", String(open));
+          ytMore.textContent = t(open ? "vid.showLess" : "vid.showMore");
+        }
         return;
       }
       // a share: one of the networks, or the copy button (common.js copies the link)
@@ -761,11 +873,11 @@
     const items = res.ok && Array.isArray(res.data) ? res.data : [];
     box.innerHTML = items.length
       ? items.map((x) => V.cardHtml(x, { compact: true })).join("")
-      : `<p class="muted">${esc(t("vid.noSuggestions"))}</p><a class="btn btn-sm btn-ghost" href="./Search.html">${esc(t("vid.browse"))}</a>`;
+      : `<p class="muted">${esc(t("vid.noSuggestions"))}</p><a class="btn btn-sm btn-ghost" href="./search.html">${esc(t("vid.browse"))}</a>`;
     V.observeCards(box);
   }
 
-  // ---------------------------------------------------------------- Content.html alone: the 50 most …
+  // ---------------------------------------------------------------- video.html alone: the 50 most …
   // minutes = watched minutes, likes = recommendations (content_search "recs"), shares
   const TOPS = [
     { key: "minutes", sort: "minutes", icon: "clock" },
@@ -775,6 +887,9 @@
   const TOP_LIMIT = 50;
   const OFFERS_AFTER = 12; // the offers row comes after this many videos
   const hub = { key: "minutes", cache: {}, seq: 0 };
+  // the vertical (portrait) viewer: TikTok-style stage over the portrait videos,
+  // the "watch once" toggle on: at the end of a video the next one takes over
+  const vsh = { items: [], i: 0, once: false, seq: 0, listening: false, hls: null };
 
   function statHtml(key, item) {
     if (key === "likes") return `${icon("up", 14)}<span>${esc(t("vid.hub.statLikes", { n: V.fmtCount(item.likes) }))}</span>`;
@@ -796,7 +911,77 @@
       <span class="eyebrow">${esc(t("nav.videos"))}</span>
       <h1>${esc(t("vid.hub.title"))}</h1>
       <p class="muted">${esc(t("vid.hub.lead"))}</p>`;
-    if (form) hero.appendChild(form);
+    // One box, one search, TWO sections under it: the site's videos first
+    // ("Videos Members"), YouTube's below ("Video Youtube") — and a YouTube
+    // pick opens this same page in its YouTube mood (video.html?yt=<id>),
+    // the page where the member videos play.
+    if (form) {
+      hero.appendChild(form);
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        hubSearch(form.querySelector("#vw-q")?.value || "");
+      });
+    }
+    // "Videos Members" — the site's own search results (content_search)
+    const mem = document.createElement("section");
+    mem.className = "vh-yt vh-mem";
+    mem.id = "vh-mem";
+    mem.hidden = true;
+    mem.innerHTML = `
+      <div class="vh-top-head">
+        <h2 id="vh-mem-h">${esc(t("vid.hub.members"))}</h2>
+        <button class="btn btn-sm btn-ghost vh-yt-close" type="button" id="vh-mem-close">${icon("close", 15)}<span>${esc(t("vid.yt.close"))}</span></button>
+      </div>
+      <p class="muted" id="vh-mem-note"></p>
+      <ol class="vgrid vh-yt-grid" id="vh-mem-grid" aria-labelledby="vh-mem-h"></ol>`;
+    mem.querySelector("#vh-mem-close").addEventListener("click", () => {
+      mem.hidden = true;
+    });
+    // "Video Youtube" — the edge function's results (it holds the API key).
+    // A pick is a plain link to this same page in its YouTube mood
+    // (video.html?yt=<id>): the shared player, the YouTube channel as
+    // publisher, title + description, YouTube suggestions beside it.
+    const yt = document.createElement("section");
+    yt.className = "vh-yt";
+    yt.id = "vh-yt";
+    yt.hidden = true;
+    yt.innerHTML = `
+      <div class="vh-top-head">
+        <h2 id="vh-yt-h">${esc(t("vid.hub.youtube"))}</h2>
+        <button class="btn btn-sm btn-ghost vh-yt-close" type="button" id="vh-yt-close">${icon("close", 15)}<span>${esc(t("vid.yt.close"))}</span></button>
+      </div>
+      <p class="muted" id="vh-yt-note"></p>
+      <ol class="vgrid vh-yt-grid" id="vh-yt-grid" aria-labelledby="vh-yt-h"></ol>`;
+    yt.querySelector("#vh-yt-close").addEventListener("click", () => {
+      yt.hidden = true;
+    });
+    // the portrait videos: a centered 9:16 stage with the up/down flip buttons
+    const shorts = document.createElement("section");
+    shorts.className = "vsh";
+    shorts.id = "vsh";
+    shorts.hidden = true;
+    shorts.innerHTML = `
+      <div class="vh-top-head vsh-head">
+        <h2 id="vsh-h">${esc(t("vid.shorts.title"))}</h2>
+        <label class="vsh-once" for="vsh-once">
+          <input type="checkbox" id="vsh-once" />
+          <span>${esc(t("vid.shorts.once"))}</span>
+        </label>
+      </div>
+      <div class="vsh-row">
+        <button class="vsh-nav" type="button" id="vsh-up" disabled aria-label="${esc(t("vid.shorts.prev"))}">${icon("chev_up", 22)}</button>
+        <div class="vsh-stage">
+          <div class="vsh-frame" id="vsh-frame" aria-live="polite"></div>
+          <div class="vsh-info">
+            <h3 class="vsh-title" id="vsh-title"></h3>
+            <div class="vsh-bar">
+              <span class="vsh-count" id="vsh-count" dir="ltr"></span>
+              <a class="vsh-open" id="vsh-open" href="./video.html">${icon("ext", 14)}<span>${esc(t("vid.shorts.open"))}</span></a>
+            </div>
+          </div>
+        </div>
+        <button class="vsh-nav" type="button" id="vsh-down" aria-label="${esc(t("vid.shorts.next"))}">${icon("chev_down", 22)}</button>
+      </div>`;
     const top = document.createElement("section");
     top.className = "vh-top";
     top.setAttribute("aria-labelledby", "vh-top-h");
@@ -809,7 +994,8 @@
       </div>
       <p class="muted vh-note" id="vh-note"></p>
       <ol class="vgrid vh-grid" id="vh-grid" role="tabpanel" aria-live="polite"></ol>`;
-    layout?.replaceWith(hero, top);
+    layout?.replaceWith(hero, mem, yt, shorts, top);
+    loadShorts();
     const tabs = top.querySelector(".vh-tabs");
     tabs.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-top]");
@@ -869,12 +1055,13 @@
 
   function drawTop(key) {
     const grid = $("#vh-grid");
-    const items = hub.cache[key] || [];
+    // landscape videos only — the portrait ones live in the vertical viewer above
+    const items = (hub.cache[key] || []).filter((x) => !x.portrait);
     if (!items.length) {
       grid.innerHTML = `<li class="glass vs-none vh-none">
           <p><b>${esc(t("vid.hub.none"))}</b></p>
           <p class="muted">${esc(t("vid.hub.noneText"))}</p>
-          <a class="btn btn-lg btn-primary" href="./Profile.html#content">${esc(t("vid.hub.create"))}</a>
+          <a class="btn btn-lg btn-primary" href="./profile.html?section=create">${esc(t("vid.hub.create"))}</a>
         </li>`;
       return;
     }
@@ -886,8 +1073,495 @@
     window.CineAuraOffers?.mount($("#vh-offers"), { limit: 5, layout: "row" });
   }
 
+  // ---------------------------------------------------------------- YouTube search (the scope chip)
+  // The box asked for YouTube: results from the edge function, each one watchable
+  // right here (an embedded YouTube player — the viewer never leaves the page).
+  // One search answers in two sections: the site's videos ("Videos Members")
+  // first, YouTube's ("Video Youtube") below. Both run together.
+  function hubSearch(qRaw) {
+    const q = String(qRaw || "").trim().slice(0, 120);
+    if (!q) {
+      $("#vw-q")?.focus();
+      return;
+    }
+    const seq = (hub.seq += 1);
+    loadMemberResults(q, seq);
+    ytSearch(q, seq);
+  }
+
+  async function loadMemberResults(q, seq) {
+    const panel = $("#vh-mem");
+    const grid = $("#vh-mem-grid");
+    const note = $("#vh-mem-note");
+    if (!panel || !grid) return;
+    panel.hidden = false;
+    note.textContent = "";
+    grid.setAttribute("aria-busy", "true");
+    grid.innerHTML = `<li class="vh-wait"><div class="loader" style="display:grid"><div class="spinner"></div></div></li>`;
+    const res = await V.call("content_search", { p_member: V.memberId(), p_q: q, p_sort: "minutes", p_limit: 24 });
+    if (seq !== hub.seq) return;
+    grid.removeAttribute("aria-busy");
+    if (!res.ok) {
+      grid.innerHTML = "";
+      note.textContent = t(res.setup ? "vid.err.pageText.setup" : "vid.err.pageText.load");
+      return;
+    }
+    const items = Array.isArray(res.data?.items) ? res.data.items : [];
+    note.textContent = items.length ? t("vid.hub.membersCount", { n: items.length, q }) : t("vid.hub.membersNone", { q });
+    grid.innerHTML = items.map((x) => `<li class="vh-item">${V.cardHtml(x, { compact: true })}</li>`).join("");
+    V.observeCards(grid);
+  }
+
+  async function ytSearch(q, seq) {
+    const panel = $("#vh-yt");
+    const grid = $("#vh-yt-grid");
+    const note = $("#vh-yt-note");
+    if (!panel || !grid) return;
+    panel.hidden = false;
+    note.textContent = "";
+    grid.setAttribute("aria-busy", "true");
+    grid.innerHTML = `<li class="vh-wait"><div class="loader" style="display:grid"><div class="spinner"></div></div></li>`;
+    let out = null;
+    try {
+      const res = await fetch(`${C.SUPABASE_URL}/functions/v1/youtube-search`, {
+        method: "POST",
+        headers: {
+          apikey: C.SUPABASE_KEY,
+          Authorization: `Bearer ${C.SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ q, limit: 18 }),
+      });
+      out = await res.json();
+    } catch {
+      out = null;
+    }
+    if (seq !== hub.seq) return;
+    grid.removeAttribute("aria-busy");
+    if (!out || typeof out !== "object" || out.ok !== true) {
+      const key = out && out.reason === "not_configured" ? "vid.yt.noKey"
+        : out && out.reason === "quota" ? "vid.yt.quota"
+        : out && out.reason === "missing" ? "vid.yt.none" : "vid.yt.upstream";
+      grid.innerHTML = "";
+      note.textContent = t(key, { q });
+      return;
+    }
+    const items = Array.isArray(out.items) ? out.items : [];
+    note.textContent = items.length ? t("vid.yt.count", { n: items.length, q }) : t("vid.yt.none", { q });
+    grid.innerHTML = items.map((x) => `<li class="vh-item">${ytPickCardHtml(x)}</li>`).join("");
+  }
+
+  /* ---------------------------------------------------------------- YouTube watch
+     video.html?yt=<id> — the SAME page the member videos play on, in its
+     YouTube mood (Round 55): the shared #vw-player, the video's title and
+     description straight from YouTube, the publisher block answered by the
+     YouTube channel (avatar + name, opens the channel), and beside it the
+     "Suggested on YouTube" rail — the edge function searched with the
+     video's own tags, else its title. Nothing is stored on the site here:
+     no views, no votes, no comments. Any failure is said honestly. */
+
+  /* One YouTube pick (hub result, rail suggestion): a real link, so open in a
+     new tab / copy works and nothing depends on in-page JS navigation. */
+  function ytPickCardHtml(x, { compact = false } = {}) {
+    const id = String(x?.id || "");
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return "";
+    return `<a class="vcard vhy-card${compact ? " vcard--compact" : ""}" href="${esc(ytWatchHref(id))}" data-ytid="${esc(id)}">
+      <span class="vthumb">
+        ${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" />` : `<span class="vthumb-ph" aria-hidden="true">▶</span>`}
+        <span class="vthumb-play" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5L13 8L4 13.5V2.5Z"/></svg></span>
+      </span>
+      <span class="vcard-body">
+        <b class="vcard-title">${esc(x.title || "")}</b>
+        <span class="vcard-meta"><bdi>${esc(x.channel || "YouTube")}</bdi>${x.at ? ` · ${esc(V.timeAgo(x.at))}` : ""}</span>
+      </span>
+    </a>`;
+  }
+
+  async function renderYouTubeWatch(id) {
+    document.title = "YouTube — CineAura";
+    $("#vw-main").innerHTML = `<div class="vw-player"><div class="loader"><div class="spinner"></div></div></div>`;
+    const tag = ++ytw.seq;
+    const res = await V.fetchYouTubeMeta(id);
+    if (tag !== ytw.seq) return;
+    if (!res.ok) return showYtWatchError(res.reason);
+    const v = res.video || {};
+    const title = String(v.title || "").trim() || "YouTube";
+    document.title = `${title} — CineAura`;
+    const chId = String(v.channelId || "").trim();
+    const chUrl = chId ? `https://www.youtube.com/channel/${encodeURIComponent(chId)}` : "";
+    const chName = String(v.channel || "").trim() || "YouTube";
+    const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+    const desc = String(v.description || "").trim();
+    const long = desc.length > 420;
+    const tags = (Array.isArray(v.tags) ? v.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12);
+    const date = String(v.publishedAt || "");
+    // — same skeleton render() builds for a member video: player, title,
+    //   meta, publisher bar (here: the YouTube channel), description section —
+    $("#vw-main").innerHTML = `
+      <div class="vw-player is-playing" id="vw-player">
+        <iframe class="vw-frame" src="https://www.youtube-nocookie.com/embed/${esc(id)}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
+          title="${esc(title)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+      <h1 class="vw-title">${esc(title)}</h1>
+      <div class="vw-meta">
+        <span class="vw-chip">${esc(t("vid.prov.youtube"))}</span>
+        ${date ? `<span aria-hidden="true">·</span><time datetime="${esc(date)}" title="${esc(V.fullDate(date))}">${esc(V.timeAgo(date))}</time>` : ""}
+      </div>
+      <div class="vw-bar">
+        ${chUrl ? `<a class="vw-owner" href="${esc(chUrl)}" target="_blank" rel="noopener" aria-label="${esc(t("vid.yt.openChannel"))}">` : `<div class="vw-owner">`}
+          ${v.channelAvatar ? `<img src="${esc(String(v.channelAvatar))}" alt="" loading="lazy" />` : `<span class="vw-owner-ytph" aria-hidden="true">${esc(chName.slice(0, 1).toUpperCase())}</span>`}
+          <span class="vw-owner-txt">
+            <b>${esc(chName)}</b>
+            <small><bdi>${esc(t("vid.prov.youtube"))}</bdi> · ${esc(t("vid.yt.openChannel"))}</small>
+          </span>
+        ${chUrl ? `</a>` : `</div>`}
+        <div class="vw-actions">
+          ${V.memberId() ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html?section=create" data-yt-import="${esc(watchUrl)}">${icon("pl", 16)}<span>${esc(t("vid.yt.importSelf"))}</span></a>` : ""}
+          <a class="btn btn-sm btn-ghost vw-btn" href="${esc(watchUrl)}" target="_blank" rel="noopener">${icon("ext", 16)}<span>${esc(t("vid.yt.openVideo"))}</span></a>
+        </div>
+      </div>
+      <section class="glass vw-desc is-yt" id="vw-desc">
+        <div class="vw-desc-text${long ? " is-long" : ""}" id="vw-desc-text">${desc ? linkify(desc) : `<span class="muted">${esc(t("vid.noDesc"))}</span>`}</div>
+        ${long ? `<button class="vw-more" type="button" id="vw-more" aria-expanded="false">${esc(t("vid.showMore"))}</button>` : ""}
+        ${tags.length ? `<div class="vw-tags vw-tags--yt">${tags.map((x) => `<span><bdi>#${esc(x)}</bdi></span>`).join("")}</div>` : ""}
+        <p class="vw-desc-foot muted">${date ? `${esc(t("vid.publishedOn", { date: V.fullDate(date) }))} · ` : ""}<a href="${esc(watchUrl)}" target="_blank" rel="noopener">${esc(t("vid.yt.openVideo"))}</a></p>
+      </section>`;
+    wireYtWatch();
+    ytSuggest(v, id, tag);
+    window.CineAuraOffers?.mount($("#vw-offers"), { limit: 5, layout: "side" });
+  }
+
+  function wireYtWatch() {
+    $("#vw-main").addEventListener("click", (e) => {
+      // "Import this video": the link waits for the studio, which opens right
+      // away (the anchor's own navigation) with the form half filled
+      const imp = e.target.closest("[data-yt-import]");
+      if (imp) {
+        try { sessionStorage.setItem("cineaura_import_url", imp.getAttribute("data-yt-import") || ""); } catch { /* the studio still opens */ }
+        return;
+      }
+      const more = e.target.closest("#vw-more");
+      if (!more) return;
+      const txt = $("#vw-desc-text");
+      if (!txt) return;
+      const open = txt.classList.toggle("is-open");
+      more.setAttribute("aria-expanded", String(open));
+      more.textContent = t(open ? "vid.showLess" : "vid.showMore");
+    });
+  }
+
+  // Beside the player: what YouTube suggests — the video's own tags steer the
+  // search (its title when YouTube lists no tags). The watch itself is never
+  // listed again among its suggestions.
+  async function ytSuggest(v, id, tag) {
+    const box = $("#vw-sugg");
+    if (!box) return;
+    const h2 = $("#vw-side-h");
+    if (h2) {
+      h2.removeAttribute("data-i18n"); // this rail answers YouTube, not the site's suggestions
+      h2.textContent = t("vid.yt.suggested");
+    }
+    box.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
+    const tags = (Array.isArray(v.tags) ? v.tags : []).map((x) => String(x || "").trim()).filter(Boolean);
+    const q = (tags.length ? tags.slice(0, 3).join(" ") : String(v.title || "")).trim().slice(0, 120) || String(v.channel || "").trim();
+    let out = null;
+    if (q) {
+      try {
+        const res = await fetch(`${C.SUPABASE_URL}/functions/v1/youtube-search`, {
+          method: "POST",
+          headers: {
+            apikey: C.SUPABASE_KEY,
+            Authorization: `Bearer ${C.SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ q, limit: 12 }),
+        });
+        out = await res.json();
+      } catch {
+        out = null;
+      }
+    }
+    if (tag !== ytw.seq) return;
+    if (!out || out.ok !== true) {
+      const key = out && out.reason === "not_configured" ? "vid.yt.noKey" : out && out.reason === "quota" ? "vid.yt.quota" : "vid.yt.upstream";
+      box.innerHTML = `<p class="muted">${esc(t(key))}</p>`;
+      return;
+    }
+    const items = (Array.isArray(out.items) ? out.items : []).filter((x) => x && x.id !== id).slice(0, 12);
+    box.innerHTML = items.length
+      ? items.map((x) => ytPickCardHtml(x, { compact: true })).join("")
+      : `<p class="muted">${esc(t("vid.yt.none", { q }))}</p>`;
+  }
+
+  function showYtWatchError(reason) {
+    const notFound = reason === "not_found" || reason === "missing";
+    const key = reason === "not_configured" ? "vid.yt.noKey" : reason === "quota" ? "vid.yt.quota" : notFound ? "vid.yt.notFound" : "vid.yt.upstream";
+    const title = t(`vid.err.page.${notFound ? "not_found" : "load"}`);
+    document.title = `${title} — CineAura`;
+    $("#vw-main").innerHTML = `
+      <div class="glass vw-error">
+        <span class="vw-error-ico">${icon("ext", 28)}</span>
+        <h1>${esc(title)}</h1>
+        <p class="muted">${esc(t(key))}</p>
+        <div class="vw-error-actions"><a class="btn btn-lg btn-primary" href="./video.html">${esc(t("vid.browse"))}</a></div>
+      </div>`;
+    const side = $("#vw-side");
+    if (side) side.hidden = true;
+  }
+
+  // ---------------------------------------------------------------- the vertical (portrait) viewer
+  // Centered 9:16 stage over the portrait videos of the hub, the ▲/▼ buttons flip
+  // between them; "watch once" on: at the end the next video takes over, off: the
+  // same video starts again (TikTok style). The link of the *shown* video comes
+  // with content_get only, so a 13+ video never leaks its link here — its gate
+  // sends the viewer to the video's page and its watch code.
+  async function loadShorts() {
+    const box = $("#vsh");
+    if (!box) return;
+    const res = await V.call("content_search", { p_member: V.memberId(), p_sort: "minutes", p_limit: TOP_LIMIT });
+    if (!res.ok) return; // the grid below carries the error; the stage simply stays away
+    vsh.items = (Array.isArray(res.data?.items) ? res.data.items : []).filter((x) => x.portrait && !x.locked && !x.suspended);
+    if (!vsh.items.length) return;
+    box.hidden = false;
+    box.querySelector("#vsh-once").addEventListener("change", (e) => {
+      vsh.once = Boolean(e.target.checked);
+    });
+    box.querySelector("#vsh-up").addEventListener("click", () => goShort(-1));
+    box.querySelector("#vsh-down").addEventListener("click", () => goShort(1));
+    showShort(0);
+  }
+
+  function goShort(d) {
+    if (!vsh.items.length) return;
+    if (d < 0) showShort(Math.max(0, vsh.i - 1));
+    else showShort((vsh.i + 1) % vsh.items.length); // down flips around in a circle
+  }
+
+  function shortGateHtml(it) {
+    return `${posterHtml(it)}
+      <div class="vw-gate" role="note">
+        <span class="vw-gate-ico">${icon("lock", 26)}</span>
+        <h2>${esc(t("vid.lockTitle.age", { n: Number(it.age) || 13 }))}</h2>
+        <p>${esc(t("vid.shorts.lockedText"))}</p>
+        <div class="vw-gate-actions"><a class="btn btn-lg btn-primary" href="${V.contentHref(it.id)}">${esc(t("vid.shorts.open"))}</a></div>
+      </div>`;
+  }
+
+  // YouTube's end event (0), only from the stage's own iframe — the YouTube modal
+  // is another iframe on this page and must not flip the stage.
+  function vshListenYouTube(frame) {
+    const ping = () => {
+      try {
+        frame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+      } catch {
+        /* not ready yet */
+      }
+    };
+    frame.addEventListener("load", () => {
+      ping();
+      setTimeout(ping, 800);
+      setTimeout(ping, 2500);
+    });
+    if (vsh.listening) return;
+    vsh.listening = true;
+    window.addEventListener("message", (e) => {
+      let host = "";
+      try {
+        host = new URL(e.origin).hostname;
+      } catch {
+        return;
+      }
+      if (!/(^|\.)youtube(-nocookie)?\.com$/.test(host)) return;
+      const f = $("#vsh-frame iframe");
+      if (!f || e.source !== f.contentWindow) return;
+      let data = e.data;
+      try {
+        if (typeof data === "string") data = JSON.parse(data);
+      } catch {
+        return;
+      }
+      const st = data?.event === "onStateChange" ? data.info : data?.info?.playerState;
+      if (st === 0) shortEnded();
+    });
+  }
+
+  // A video ended: "watch once" sends the stage to the next vertical video (or to
+  // the end note after the last one); otherwise it simply starts again.
+  function shortEnded() {
+    if (vsh.once) {
+      if (vsh.i < vsh.items.length - 1) return goShort(1);
+      const frame = $("#vsh-frame");
+      if (frame) {
+        frame.innerHTML = `<div class="vsh-end" role="status">
+          <p>${esc(t("vid.shorts.end"))}</p>
+          <button class="btn btn-sm btn-ghost" type="button" data-vsh-restart>${esc(t("vid.shorts.restart"))}</button>
+        </div>`;
+        frame.querySelector("[data-vsh-restart]")?.addEventListener("click", () => showShort(0));
+      }
+      return;
+    }
+    const v = $("#vsh-frame video");
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+      return;
+    }
+    const f = $("#vsh-frame iframe");
+    if (f) {
+      try {
+        f.contentWindow.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [0, true] }), "*");
+        f.contentWindow.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+      } catch {
+        /* the player ignores the stage safely */
+      }
+    }
+  }
+
+  async function showShort(i) {
+    if (!vsh.items.length) return;
+    vsh.i = Math.max(0, Math.min(i, vsh.items.length - 1));
+    const it = vsh.items[vsh.i];
+    const frame = $("#vsh-frame");
+    if (!frame) return;
+    const tag = (vsh.seq += 1);
+    const title = $("#vsh-title");
+    if (title) title.textContent = it.title || "";
+    const count = $("#vsh-count");
+    if (count) count.textContent = t("vid.shorts.counter", { i: vsh.i + 1, n: vsh.items.length });
+    const open = $("#vsh-open");
+    if (open) open.href = V.contentHref(it.id);
+    const up = $("#vsh-up");
+    if (up) up.disabled = vsh.i === 0;
+    frame.setAttribute("aria-busy", "true");
+    frame.innerHTML = `<div class="loader vsh-wait" style="display:grid"><div class="spinner"></div></div>`;
+    if (it._try === undefined) {
+      const g = await V.call("content_get", { p_id: it.id, p_member: V.memberId() });
+      it._try = true;
+      it._url = g.ok && g.data?.ok ? String(g.data.content?.url || "") : "";
+      if (it._url) it._info = V.parseVideo(it._url);
+    }
+    if (tag !== vsh.seq) return; // the stage moved on while the link arrived
+    frame.removeAttribute("aria-busy");
+    if (!it._url || !it._info) {
+      frame.innerHTML = shortGateHtml(it);
+      return;
+    }
+    const info = it._info;
+    if (info.provider === "file" || info.provider === "hls") {
+      frame.innerHTML = `<video class="vsh-el" controls playsinline preload="metadata" muted ${it.thumb ? `poster="${esc(it.thumb)}"` : ""}></video>`;
+      const video = frame.querySelector("video");
+      video.addEventListener("ended", shortEnded);
+      if (info.provider === "hls" && !video.canPlayType("application/vnd.apple.mpegurl")) {
+        try {
+          const Hls = await loadHls();
+          if (tag !== vsh.seq) return;
+          if (Hls.isSupported()) {
+            vsh.hls?.destroy();
+            vsh.hls = new Hls({ enableWorker: true });
+            vsh.hls.loadSource(info.url);
+            vsh.hls.attachMedia(video);
+          } else {
+            video.src = info.url;
+          }
+        } catch {
+          video.src = info.url;
+        }
+      } else {
+        video.src = info.url;
+      }
+      video.play().catch(() => {});
+    } else {
+      let src = V.embedSrc(info, { autoplay: true }) || "";
+      // the vertical stage starts muted — autoplay with sound needs a tap anyway
+      if (info.provider === "youtube" && !/[?&]mute=/.test(src)) src += "&mute=1";
+      frame.innerHTML = `<iframe class="vsh-el" src="${esc(src)}" title="${esc(it.title || "")}"
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture; clipboard-write; web-share"
+          allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+      const f = frame.querySelector("iframe");
+      if (info.provider === "youtube") vshListenYouTube(f);
+    }
+  }
+
+
+  // ── content.html: the home that gathers the members' work ─────────────────
+  // Every type has its own page now, so this page never plays or lists a type of
+  // its own: it shows the newest videos, articles, questions and documents, and
+  // each of them is a link to its page. The headers are the way in.
+  const HOME_TYPES = [
+    { key: "videos", href: "./video.html", title: "nav.videos", lead: "ct.leadVideos", icon: "▶", box: "home-videos" },
+    { key: "articles", href: "./articles.html", title: "com.tab.articles", lead: "ct.leadArticles", icon: "✍", box: "home-articles" },
+    { key: "questions", href: "./answers.html", title: "com.tab.questions", lead: "ct.leadQuestions", icon: "❓", box: "home-questions" },
+    { key: "documents", href: "./documents.html", title: "doc.tab", lead: "ct.leadDocuments", icon: "📄", box: "home-documents" },
+  ];
+
+  function homeShell() {
+    return `
+      <section class="glass home-hero">
+        <span class="eyebrow">${esc(t("ct.eyebrow"))}</span>
+        <h1>${esc(t("ct.homeTitle"))}</h1>
+        <p class="muted">${esc(t("ct.homeLead"))}</p>
+        <form class="vw-search" id="home-search" action="./search.html" method="get" role="search">
+          ${icon("search", 18)}
+          <input name="q" id="home-q" type="search" autocomplete="off" placeholder="${esc(t("vid.searchPh"))}" data-i18n-placeholder="vid.searchPh" aria-label="${esc(t("vid.searchPh"))}" />
+          <button class="btn btn-sm btn-primary" type="submit" data-i18n="nav.search">${esc(t("nav.search"))}</button>
+        </form>
+        <ul class="home-types">
+          ${HOME_TYPES.map(
+            (x) => `<li><a class="home-type glass" href="${x.href}">
+              <span class="home-type-ico" aria-hidden="true">${x.icon}</span>
+              <strong>${esc(t(x.title))}</strong>
+              <span class="muted">${esc(t(x.lead))}</span>
+              <span class="home-type-go">${esc(t("ct.seeAll"))} →</span>
+            </a></li>`
+          ).join("")}
+        </ul>
+      </section>
+      ${HOME_TYPES.map(
+        (x) => `<section class="home-sec" aria-labelledby="${x.box}-h">
+          <div class="vh-top-head">
+            <h2 id="${x.box}-h">${esc(t(x.title))}</h2>
+            <a class="btn btn-sm btn-ghost" href="${x.href}">${esc(t("ct.seeAll"))} →</a>
+          </div>
+          <div id="${x.box}"><p class="com-note muted">${esc(t("common.loading"))}</p></div>
+        </section>`
+      ).join("")}`;
+  }
+
+  async function renderHome() {
+    const root = $("#home-root");
+    if (!root) return false;
+    document.title = `${t("ct.homeTitle")} — CineAura`;
+    root.innerHTML = homeShell();
+    const note = (box, msg) => box && (box.innerHTML = `<p class="com-empty muted">${esc(msg)}</p>`);
+    // videos — the same cards the videos page draws (one renderer, js/videos.js)
+    (async () => {
+      const box = $("#home-videos");
+      if (!box) return;
+      const res = await V.call("content_search", { p_member: V.memberId(), p_sort: "date", p_limit: 8 });
+      const items = res.ok && Array.isArray(res.data?.items) ? res.data.items.filter((x) => !x.portrait) : [];
+      if (!items.length) return note(box, t("ct.noneVideos"));
+      box.innerHTML = `<ol class="vgrid home-grid">${items.map((x) => `<li>${V.cardHtml(x)}</li>`).join("")}</ol>`;
+      V.observeCards?.(box);
+    })();
+    // articles, questions, documents — the lists' own rows, never a second renderer
+    setTimeout(() => {
+      const box = (id) => document.getElementById(id);
+      if (window.CineAuraCommunity?.homeRows) {
+        window.CineAuraCommunity.homeRows(box("home-articles"), "articles", 4).catch(() => note(box("home-articles"), t("com.loadFail")));
+        window.CineAuraCommunity.homeRows(box("home-questions"), "questions", 4).catch(() => note(box("home-questions"), t("com.loadFail")));
+      }
+      if (window.CineAuraDocs?.homeRows) window.CineAuraDocs.homeRows(box("home-documents"), 4).catch(() => note(box("home-documents"), t("doc.loadFail")));
+    }, 0);
+    return true;
+  }
+
   async function boot() {
     C.setupChrome();
+    // content.html: the home of the content pages
+    if ($("#home-root")) return renderHome();
+    // a YouTube video is watched on this same page (video.html?yt=<id>)
+    if (!state.id && /^[A-Za-z0-9_-]{11}$/.test(ytVideoId)) return renderYouTubeWatch(ytVideoId);
     if (!state.id) return renderHub();
     const res = await V.call("content_get", { p_id: state.id, p_member: V.memberId() });
     if (!res.ok) return showError(res.setup ? "setup" : "load");

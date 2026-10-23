@@ -21,6 +21,9 @@
 --     LV0 0+ (new account) x1   LV1 10+ x1    LV2 100+ x2   LV3 1K+ x3
 --     LV4 10K+ x4               LV5 100K+ x5  LV6 1M+ x6    LV7 10M+ x7
 --     LV8 100M+ x8              LV9 1B+ x9    LV Max 10B+ x10
+--   …and the MEMBERSHIP is the ceiling the level may reach (sql/withdrawals.sql):
+--     Free LV2 · Silver LV5 · Gold LV8 · Diamond LV10. The points keep
+--     accumulating either way; the level simply waits for the plan to step up.
 --   LV-gated permissions (2026-10-19, cumulative — client js/common.js FEATURE_MIN_LEVEL
 --   and server must enforce via points_level()):
 --     LV0 watch only (videos/channels/films/series)
@@ -239,12 +242,21 @@ begin
   if not found then return null; end if;
   earned := coalesce((public._points(p_member)->>'earned')::bigint, 0);
   lv := public.points_level(earned);
+  -- the membership is the level's ceiling (sql/withdrawals.sql account_level):
+  -- Free LV2, Silver LV5, Gold LV8, Diamond LV10 — earning past it waits
+  -- for the plan to step up; the multiplier follows the level reached.
+  if to_regprocedure('public.account_level(text)') is not null then
+    lv := least(lv, coalesce((public.account_level(p_member)->>'cap')::int, lv));
+  end if;
   mult := public.points_multiplier(lv);
   gain := round(mult::numeric / greatest(1, coalesce(p_minutes, 50)), 2);
   update public.profiles set watch_points = coalesce(watch_points, 0) + gain
    where member_id = p_member
   returning watch_points into wp_after;
   lv_after := public.points_level(earned - floor(wp_before)::bigint + floor(wp_after)::bigint);
+  if to_regprocedure('public.account_level(text)') is not null then
+    lv_after := least(lv_after, coalesce((public.account_level(p_member)->>'cap')::int, lv_after));
+  end if;
   if lv_after > lv and to_regclass('public.notifications') is not null then
     insert into public.notifications (member_id, kind, title, body, href)
     values (p_member, 'points_level', 'New level',

@@ -42,15 +42,15 @@
           <a href="./search.html" data-i18n="nav.search">Search</a>
           <a href="./movies.html" data-i18n="nav.movies">Movies</a>
           <a href="./series.html" data-i18n="nav.series">Series</a>
-          <a href="./Content.html" data-i18n="nav.videos" data-videos-nav="1">Videos</a>
-          <a href="./IPTV.html" data-i18n="nav.iptv">IPTV</a>
-          <a href="./Prize.html" data-i18n="nav.prizes">Prizes</a>
-          <a href="./Market.html" data-i18n="nav.market" aria-current="page">Market</a>
+          <a href="./video.html" data-i18n="nav.videos" data-videos-nav="1">Videos</a>
+          <a href="./iptv.html" data-i18n="nav.iptv">IPTV</a>
+          <a href="./prize.html" data-i18n="nav.prizes">Prizes</a>
+          <a href="./market.html" data-i18n="nav.market" aria-current="page">Market</a>
           <a href="./#plans" data-i18n="nav.plans">Plans & Pricing</a>
           <a href="./#support" data-i18n="nav.support">Support</a>
         </nav>
         <div class="auth auth-guest" id="auth-guest">
-          <a class="btn btn-sm btn-ghost" href="./login.html?next=Market.html" data-i18n="nav.signin" data-mkt-signin>Sign In</a>
+          <a class="btn btn-sm btn-ghost" href="./login.html?next=market.html" data-i18n="nav.signin" data-mkt-signin>Sign In</a>
           <a class="btn btn-sm btn-primary" href="./register.html" data-i18n="nav.signup">Sign Up</a>
         </div>
         <div class="auth auth-user" id="auth-user">
@@ -73,14 +73,14 @@
       <a href="./search.html" data-i18n="nav.search">Search</a>
       <a href="./movies.html" data-i18n="nav.movies">Movies</a>
       <a href="./series.html" data-i18n="nav.series">Series</a>
-      <a href="./Content.html" data-i18n="nav.videos" data-videos-nav="1">Videos</a>
-      <a href="./IPTV.html" data-i18n="nav.iptv">IPTV</a>
-      <a href="./Prize.html" data-i18n="nav.prizes">Prizes</a>
-      <a href="./Market.html" data-i18n="nav.market" aria-current="page">Market</a>
+      <a href="./video.html" data-i18n="nav.videos" data-videos-nav="1">Videos</a>
+      <a href="./iptv.html" data-i18n="nav.iptv">IPTV</a>
+      <a href="./prize.html" data-i18n="nav.prizes">Prizes</a>
+      <a href="./market.html" data-i18n="nav.market" aria-current="page">Market</a>
       <a href="./#plans" data-i18n="nav.plans">Plans & Pricing</a>
       <a href="./#support" data-i18n="nav.supportFull">Support & Contact</a>
       <div class="mobile-auth-guest">
-        <a href="./login.html?next=Market.html" data-i18n="nav.signin" data-mkt-signin>Sign In</a>
+        <a href="./login.html?next=market.html" data-i18n="nav.signin" data-mkt-signin>Sign In</a>
         <a href="./register.html" data-i18n="nav.signup">Sign Up</a>
       </div>
       <div class="mobile-auth-user">
@@ -92,13 +92,13 @@
     <!-- The members' market (sql/market.sql, js/market.js): the search box (products, categories,
          stores), the side menu of the member (points, notifications, sales, purchases, ratings,
          requests, store settings) and the page: trending products and the best-selling
-         categories, a search, Market.html?Categories=…, ?Store=…, ?Product=… -->
+         categories, a search, market.html?Categories=…, ?Store=…, ?Product=… -->
     <main class="page-main vs-page mkt-page" id="mkt-root">
       <section class="glass vs-hero mkt-hero">
         <div class="mkt-hero-top">
           <div class="mkt-hero-text">
             <span class="eyebrow" data-i18n="mkt.eyebrow">Market</span>
-            <h1><a href="./Market.html" data-nav data-i18n="mkt.title">Members' market</a></h1>
+            <h1><a href="./market.html" data-nav data-i18n="mkt.title">Members' market</a></h1>
             <p data-i18n="mkt.lead">Products sold by CineAura members for points. Find a product, a category or a store — or open your own store and sell.</p>
           </div>
           <div class="mkt-hero-acts" id="mkt-acts"></div>
@@ -120,6 +120,7 @@
   <script src="js/i18n.js"></script>
   <script src="js/lang.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/streamtape.js"></script>
   <script src="js/market-forms.js"></script>
   <script src="js/market-coupons.js"></script>
   <script src="js/market.js"></script>

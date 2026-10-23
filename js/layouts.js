@@ -12,53 +12,79 @@
   const VALID_STYLES = ["default","facebook","youtube","instagram","netflix","prime","appletv","win7","win8","win10","win11","macos","android","ios"];
 
   // Canonical section IDs per page (order = site default)
-  const HOME_BASE = ["hero","trust","live-updates","whats-new","features","prizes","search","movies","series","videos","home-market","iptv","points-levels","prizes-strip","app","plans","support"];
+  const HOME_BASE = ["hero","trust","search","live-updates","features","movies","series","iptv","points-levels","prizes","videos","home-market","app","plans","support","platforms"];
   const WATCH_BASE = ["title-info","directors-section","cast-section","watch-providers","player-wrap","link-detail","episode-bar","watch-share","watch-links","watch-social","collection-section","similar-section","related-section"];
   // content page (videos.html) : vw-search, vw-main, vw-side (with vw-offers, vw-sugg)
   const CONTENT_BASE = ["vw-search","vw-main","vw-side"];
   // market: mkt-hero, mkt-layout (contains mkt-side + mkt-main)
   const MARKET_BASE = ["mkt-hero","mkt-layout"];
-  const DASH_BASE = ["overview","points","withdraw","playlists","links","reports","codes","iptv","views","analytics","prizes","history","settings"];
-  const PROFILE_BASE = ["home","create","posts","content","messages","search","following","blocked","settings"];
+  // dashboard: NAV_GROUPS in js/dashboard.js, groups included. The sidebar is not
+  // a flat list — «Main», «Content», «Performance», «Earnings» and «Account» are
+  // headings that own the buttons under them, and the order keeps them together.
+  const DASH_GROUPS = [
+    { key:"main",    ids:["overview","level","points"] },
+    { key:"content", ids:["upload","articles","documents","links","codes","playlists","iptv"] },
+    { key:"perf",    ids:["views","analytics","reports","history"] },
+    { key:"earn",    ids:["withdraw","prizes"] },
+    { key:"account", ids:["customize","settings"] },
+  ];
+  const DASH_BASE = DASH_GROUPS.flatMap((g)=>g.ids);
+  // profile: NAV_SECTIONS in js/profile.js (Market and Community joined the column)
+  const PROFILE_BASE = ["home","market","community","create","content","posts","messages","search","following","blocked","settings"];
+
+  const BASES = { home:HOME_BASE, watch:WATCH_BASE, content:CONTENT_BASE, market:MARKET_BASE, dashboard:DASH_BASE, profile:PROFILE_BASE };
+
+  // The saved order of the group headings (Main, Content, …), completed with any
+  // group the config does not know yet so a new group can never disappear.
+  function groupOrder(cfg){
+    const saved=(cfg && cfg.groups && Array.isArray(cfg.groups.dashboard)) ? cfg.groups.dashboard : [];
+    const out=saved.filter((k)=> DASH_GROUPS.some((g)=>g.key===k));
+    DASH_GROUPS.forEach((g)=>{ if(!out.includes(g.key)) out.push(g.key); });
+    return out;
+  }
+
+  /* Insert the sections a saved order is missing, next to the neighbours the
+     site gives them — not at the end. A config saved before Articles and
+     Documents existed therefore keeps its taste and gains them where they
+     belong, and the same rule keeps every style preset complete. */
+  function normalizeOrder(page, arr){
+    const base=BASES[page]||[];
+    const list=Array.isArray(arr)? arr.slice() : [];
+    const kept=list.filter((id)=> base.includes(id) || (typeof id==="string" && id.startsWith("shortcut-")));
+    base.forEach((id, i)=>{
+      if(kept.includes(id)) return;
+      let pos=-1;
+      for(let j=i-1;j>=0;j--){ const at=kept.indexOf(base[j]); if(at>=0){ pos=at; break; } }
+      if(pos<0) kept.unshift(id); else kept.splice(pos+1,0,id);
+    });
+    return kept;
+  }
 
   // Presets per style — each "mimics" that platform/system's section priority
   const PRESETS = {
     default:{ home:HOME_BASE.slice(), watch:WATCH_BASE.slice(), content:CONTENT_BASE.slice(), market:MARKET_BASE.slice(), dashboard:DASH_BASE.slice(), profile:PROFILE_BASE.slice(), label:"الافتراضي — ترتيب CineAura المعتمد", desc:"الترتيب الأصلي للموقع" },
-    facebook:{ home:["hero","live-updates","whats-new","movies","series","features","videos","search","trust","home-market","iptv","prizes","points-levels","prizes-strip","app","plans","support"], watch:["title-info","watch-providers","player-wrap","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","reports","messages","points","playlists","links","codes","iptv","views","analytics","prizes","withdraw","history","settings"], profile:["home","posts","messages","following","search","content","create","blocked","settings"], label:"فيسبوك — نفس ترتيب الأقسام في فيسبوك", desc:"الخلاصة أولاً ثم المجموعات" },
-    youtube:{ home:["hero","live-updates","search","movies","series","videos","iptv","whats-new","features","home-market","trust","points-levels","prizes-strip","prizes","app","plans","support"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","views","analytics","points","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["content","posts","home","create","search","messages","following","blocked","settings"], label:"يوتيوب — نفس ترتيب يوتيوب", desc:"الفيديو والاقتراحات أولاً" },
-    instagram:{ home:["hero","live-updates","movies","series","videos","whats-new","home-market","search","features","trust","iptv","points-levels","prizes","app","plans","support","prizes-strip"], watch:["player-wrap","title-info","watch-social","watch-links","directors-section","cast-section","watch-providers","collection-section","similar-section","related-section"], dashboard:["overview","points","prizes","playlists","views","analytics","links","reports","codes","iptv","withdraw","history","settings"], profile:["home","posts","create","search","following","messages","content","blocked","settings"], label:"انستغرام — شبكة مربعة", desc:"الصور/الفيديو ثم الاستكشاف" },
-    netflix:{ home:["hero","live-updates","movies","series","iptv","videos","whats-new","home-market","features","search","trust","points-levels","prizes-strip","prizes","app","plans","support"], watch:["player-wrap","title-info","watch-links","watch-providers","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","prizes","history","playlists","links","views","analytics","reports","codes","iptv","withdraw","settings"], profile:["home","posts","content","messages","following","search","create","blocked","settings"], label:"نتفليكس — صفوف سينمائية", desc:"صفوف أفلام أفقية أولاً" },
-    prime:{ home:["trust","live-updates","search","hero","movies","series","videos","iptv","home-market","whats-new","features","points-levels","prizes-strip","prizes","app","plans","support"], watch:["watch-providers","player-wrap","title-info","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","prizes","playlists","links","views","analytics","iptv","codes","reports","withdraw","history","settings"], profile:["home","posts","content","messages","create","search","following","blocked","settings"], label:"أمازون برايم — متجر ومشاهدة", desc:"البحث والعروض أولاً" },
-    appletv:{ home:["hero","live-updates","search","whats-new","movies","series","videos","iptv","app","home-market","trust","points-levels","features","prizes","prizes-strip","plans","support"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","playlists","links","prizes","reports","codes","iptv","withdraw","history","settings"], profile:["home","content","posts","create","messages","search","following","blocked","settings"], label:"آبل تيفي — داكن بسيط", desc:"المحتوى المميز في الوسط" },
-    win7:{ home:["search","live-updates","trust","hero","whats-new","features","movies","series","videos","iptv","home-market","points-levels","prizes","prizes-strip","app","plans","support"], watch:["title-info","player-wrap","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["home","posts","content","create","search","messages","following","blocked","settings"], label:"ويندوز 7 — إيرو", desc:"شريط البحث ثم النافذة الوسطية" },
-    win8:{ home:["hero","live-updates","features","whats-new","movies","series","videos","search","iptv","home-market","trust","points-levels","prizes","prizes-strip","app","plans","support"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","playlists","links","reports","codes","iptv","views","analytics","prizes","withdraw","history","settings"], profile:["home","posts","content","messages","search","following","blocked","create","settings"], label:"ويندوز 8 — ميترو بلاطات", desc:"بلاطات مسطحة أولاً" },
-    win10:{ home:["hero","live-updates","trust","search","whats-new","features","movies","series","videos","iptv","home-market","points-levels","prizes","prizes-strip","app","plans","support"], watch:["title-info","player-wrap","watch-links","watch-social","watch-providers","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","prizes","playlists","links","reports","codes","iptv","withdraw","history","settings"], profile:["home","posts","content","messages","search","following","create","blocked","settings"], label:"ويندوز 10 — فلوينت", desc:"القائمة الجانبية مع بحث" },
-    win11:{ home:["hero","live-updates","search","trust","whats-new","features","movies","series","videos","home-market","iptv","points-levels","prizes-strip","prizes","app","plans","support"], watch:["title-info","player-wrap","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["home","create","posts","content","search","messages","following","blocked","settings"], label:"ويندوز 11 — ميكا متوسط", desc:"موسّط ومستدير" },
-    macos:{ home:["hero","live-updates","trust","search","whats-new","features","movies","series","videos","iptv","home-market","points-levels","prizes","prizes-strip","app","plans","support"], watch:["title-info","player-wrap","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","analytics","views","points","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["home","posts","content","create","messages","search","following","blocked","settings"], label:"ماك أو إس — شفاف", desc:"شريط علوي شفاف" },
-    android:{ home:["hero","live-updates","search","movies","series","videos","whats-new","features","iptv","home-market","trust","points-levels","prizes","prizes-strip","app","plans","support"], watch:["player-wrap","title-info","watch-links","watch-social","watch-providers","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","playlists","links","reports","codes","iptv","views","analytics","prizes","withdraw","history","settings"], profile:["home","posts","content","create","search","messages","following","blocked","settings"], label:"أندرويد — ماتريال", desc:"درج جانبي" },
-    ios:{ home:["hero","live-updates","search","movies","series","videos","trust","whats-new","features","home-market","iptv","points-levels","prizes","prizes-strip","app","plans","support"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","playlists","links","prizes","reports","codes","iptv","analytics","withdraw","history","settings"], profile:["home","posts","create","content","search","messages","following","blocked","settings"], label:"آي أو إس — بلور سفلي", desc:"تبويب سفلي" },
+    facebook:{ home:["hero","live-updates","movies","series","features","videos","search","trust","home-market","iptv","prizes","points-levels","app","plans","support","platforms"], watch:["title-info","watch-providers","player-wrap","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","reports","messages","points","playlists","links","codes","iptv","views","analytics","prizes","withdraw","history","settings"], profile:["home","posts","messages","following","search","content","create","blocked","settings"], label:"فيسبوك — نفس ترتيب الأقسام في فيسبوك", desc:"الخلاصة أولاً ثم المجموعات" },
+    youtube:{ home:["hero","live-updates","search","movies","series","videos","iptv","features","home-market","trust","points-levels","prizes","app","plans","support","platforms"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","views","analytics","points","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["content","posts","home","create","search","messages","following","blocked","settings"], label:"يوتيوب — نفس ترتيب يوتيوب", desc:"الفيديو والاقتراحات أولاً" },
+    instagram:{ home:["hero","live-updates","movies","series","videos","home-market","search","features","trust","iptv","points-levels","prizes","app","plans","support","platforms"], watch:["player-wrap","title-info","watch-social","watch-links","directors-section","cast-section","watch-providers","collection-section","similar-section","related-section"], dashboard:["overview","points","prizes","playlists","views","analytics","links","reports","codes","iptv","withdraw","history","settings"], profile:["home","posts","create","search","following","messages","content","blocked","settings"], label:"انستغرام — شبكة مربعة", desc:"الصور/الفيديو ثم الاستكشاف" },
+    netflix:{ home:["hero","live-updates","movies","series","iptv","videos","home-market","features","search","trust","points-levels","prizes","app","plans","support","platforms"], watch:["player-wrap","title-info","watch-links","watch-providers","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","prizes","history","playlists","links","views","analytics","reports","codes","iptv","withdraw","settings"], profile:["home","posts","content","messages","following","search","create","blocked","settings"], label:"نتفليكس — صفوف سينمائية", desc:"صفوف أفلام أفقية أولاً" },
+    prime:{ home:["trust","live-updates","search","hero","movies","series","videos","iptv","home-market","features","points-levels","prizes","app","plans","support","platforms"], watch:["watch-providers","player-wrap","title-info","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","prizes","playlists","links","views","analytics","iptv","codes","reports","withdraw","history","settings"], profile:["home","posts","content","messages","create","search","following","blocked","settings"], label:"أمازون برايم — متجر ومشاهدة", desc:"البحث والعروض أولاً" },
+    appletv:{ home:["hero","live-updates","search","movies","series","videos","iptv","app","home-market","trust","points-levels","features","prizes","plans","support","platforms"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","playlists","links","prizes","reports","codes","iptv","withdraw","history","settings"], profile:["home","content","posts","create","messages","search","following","blocked","settings"], label:"آبل تيفي — داكن بسيط", desc:"المحتوى المميز في الوسط" },
+    win7:{ home:["search","live-updates","trust","hero","features","movies","series","videos","iptv","home-market","points-levels","prizes","app","plans","support","platforms"], watch:["title-info","player-wrap","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["home","posts","content","create","search","messages","following","blocked","settings"], label:"ويندوز 7 — إيرو", desc:"شريط البحث ثم النافذة الوسطية" },
+    win8:{ home:["hero","live-updates","features","movies","series","videos","search","iptv","home-market","trust","points-levels","prizes","app","plans","support","platforms"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","playlists","links","reports","codes","iptv","views","analytics","prizes","withdraw","history","settings"], profile:["home","posts","content","messages","search","following","blocked","create","settings"], label:"ويندوز 8 — ميترو بلاطات", desc:"بلاطات مسطحة أولاً" },
+    win10:{ home:["hero","live-updates","trust","search","features","movies","series","videos","iptv","home-market","points-levels","prizes","app","plans","support","platforms"], watch:["title-info","player-wrap","watch-links","watch-social","watch-providers","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","prizes","playlists","links","reports","codes","iptv","withdraw","history","settings"], profile:["home","posts","content","messages","search","following","create","blocked","settings"], label:"ويندوز 10 — فلوينت", desc:"القائمة الجانبية مع بحث" },
+    win11:{ home:["hero","live-updates","search","trust","features","movies","series","videos","home-market","iptv","points-levels","prizes","app","plans","support","platforms"], watch:["title-info","player-wrap","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","analytics","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["home","create","posts","content","search","messages","following","blocked","settings"], label:"ويندوز 11 — ميكا متوسط", desc:"موسّط ومستدير" },
+    macos:{ home:["hero","live-updates","trust","search","features","movies","series","videos","iptv","home-market","points-levels","prizes","app","plans","support","platforms"], watch:["title-info","player-wrap","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","analytics","views","points","playlists","links","reports","codes","iptv","prizes","withdraw","history","settings"], profile:["home","posts","content","create","messages","search","following","blocked","settings"], label:"ماك أو إس — شفاف", desc:"شريط علوي شفاف" },
+    android:{ home:["hero","live-updates","search","movies","series","videos","features","iptv","home-market","trust","points-levels","prizes","app","plans","support","platforms"], watch:["player-wrap","title-info","watch-links","watch-social","watch-providers","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","playlists","links","reports","codes","iptv","views","analytics","prizes","withdraw","history","settings"], profile:["home","posts","content","create","search","messages","following","blocked","settings"], label:"أندرويد — ماتريال", desc:"درج جانبي" },
+    ios:{ home:["hero","live-updates","search","movies","series","videos","trust","features","home-market","iptv","points-levels","prizes","app","plans","support","platforms"], watch:["player-wrap","title-info","watch-providers","watch-links","watch-social","directors-section","cast-section","collection-section","similar-section","related-section"], dashboard:["overview","points","views","playlists","links","prizes","reports","codes","iptv","analytics","withdraw","history","settings"], profile:["home","posts","create","content","search","messages","following","blocked","settings"], label:"آي أو إس — بلور سفلي", desc:"تبويب سفلي" },
   };
 
   function getStyle(){ try{const s=localStorage.getItem("cineaura_style"); if(VALID_STYLES.includes(s)) return s;}catch{} return "default"; }
   function mergeMissing(cfg){
-    // Auto-upgrade saved config when new sections (e.g. live-updates) are added
-    const bases={ home:HOME_BASE, watch:WATCH_BASE, content:CONTENT_BASE, market:MARKET_BASE, dashboard:DASH_BASE, profile:PROFILE_BASE };
-    for(const page of Object.keys(bases)){
+    // Auto-upgrade saved config when new sections (Articles, Documents, …) appear
+    if(!cfg || !cfg.pages) return cfg;
+    for(const page of Object.keys(BASES)){
       if(!cfg.pages[page] || !Array.isArray(cfg.pages[page])) continue;
-      const base=bases[page];
-      const missing=base.filter(id=> !cfg.pages[page].includes(id));
-      if(missing.length){
-        // insert new sections after first known position: trust for home, otherwise append
-        for(const mid of missing){
-          if(page==='home'){
-            const trustIdx=cfg.pages.home.indexOf('trust');
-            const pos= trustIdx>=0 ? trustIdx+1 : 1;
-            cfg.pages.home.splice(pos,0,mid);
-          } else {
-            cfg.pages[page].push(mid);
-          }
-        }
-      }
+      cfg.pages[page]=normalizeOrder(page, cfg.pages[page]);
     }
     return cfg;
   }
@@ -82,7 +108,7 @@
     // fallback to preset for current style
     const st=getStyle();
     const preset=PRESETS[st]||PRESETS.default;
-    return { preset:st, pages:{ home:preset.home.slice(), watch:preset.watch.slice(), content:preset.content.slice(), market:preset.market.slice(), dashboard:preset.dashboard.slice(), profile:preset.profile.slice() }, shortcuts:{}, pins:[] };
+    return mergeMissing({ preset:st, pages:{ home:preset.home.slice(), watch:preset.watch.slice(), content:preset.content.slice(), market:preset.market.slice(), dashboard:preset.dashboard.slice(), profile:preset.profile.slice() }, shortcuts:{}, pins:[] });
   }
   function saveConfig(cfg){
     try{ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }catch{}
@@ -96,7 +122,7 @@
   function resetToPreset(styleId){
     styleId = VALID_STYLES.includes(styleId)? styleId : getStyle();
     const p=PRESETS[styleId]||PRESETS.default;
-    const cfg={ preset:styleId, pages:{ home:p.home.slice(), watch:p.watch.slice(), content:p.content.slice(), market:p.market.slice(), dashboard:p.dashboard.slice(), profile:p.profile.slice() }, shortcuts:{}, pins:[] };
+    const cfg=mergeMissing({ preset:styleId, pages:{ home:p.home.slice(), watch:p.watch.slice(), content:p.content.slice(), market:p.market.slice(), dashboard:p.dashboard.slice(), profile:p.profile.slice() }, shortcuts:{}, pins:[] });
     saveConfig(cfg);
     return cfg;
   }
@@ -141,11 +167,19 @@
       else others.push(ch);
     });
     // Also handle #hero section special (id hero)
-    // Re-append in order
-    order.forEach(id=>{
-      const el=byId[id];
-      if(el) main.appendChild(el);
-    });
+    // Re-append in order — but only when the sequence truly differs (text
+    // selection dies the moment a node is re-parented, even into place).
+    const desired=order.filter(id=>byId[id]);
+    if(!sequenceMatches(main, desired, (ch)=>{
+      if(ch.id && order.includes(ch.id)) return ch.id;
+      if(ch.classList.contains("trust") && order.includes("trust")) return "trust";
+      return null;
+    })){
+      order.forEach(id=>{
+        const el=byId[id];
+        if(el) main.appendChild(el);
+      });
+    }
     // Ensure trust handled (it is a div not section, class trust)
     // If order contains trust but not found as id, find .trust
     if(order.includes("trust")){
@@ -168,10 +202,17 @@
     if(playerWrap) map["player-wrap"]=playerWrap;
     // also handle shortcut ids
     [...root.children].forEach(ch=>{ if(ch.id && ch.id.startsWith("shortcut-")) map[ch.id]=ch; });
-    order.forEach(id=>{
-      const el=map[id];
-      if(el) root.appendChild(el);
-    });
+    // Only move when the order differs (moving a node kills text selection).
+    const wanted=order.filter(id=>map[id]);
+    if(!sequenceMatches(root, wanted, (ch)=>{
+      if(ch.classList && ch.classList.contains("player-wrap") && order.includes("player-wrap")) return "player-wrap";
+      return (ch.id && map[ch.id]===ch && order.includes(ch.id)) ? ch.id : null;
+    })){
+      order.forEach(id=>{
+        const el=map[id];
+        if(el) root.appendChild(el);
+      });
+    }
   }
   function applyGenericOrder(containerSel, order, idAttr){
     const cont=document.querySelector(containerSel);
@@ -183,10 +224,17 @@
       if(key && order.includes(key)) map[key]=ch;
       if(ch.id && ch.id.startsWith("shortcut-")) map[ch.id]=ch;
     });
-    order.forEach(id=>{
-      const el=map[id];
-      if(el) cont.appendChild(el);
-    });
+    // Only move when the order differs (moving a node kills text selection).
+    const wanted=order.filter(id=>map[id]);
+    if(!sequenceMatches(cont, wanted, (ch)=>{
+      const key=ch.id || ch.getAttribute(idAttr)||"";
+      return (key && map[key]===ch && order.includes(key)) ? key : null;
+    })){
+      order.forEach(id=>{
+        const el=map[id];
+        if(el) cont.appendChild(el);
+      });
+    }
   }
 
   function injectSideShortcuts(page, cfg){
@@ -258,37 +306,48 @@
       });
     });
   }
-  function applyDashboardOrder(order){
+  function applyDashboardOrder(order, groups){
     const nav=document.querySelector("#dash-root .side-nav");
     if(!nav) return;
-    const byKey={};
-    [...nav.children].forEach(btn=>{
-      const k=btn.getAttribute("data-section")||btn.getAttribute("data-sec")||btn.dataset.sec||btn.dataset.section||"";
-      if(k) byKey[k]=btn;
+    const btns={}, heads={};
+    [...nav.children].forEach((el)=>{
+      const sec=el.getAttribute("data-section");
+      if(sec) btns[sec]=el;
+      const grp=el.getAttribute("data-grp");
+      if(grp) heads[grp]=el;
     });
-    if(Object.keys(byKey).length===0){
-      [...nav.querySelectorAll("button")].forEach(b=>{
-        const t=b.textContent.trim().toLowerCase();
-        order.forEach(k=>{ if(t.includes(k)) byKey[k]=b; });
-      });
+    // the arrangement the member saved, then any heading the page renders that
+    // the config does not know (a group added after the config was saved)
+    const gOrder=(Array.isArray(groups)? groups : []).filter((k)=> DASH_GROUPS.some((g)=>g.key===k));
+    DASH_GROUPS.forEach((g)=>{ if(heads[g.key] && !gOrder.includes(g.key)) gOrder.push(g.key); });
+
+    // one sequence of nodes: heading, then the buttons that belong under it.
+    // A button whose group is unknown (a future section) keeps its place at the end.
+    const seq=[];
+    gOrder.forEach((key)=>{
+      const def=DASH_GROUPS.find((g)=>g.key===key);
+      if(!def) return;
+      if(heads[key]) seq.push({ tag:"#"+key, el:heads[key] });
+      const wanted=(order||[]).filter((id)=> def.ids.includes(id) && btns[id]);
+      def.ids.forEach((id)=>{ if(btns[id] && !wanted.includes(id)) wanted.push(id); });
+      wanted.forEach((id)=> seq.push({ tag:id, el:btns[id] }));
+    });
+    const placed=new Set(seq.map((x)=>x.el).filter(Boolean));
+    [...nav.children].forEach((el)=>{ if(!placed.has(el)) seq.push({ tag:null, el }); });
+
+    // Skip the DOM work when the nav is already in that order — moving nodes
+    // collapses any text selection the member has on the page.
+    const current=[...nav.children].map((el)=>{
+      const g=el.getAttribute("data-grp");
+      if(g) return "#"+g;
+      return el.getAttribute("data-section") || null;
+    });
+    const same = seq.length===current.length && seq.every((x,i)=> x.tag===current[i]);
+    if(!same){
+      const frag=document.createDocumentFragment();
+      seq.forEach((x)=>{ if(x.el) frag.appendChild(x.el); });
+      nav.appendChild(frag);
     }
-    // Overview is always the first menu button, whatever the style preset / saved order says.
-    // Sections the order does not list (e.g. "level") stay right after it; anything that is not
-    // a section button (Panel link, injected shortcuts) is kept at the end instead of jumping up.
-    const finalOrder=["overview"].concat((order||[]).filter(k=>k!=="overview"));
-    const extras=[...nav.children].filter(el=>{
-      const k=el.getAttribute("data-section")||el.getAttribute("data-sec")||el.dataset.sec||el.dataset.section||"";
-      return !k || !finalOrder.includes(k);
-    });
-    const unlisted=extras.filter(el=> el.hasAttribute("data-section") || el.hasAttribute("data-sec"));
-    const others=extras.filter(el=> !unlisted.includes(el));
-    const frag=document.createDocumentFragment();
-    if(byKey.overview) frag.appendChild(byKey.overview);
-    unlisted.forEach(el=> frag.appendChild(el));
-    finalOrder.forEach(k=>{ if(k!=="overview" && byKey[k]) frag.appendChild(byKey[k]); });
-    others.forEach(el=> frag.appendChild(el));
-    nav.appendChild(frag);
-    // inject shortcuts after reordering
     try{ const cfg=loadConfig(); injectSideShortcuts("dashboard", cfg); }catch{}
   }
 
@@ -297,10 +356,30 @@
     if(!nav) return;
     const map={};
     [...nav.querySelectorAll("button[data-sec]")].forEach(b=> map[b.dataset.sec]=b);
-    order.forEach(k=>{ const el=map[k]; if(el) nav.appendChild(el); });
+    // No-op when the nav already matches — re-parenting kills text selection.
+    const current=[...nav.querySelectorAll("button[data-sec]")].map(b=> b.dataset.sec);
+    const wanted=order.filter(k=> map[k]);
+    const same= wanted.length===current.length && wanted.every((k,i)=> k===current[i]);
+    if(!same){
+      order.forEach(k=>{ const el=map[k]; if(el) nav.appendChild(el); });
+    }
     try{ const cfg=loadConfig(); injectSideShortcuts("profile", cfg); }catch{}
   }
 
+  /* Selection-safe DOM moves: removing and re-appending a node collapses any
+     text selection anchored in it. Before any reorder, compare the current
+     sequence with the target one and touch the DOM only when it differs. */
+  function sequenceMatches(container, desired, keyOf){
+    if(!container) return false;
+    const keys=[];
+    for(const ch of container.children){
+      const k=keyOf(ch);
+      if(k!=null) keys.push(k);
+    }
+    if(keys.length!==desired.length) return false;
+    for(let i=0;i<desired.length;i++){ if(keys[i]!==desired[i]) return false; }
+    return true;
+  }
   function applyHidden(cfg, page){
     // Respect hidden sections saved via editor: hide them outside edit mode
     try{
@@ -308,7 +387,7 @@
       if(!hidden || !hidden.length) return;
       hidden.forEach(id=>{
         const el=document.getElementById(id);
-        if(el) { el.hidden=true; el.style.display="none"; }
+        if(el && !el.hidden) { el.hidden=true; el.style.display="none"; }
       });
     }catch{}
   }
@@ -385,7 +464,7 @@
     if(page==="watch") applyWatchOrder(cfg.pages.watch||PRESETS.default.watch);
     if(page==="content") applyGenericOrder("#vw-root .vw-layout", cfg.pages.content||PRESETS.default.content, "id");
     if(page==="market") applyGenericOrder("#mkt-root", cfg.pages.market||PRESETS.default.market, "id");
-    if(page==="dashboard") applyDashboardOrder(cfg.pages.dashboard||PRESETS.default.dashboard);
+    if(page==="dashboard") applyDashboardOrder(cfg.pages.dashboard||PRESETS.default.dashboard, groupOrder(cfg));
     if(page==="profile") applyProfileOrder(cfg.pages.profile||PRESETS.default.profile);
     // Apply hidden (skip when in edit mode — editor handles its own visibility)
     if(!document.documentElement.classList.contains("ce-editing-root")){
@@ -424,6 +503,8 @@
   function removePin(tmdbId){ let a=getPins().filter(x=>x!==tmdbId); setPins(a); }
 
   function applyPins(pins){
+    // homepage rails only: main.page-main is also #dash-root and #prof-root
+    if(detectPage()!=="home") return;
     const main=document.querySelector("main.page-main");
     if(!main || !pins || !pins.length) return;
     let rail=document.getElementById("home-pins-rail");
@@ -482,6 +563,11 @@
   function init(){
     // Try hydrate then apply
     hydrateFromProfile().finally(()=> applyAll());
+    // The dashboard paints its sidebar asynchronously; when it says so, the saved
+    // order is applied at once instead of waiting for the MutationObserver.
+    document.addEventListener("cineaura:dash-nav", ()=>{
+      try{ applyAll(); }catch{}
+    });
     // Re-apply on style change
     document.addEventListener("cineaura:prefs", (e)=>{
       if(e.detail && e.detail.style){
@@ -519,6 +605,6 @@
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 
-  window.CineAuraLayouts={ PRESETS, HOME_BASE, WATCH_BASE, DASH_BASE, PROFILE_BASE, getStyle, loadConfig, saveConfig, resetToPreset, resetToDefault, applyAll, detectPage, getPins, setPins, addPin, removePin, VALID_STYLES };
+  window.CineAuraLayouts={ PRESETS, HOME_BASE, WATCH_BASE, CONTENT_BASE, MARKET_BASE, DASH_BASE, DASH_GROUPS, PROFILE_BASE, BASES, normalizeOrder, groupOrder, getStyle, loadConfig, saveConfig, resetToPreset, resetToDefault, applyAll, detectPage, getPins, setPins, addPin, removePin, VALID_STYLES };
 
 })();

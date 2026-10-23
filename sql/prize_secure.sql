@@ -269,7 +269,7 @@ begin
   insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
   select s.member_id, p_kind, note_title,
          coalesce(nullif(m.username, ''), p_member) || ' · ' || p.title,
-         case when p_kind = 'prize_claim' then './Panel.html?section=prizes&tab=claims' else './Panel.html?section=prizes' end,
+         case when p_kind = 'prize_claim' then './panel.html?section=prizes&tab=claims' else './panel.html?section=prizes' end,
          p_member, coalesce(m.username, '')
   from public.staff s
   where s.role in ('super', 'admin', 'moderator')
@@ -290,7 +290,7 @@ begin
   if coalesce(p.status, 'active') = 'ended' then return 0; end if;
   insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
   select m.member_id, 'prize_new', 'New prize available', p.title,
-         './Prize.html?GroupPrize=' || coalesce(p.group_id, 0)::text || '&Prize=' || p.id::text,
+         './prize.html?GroupPrize=' || coalesce(p.group_id, 0)::text || '&Prize=' || p.id::text,
          '', ''
   from public.members m
   where coalesce(m.member_id, '') <> '' and lower(coalesce(m.status, '')) = 'active'

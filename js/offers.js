@@ -1,4 +1,4 @@
-/* CineAura — sponsored offers on Content.html (the offers feed of the ad network).
+/* CineAura — sponsored offers on video.html (the offers feed of the ad network).
 
    The feed (FEED) answers with a list of offers:
      [{ id, name, anchor, conversion, url, network_icon, payout, ... }, ...]   (10 at most)

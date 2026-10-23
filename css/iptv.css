@@ -1,7 +1,7 @@
 /* ==========================================================
-   Members' IPTV lists (sql/iptv_lists.sql): IPTV.html (js/iptv.js), the cards and the
-   publish dialog (js/iptv-lists.js), Search.html > Channels, Dashboard > IPTV > Your
-   lists and the list header of Listchannels.html. Colours come from the theme
+   Members' IPTV lists (sql/iptv_lists.sql): iptv.html (js/iptv.js), the cards and the
+   publish dialog (js/iptv-lists.js), search.html > Channels, Dashboard > IPTV > Your
+   lists and the list header of listchannels.html. Colours come from the theme
    variables (facebook.css loads last).
    ========================================================== */
 
@@ -9,7 +9,7 @@
 .ipl-dialog [hidden],
 .ipl-dash [hidden] { display: none !important; }
 
-/* ---------- IPTV.html ---------- */
+/* ---------- iptv.html ---------- */
 .ipl-hero-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; }
 .ipl-hero-text { min-width: 0; flex: 1 1 320px; display: grid; gap: 6px; }
 .ipl-hero-top p { margin: 0; color: var(--muted); max-width: 760px; }
@@ -93,7 +93,7 @@ html[data-theme="day"] .ipl-badge.is-private { color: #5a3fd1; }
 .ipl-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
 .ipl-actions .btn { gap: 6px; }
 
-/* ---------- Search.html > Channels ---------- */
+/* ---------- search.html > Channels ---------- */
 .ipl-chs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 10px; }
 .ipl-ch {
   min-width: 0;
@@ -252,7 +252,7 @@ html[dir="rtl"] .ipl-chip { padding: 3px 10px 3px 4px; }
 .ipl-dialog-foot { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--line); margin-top: 10px; }
 .ipl-dialog.is-busy .ipl-dialog-body { opacity: 0.7; }
 
-/* ---------- Listchannels.html?list= ---------- */
+/* ---------- listchannels.html?list= ---------- */
 .ipl-head-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 .ipl-head-meta a.ipl-back { color: var(--cyan); text-decoration: none; font-weight: 600; }
 .ipl-head-meta a.ipl-back:hover { text-decoration: underline; }

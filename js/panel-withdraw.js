@@ -4,7 +4,7 @@
  *              sent, rejected, cancelled, all; a search by request, member, name or reference).
  *              Each card: the member, the amount to send, the payment details in full (each one
  *              copied with a click), whether the name of the payment is the name of the account,
- *              where the member stands today (level, membership, age of the account).
+ *              where the member stands today (level & its membership ceiling, plan, renewals).
  *              Approve (the transfer is on its way), Mark as sent (the reference of the transfer:
  *              the MTCN of Western Union, the bank reference — the member reads it), Reject (a
  *              reason the member reads; the points come back unless the team keeps them).
@@ -66,7 +66,7 @@
     const out = [];
     const c = w.checks || {};
     if (c.level != null) {
-      out.push(`<p class="pw-line muted">${esc(t("pw.atRequest", { level: c.level >= 10 ? "LV Max" : `LV${c.level}`, plan: planName(c.plan || "Free"), days: K.num(c.age_days), pts: K.num(c.available) }))}</p>`);
+      out.push(`<p class="pw-line muted">${esc(t("pw.atRequest", { level: c.level >= 10 ? "LV Max" : `LV${c.level}`, plan: planName(c.plan || "Free"), turns: K.num(c.turns ?? 0), need: K.num(c.need_turns ?? 0), pts: K.num(c.available) }))}</p>`);
     }
     if (w.decided_by && (w.status === "processing" || w.status === "paid")) {
       out.push(`<p class="pw-line">${esc(t("pw.approvedBy", { by: w.decided_by, date: K.when(w.decided_at) }))}</p>`);
@@ -101,7 +101,7 @@
           ${K.tag(w.method === "bank" ? t("wd.m.bank") : w.agency || t("wd.m.agency"))}
           ${now.plan ? K.tag(planName(now.plan)) : ""}
           ${now.level_name ? K.tag(now.level_name) : ""}
-          ${now.age_days != null ? K.tag(t("pw.ageDays", { n: K.num(now.age_days) })) : ""}
+          ${now.need_turns != null ? K.tag(t("pw.turns", { have: K.num(now.turns ?? 0), need: K.num(now.need_turns) })) : ""}
           ${w.name_match ? K.tag(t("pw.nameOk"), "st-resolved") : K.tag(t("pw.nameDiff", { name: m.full_name || "—" }), "st-open")}
           ${open && now.ok === false ? K.tag(t(now.account && now.account !== "ok" ? "pw.accountOff" : "pw.notEligible"), "mkr-susp") : ""}
         </div>

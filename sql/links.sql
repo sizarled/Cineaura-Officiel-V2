@@ -159,3 +159,87 @@ comment on column public.movielink.url_hidden is 'true = the platform URL is hid
 comment on column public.tvlink.url_hidden is 'true = the platform URL is hidden from visitors';
 comment on column public.movielink.quality is 'Playback qualities, comma separated (SD, HD, FHD, 2K, 4K, 8K)';
 comment on column public.tvlink.quality is 'Playback qualities, comma separated (SD, HD, FHD, 2K, 4K, 8K)';
+
+-- ── Official-link hiding (panel) ───────────────────────────────────────────
+-- From Panel → links the staff can hide the site's official (default) player on
+-- a title or a scope of it. A row is (type, TMDB id, season?, episode?):
+--
+--   id only              the whole movie / every season and episode of the series
+--   + season             every episode of that season
+--   + episode            every episode carrying that number, in every season
+--   + season + episode   exactly that episode
+--
+-- Where the official link is hidden the most-viewed member watch link takes the
+-- play button instead; the type and the id are required, season and episode are
+-- optional. Nothing is deleted — removing the row restores the player.
+
+create table if not exists public.official_link_hides (
+  id bigint generated always as identity primary key,
+  media_type text not null check (media_type in ('movie','tv')),
+  tmdb_id integer not null,
+  season integer,
+  episode integer,
+  added_by text not null default '',
+  created_at timestamptz not null default now()
+);
+
+comment on table public.official_link_hides is 'Scopes where the official (default) player is hidden; null season/episode widen the scope';
+comment on column public.official_link_hides.season is 'null = every season; a number narrows (or widens per rule) the scope';
+comment on column public.official_link_hides.episode is 'null = every episode of the scope';
+
+-- one rule per (type, id, season, episode); NULLs collapse to -1 for dedupe
+create unique index if not exists official_link_hides_unique
+  on public.official_link_hides (media_type, tmdb_id, coalesce(season, -1), coalesce(episode, -1));
+
+create index if not exists official_link_hides_title
+  on public.official_link_hides (media_type, tmdb_id);
+
+alter table public.official_link_hides enable row level security;
+drop policy if exists "OfficialLinkHide select" on public.official_link_hides;
+create policy "OfficialLinkHide select" on public.official_link_hides for select to anon, authenticated using (true);
+drop policy if exists "OfficialLinkHide insert" on public.official_link_hides;
+create policy "OfficialLinkHide insert" on public.official_link_hides for insert to anon, authenticated with check (true);
+drop policy if exists "OfficialLinkHide delete" on public.official_link_hides;
+create policy "OfficialLinkHide delete" on public.official_link_hides for delete to anon, authenticated using (true);
+
+-- ── Official-link hiding (panel) ───────────────────────────────────────────
+-- From Panel → links the staff can hide the site's official (default) player on
+-- a title or a scope of it. A row is (type, TMDB id, season?, episode?):
+--
+--   id only              the whole movie / every season and episode of the series
+--   + season             every episode of that season
+--   + episode            every episode carrying that number, in every season
+--   + season + episode   exactly that episode
+--
+-- Where the official link is hidden the most-viewed member watch link takes the
+-- play button instead; the type and the id are required, season and episode are
+-- optional. Nothing is deleted — removing the row restores the player.
+
+create table if not exists public.official_link_hides (
+  id bigint generated always as identity primary key,
+  media_type text not null check (media_type in ('movie','tv')),
+  tmdb_id integer not null,
+  season integer,
+  episode integer,
+  added_by text not null default '',
+  created_at timestamptz not null default now()
+);
+
+comment on table public.official_link_hides is 'Scopes where the official (default) player is hidden; null season/episode widen the scope';
+comment on column public.official_link_hides.season is 'null = every season; a number narrows (or widens per rule) the scope';
+comment on column public.official_link_hides.episode is 'null = every episode of the scope';
+
+-- one rule per (type, id, season, episode); NULLs collapse to -1 for dedupe
+create unique index if not exists official_link_hides_unique
+  on public.official_link_hides (media_type, tmdb_id, coalesce(season, -1), coalesce(episode, -1));
+
+create index if not exists official_link_hides_title
+  on public.official_link_hides (media_type, tmdb_id);
+
+alter table public.official_link_hides enable row level security;
+drop policy if exists "OfficialLinkHide select" on public.official_link_hides;
+create policy "OfficialLinkHide select" on public.official_link_hides for select to anon, authenticated using (true);
+drop policy if exists "OfficialLinkHide insert" on public.official_link_hides;
+create policy "OfficialLinkHide insert" on public.official_link_hides for insert to anon, authenticated with check (true);
+drop policy if exists "OfficialLinkHide delete" on public.official_link_hides;
+create policy "OfficialLinkHide delete" on public.official_link_hides for delete to anon, authenticated using (true);

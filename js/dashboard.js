@@ -36,9 +36,25 @@
     bindLangPicker,
     publishWatchLink,
     linkKindOf,
+    parseLinkDump,
+    resolveLinkDumpTitles,
+    publishLinkRows,
+    publishQuota,
+    membershipBatchCap,
     AGE_TIERS,
     ageTier,
   } = C;
+  // The site's hosts: an uploaded link (StreamTape) also cleans up after
+  // itself — deleting it removes the file from the member's own folder.
+  const maybeDropUploadedFile = async (row) => {
+    try {
+      const ST = window.Streamtape;
+      if (!ST) return;
+      const r = typeof row === "string" ? JSON.parse(row || "{}") : row || {};
+      const fileId = ST.fileIdFromUrl(r.watch_url || "");
+      if (fileId) await ST.dropFileUpload(state.member.member_id, fileId);
+    } catch { /* best effort: the link itself is already gone */ }
+  };
 
   const PLAN = {
     Free: { maxCodes: 5, months: 1 },
@@ -254,6 +270,22 @@
     return map[pl.list_key] || pl.name;
   }
 
+  // The sidebar nav: the section buttons under their journey-group headings,
+  // the Panel link of the members who see it afterwards (end of the last group).
+  function dashNavHtml() {
+    const btn = (s) =>
+      `<button type="button" data-section="${s}" class="${state.section===s?"active":""}">${C.navIcon(s)}<span>${t("dash.nav."+s)}</span></button>`;
+    const parts = [];
+    NAV_GROUPS.forEach(([grp, list]) => {
+      // data-grp: the heading owns the buttons under it, so the customizer can
+      // move a whole group (Main, Content, Performance, Earnings, Account)
+      parts.push(`<p class="side-grp" role="presentation" data-grp="${grp.split(".").pop()}">${t(grp)}</p>`);
+      list.forEach((s) => parts.push(btn(s)));
+    });
+    if (state.panelVisible) parts.push(`<a href="./panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`);
+    return parts.join("\n            ");
+  }
+
   function renderShell() {
     const m = state.member;
     const p = state.profile || {};
@@ -270,17 +302,14 @@
     $("#dash-root").innerHTML = `
       <div class="dash-layout">
         <aside class="glass dash-side">
-          <a class="side-user" href="./Profile.html?@${encodeURIComponent(m.username)}">
+          <a class="side-user" href="./profile.html?@${encodeURIComponent(m.username)}">
             ${avatarTag()}
             <strong>@${escapeHtml(m.username)}</strong>
             <span>${escapeHtml(tr(p.membership_type || m.membership_type || "Free"))}</span>
             <span>${escapeHtml(m.member_id)}</span>
           </a>
           <nav class="side-nav">
-            ${SECTIONS.map((s) =>
-              `<button type="button" data-section="${s}" class="${state.section===s?"active":""}">${C.navIcon(s)}<span>${t("dash.nav."+s)}</span></button>`
-            ).join("")}
-            ${state.panelVisible ? `<a href="./Panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>` : ""}
+            ${dashNavHtml()}
           </nav>
           <div class="side-label">${t("dash.side.movies")}</div>
           <div class="side-lists">${listBtns(movies)}</div>
@@ -289,6 +318,9 @@
         </aside>
         <section class="glass dash-main" id="dash-main"></section>
       </div>`;
+    // tell the layout engine the sidebar has been repainted, so the member's
+    // order (groups included) is applied on every render, not once per page
+    document.dispatchEvent(new CustomEvent("cineaura:dash-nav"));
     $("#dash-root").onclick = onShellClick;
     C.mountSideToggle($("#dash-root .dash-layout"));
     showActiveTab();
@@ -337,6 +369,9 @@
       withdraw: viewWithdraw,
       playlists: viewPlaylists,
       links: viewLinks,
+      upload: viewUpload,
+      articles: viewArticles,
+      documents: viewDocuments,
       reports: viewReports,
       codes: viewCodes,
       iptv: viewIptv,
@@ -344,6 +379,7 @@
       analytics: viewAnalytics,
       prizes: viewPrizes,
       history: viewHistory,
+      customize: viewCustomize,
       settings: viewSettings,
     };
     await (map[state.section] || viewOverview)(main);
@@ -429,7 +465,7 @@
   async function viewOverview(main) {
     const p = state.profile || {};
     const m = state.member;
-    const plan = codeLimit();
+    const plan = await codeLimit();
     clearInterval(overviewTimer);
     main.innerHTML = `
       <p class="eyebrow">${t("dash.overview")}</p>
@@ -502,22 +538,47 @@
         <div id="ov-level-embed"><p class="muted">${t("common.loading")}</p></div>
       </section>
 
+      <section class="ov-block" aria-labelledby="ov-content-h">
+        <div class="ov-head">
+          <div>
+            <h2 id="ov-content-h">${t("dash.ov.content")}</h2>
+            <p class="muted">${t("dash.ov.contentLead")}</p>
+          </div>
+          <div class="ov-head-btns">
+            <a class="btn btn-sm btn-primary" href="./article-Editor.html">${t("dash.ar.new")}</a>
+            <button class="btn btn-sm btn-ghost" type="button" data-section="documents">${t("dash.nav.documents")}</button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><b data-ovc="ar">…</b><span>${t("dash.nav.articles")}</span></div>
+          <div class="stat"><b data-ovc="arp">…</b><span>${t("ae.pending")}</span></div>
+          <div class="stat"><b data-ovc="doc">…</b><span>${t("dash.nav.documents")}</span></div>
+          <div class="stat"><b data-ovc="docok">…</b><span>${t("dash.docs.scanned")}</span></div>
+        </div>
+        <div class="ov-head-btns">
+          <button class="btn btn-sm btn-ghost" type="button" data-section="articles">${t("dash.nav.articles")} →</button>
+          <button class="btn btn-sm btn-ghost" type="button" data-section="documents">${t("dash.docs.upload")} →</button>
+        </div>
+      </section>
+
       <section class="ov-block" id="ov-panel-block" aria-labelledby="ov-panel-h" ${state.panelVisible ? "" : "hidden"}>
         <div class="ov-head">
           <div>
             <h2 id="ov-panel-h">${t("nav.panel")}</h2>
             <p class="muted">${t("pa.ov.lead") || t("panel.ov.lead") || "Staff moderation, members and reports"}</p>
           </div>
-          <a class="btn btn-sm btn-primary" href="./Panel.html">${t("nav.panel")} →</a>
+          <a class="btn btn-sm btn-primary" href="./panel.html">${t("nav.panel")} →</a>
         </div>
-        <div class="ov-panel-body" id="ov-panel-body"><p class="muted">${t("pa.ov.lead") || "Manage members, reports, market and more"}</p><p style="margin-top:8px"><a class="btn btn-sm btn-ghost" href="./Panel.html">${t("common.open")} ${t("nav.panel")}</a></p></div>
+        <div class="ov-panel-body" id="ov-panel-body"><p class="muted">${t("pa.ov.lead") || "Manage members, reports, market and more"}</p><p style="margin-top:8px"><a class="btn btn-sm btn-ghost" href="./panel.html">${t("common.open")} ${t("nav.panel")}</a></p></div>
       </section>`;
 
     const memberId = m.member_id;
-    const [mp, codesRes, iptvRows] = await Promise.all([
+    const [mp, codesRes, iptvRows, artRes, docRes] = await Promise.all([
       C.memberPoints(memberId, state.profile || {}).catch(() => null),
       supabaseRequest(`/rest/v1/codes?owner=eq.${restValue(memberId)}&select=*&order=created_at.desc`).catch(() => ({ ok: false })),
       loadMyIptv().catch(() => null),
+      supabaseRequest(`/rest/v1/community_articles?member_id=eq.${restValue(memberId)}&select=id,status,publish_at`).catch(() => ({ ok: false })),
+      supabaseRequest(`/rest/v1/community_documents?member_id=eq.${restValue(memberId)}&select=id,scan_status`).catch(() => ({ ok: false })),
     ]);
     if (!main.isConnected || state.section !== "overview") return; // the member moved on
 
@@ -578,6 +639,19 @@
       msg.textContent = t("points.loadFail");
     }
 
+    // what the new editors published: articles (with the ones still waiting for
+    // the staff) and documents (with the ones VirusTotal cleared)
+    const arts = artRes.ok && Array.isArray(artRes.data) ? artRes.data : null;
+    const docs = docRes.ok && Array.isArray(docRes.data) ? docRes.data : null;
+    const ovc = (k, v) => {
+      const el = main.querySelector(`[data-ovc="${k}"]`);
+      if (el) el.textContent = String(v);
+    };
+    ovc("ar", arts ? arts.length : "—");
+    ovc("arp", arts ? arts.filter((a) => a.status === "pending").length : "—");
+    ovc("doc", docs ? docs.length : "—");
+    ovc("docok", docs ? docs.filter((d) => d.scan_status === "clean").length : "—");
+
     const codes = codesRes.ok && Array.isArray(codesRes.data) ? codesRes.data : null;
     const lead = main.querySelector("#ov-codes-lead");
     if (lead && codes) {
@@ -621,7 +695,7 @@
           <div class="ipx-badges">${iptvBadgesHtml(p, tm, false)}</div>
           ${iptvValidityHtml(tm, p)}
           <div class="ov-iptv-actions">
-            <a class="btn btn-sm btn-primary" href="./Listchannels.html?package=${encodeURIComponent(p.name)}">${t("dash.ov.watch")}</a>
+            <a class="btn btn-sm btn-primary" href="./listchannels.html?package=${encodeURIComponent(p.name)}">${t("dash.ov.watch")}</a>
             <button class="btn btn-sm btn-ghost" type="button" data-section="iptv">${t("dash.ov.iptvDetails")}</button>
           </div>
         </article>`;
@@ -983,7 +1057,7 @@
     $("#pl-cards").onclick = async (e) => {
       const share = e.target.closest("[data-share-pl]");
       if (share) {
-        const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}Playlist.html?ID=${share.dataset.sharePl}`;
+        const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}playlist.html?ID=${share.dataset.sharePl}`;
         try { await navigator.clipboard.writeText(url); toast(t("dash.shareCopied")); }
         catch { toast(url); }
         return;
@@ -1110,7 +1184,7 @@
       viewOnePlaylist(main, id);
     };
     $("#pl-share").onclick = async () => {
-      const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}Playlist.html?ID=${id}`;
+      const url = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}playlist.html?ID=${id}`;
       try { await navigator.clipboard.writeText(url); toast(t("dash.shareCopied")); }
       catch { toast(url); }
     };
@@ -1244,6 +1318,16 @@
           <div class="lang-picker">${langPickerHtml("lk-sub")}</div>
         </div>
         <button class="btn btn-sm btn-primary" id="lk-save" type="button">${t("dash.saveLink")}</button>
+        <!-- TXT import: many links at once, any titles, films and series. Each
+             comment line names its target and the URL follows on the next
+             line. The details above (language, subtitles, ads…) apply unless
+             a header carries its own [quality]. -->
+        <div class="sub-fields" id="lk-import-wrap">
+          <p class="muted"><strong>${t("watch.al.modeImport")}</strong> — ${t("watch.al.importHint")}</p>
+          <p class="muted" id="lk-quota"></p>
+          <textarea id="lk-import" rows="9" dir="ltr" spellcheck="false" placeholder="&lt;!--  1396 -  S1 -  Ep353 [SD] --&gt;&#10;https://example.com/ep-353&#10;&#10;&lt;!--  872585 [HD] --&gt;&#10;https://example.com/film"></textarea>
+          <button class="btn btn-sm btn-primary" id="lk-import-save" type="button">${t("watch.al.importBtn")}</button>
+        </div>
       </div>
       <h2 style="margin:22px 0 10px">${t("dash.yourMovieLinks")}</h2>
       <div id="lk-movies"></div>
@@ -1303,7 +1387,7 @@
               <div class="muted">${kindChipHtml(r, seen)} ${kind === "tv" ? `S${r.season} · E${r.episode} · ` : ""}${r.banned ? t("common.banned") + " · " : ""}${r.url_hidden ? "🔒 " + t("watch.urlHiddenChip") + " · " : ""}${escapeHtml(qualityLabel(r.quality) || r.quality || "—")} · ${escapeHtml(r.original_language || "—")} · ${r.has_subtitles ? (r.subtitle_languages === "all" ? t("dash.subsAll") : t("watch.subsYes", { langs: escapeHtml(r.subtitle_languages || "yes") })) : t("dash.noSubs")} · ${r.has_ads ? t("common.adsOn") : t("common.adsOff")} · ${Number(r.clicks || 0)} ${t("common.clicks")} · TMDB ${r.tmdb_id} · ${String(r.added_at || "").slice(0, 10)}</div>
             </a>
             <button class="btn btn-sm btn-ghost" data-toggle-url="${r.id}" data-kind="${kind}" data-hidden="${r.url_hidden ? "1" : "0"}" type="button">${r.url_hidden ? t("dash.showUrl") : t("dash.hideUrl")}</button>
-            <button class="btn btn-sm btn-ghost" data-del-link="${r.id}" data-kind="${kind}" type="button">${t("common.remove")}</button>
+            <button class="btn btn-sm btn-ghost" data-del-link="${r.id}" data-kind="${kind}" data-lk-row="${escapeHtml(JSON.stringify({ watch_url: r.watch_url || "" }))}" type="button">${t("common.remove")}</button>
           </div>`
             )
             .join("")
@@ -1311,6 +1395,97 @@
     };
     drawRows("#lk-movies", movieRows, "movie");
     drawRows("#lk-series", tvRows, "tv");
+    /* One shared gate for every publish path on this page: the level gives
+       the daily cap (LV × 10 links), the membership gives one paste's size. */
+    const linkQuotaGate = async () => {
+      const q = await publishQuota(state.member.member_id, "links");
+      if (q.cap != null && q.left <= 0) {
+        toast(t("watch.al.dayFull", { cap: q.cap, lv: q.level }));
+        return null;
+      }
+      return q;
+    };
+    const fillLinksQuotaHint = async () => {
+      const el = $("#lk-quota");
+      if (!el) return;
+      const [q, plan] = await Promise.all([publishQuota(state.member.member_id, "links"), C.membership()]);
+      if (q.cap == null) return;
+      el.textContent =
+        t("watch.al.quota", { left: q.left, cap: q.cap, lv: q.level }) +
+        " · " +
+        t("watch.al.batchCap", { n: membershipBatchCap(plan), plan: plan.premium ? plan.type || "Free" : "Free" });
+    };
+    fillLinksQuotaHint();
+
+    /* TXT import: pairs of comment + URL for any films and series, each pair
+       landing on its own title. Importing never hides the official link. */
+    $("#lk-import-save").onclick = async () => {
+      const parsed = parseLinkDump($("#lk-import")?.value || "");
+      if (!parsed.pairs.length) return toast(t("watch.al.importEmpty"));
+      const batchCap = membershipBatchCap(await C.membership());
+      const kind = $('input[name="lk-kind"]:checked')?.value || "watch";
+      const quality = selectedQualities("lk-q");
+      const urlHidden = $("#lk-urlvis")?.value === "hide";
+      const originalLanguage = $("#lk-lang").value.trim();
+      const hasSubtitles = $("#lk-subs").value === "yes";
+      const hasAds = $("#lk-ads").value === "yes";
+      if (!originalLanguage) return toast(t("dash.needLang"));
+      let subtitleLanguages = "";
+      if (hasSubtitles) {
+        subtitleLanguages = selectedLangs("lk-sub");
+        if (!subtitleLanguages) return toast(t("dash.needSubs"));
+      }
+      if (!(await C.guardFeature("links"))) return;
+      if (!(await C.guardLevel("publish_links"))) return;
+      const quota = await linkQuotaGate();
+      if (!quota) return;
+      const button = $("#lk-import-save");
+      button.disabled = true;
+      toast(t("watch.al.resolving"));
+      const resolved = await resolveLinkDumpTitles(parsed.pairs, tmdb);
+      const seen = new Set();
+      const entries = [];
+      let dup = 0;
+      let bad = parsed.bad;
+      resolved.forEach((p) => {
+        if (p.error || !p.tmdb || !p.parsed) { bad += 1; return; }
+        const key = p.url.toLowerCase();
+        if (seen.has(key)) { dup += 1; return; }
+        seen.add(key);
+        const q = p.parsed.quality || quality;
+        if (!q) { bad += 1; return; }
+        const row = {
+          tmdb_id: p.tmdb,
+          member_id: state.member.member_id,
+          username: state.member.username,
+          watch_url: p.url,
+          title: p.title || `TMDB ${p.tmdb}`,
+          quality: q,
+          original_language: originalLanguage,
+          has_subtitles: hasSubtitles,
+          subtitle_languages: subtitleLanguages,
+          has_ads: hasAds,
+          url_hidden: urlHidden,
+          link_kind: kind,
+        };
+        if (p.parsed.kind === "tv") {
+          row.season = p.parsed.season;
+          row.episode = p.parsed.episode;
+        }
+        entries.push({ table: p.parsed.kind === "tv" ? "tvlink" : "movielink", row });
+      });
+      if (!entries.length && !bad) bad = 1;
+      const left = Math.min(batchCap, quota.left ?? batchCap);
+      const toSave = entries.slice(0, left);
+      const over = entries.length - toSave.length;
+      if (!toSave.length && over) return toast(t("watch.al.dayFull", { cap: quota.cap, lv: quota.level }));
+      const res = entries.length ? await publishLinkRows(toSave) : { added: 0, dup: 0, bad: 0 };
+      button.disabled = false;
+      if (res.bad && !res.added && !res.dup && !bad) return toast(t("dash.linkFail"));
+      toast(t("watch.al.result", { added: res.added, dup: res.dup + dup, bad: res.bad + bad, over }));
+      viewLinks(main);
+    };
+
     $("#lk-save").onclick = async () => {
       if (!(await C.guardFeature("links"))) return;
       if (!(await C.guardLevel("publish_links"))) return;
@@ -1366,6 +1541,7 @@
         row.season = season;
         row.episode = episode;
       }
+      if (!(await linkQuotaGate())) return;
       // One row per chosen kind: watch, download, or both at once. A kind this
       // URL already has is skipped, so publishing "both" twice never doubles it.
       const result = await publishWatchLink(table, row, [kind]);
@@ -1399,6 +1575,7 @@
       if (!btn) return;
       const table = btn.dataset.kind === "tv" ? "tvlink" : "movielink";
       await supabaseRequest(`/rest/v1/${table}?id=eq.${btn.dataset.delLink}`, { method: "DELETE" });
+      await maybeDropUploadedFile(btn.dataset.lkRow || "");
       toast(t("dash.linkRemoved"));
       viewLinks(main);
     };
@@ -1412,6 +1589,389 @@
     bad: t("dash.rpt.bad"),
     indirect: t("dash.rpt.indirect"),
   });
+
+  /* ── Upload (round 35): the member's own video files on Streamtape. A film
+     or an episode uploads into the Movies / TV folder and is published at
+     once as a watch link of its title; a product video goes to the Market
+     folder under an ascending ordinal. Below the form, every upload of the
+     member with its delete: the Streamtape file goes, its registry row, and
+     — for a film or an episode — the watch link it became. Only the member's
+     own folder is ever touched; folders themselves are never deleted. */
+  async function viewUpload(main) {
+    const ST = window.Streamtape;
+    const productsRes = await supabaseRequest(
+      `/rest/v1/market_products?owner_id=eq.${restValue(state.member.member_id)}&status=neq.deleted&select=id,title&order=created_at.desc&limit=100`
+    );
+    const products = productsRes.ok && Array.isArray(productsRes.data) ? productsRes.data : [];
+    const regs = await supabaseRequest(
+      `/rest/v1/media_uploads?owner_id=eq.${restValue(state.member.member_id)}&select=*&order=created_at.desc&limit=200`
+    );
+    const sqlMissing = regs?.data?.code === "PGRST205";
+    const rows = regs.ok && Array.isArray(regs.data) ? regs.data : [];
+    // Panel > Plans: how many files one upload action may carry (default 1).
+    const rules = (await C.planRules?.(state.member.membership_type)) || null;
+    const batchMax = Math.max(1, Number(rules?.batchUploads) || 1);
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.nav.upload")}</p>
+      <h1>${t("up.title")}</h1>
+      <p class="muted">${t("up.lead")}</p>
+      ${sqlMissing ? `<p class="empty">${t("up.needSql")}</p>` : ""}
+      <div class="stack">
+        <div class="addlink-kinds" role="radiogroup">
+          <label class="kind-pick"><input type="radio" name="up-kind" value="movie" checked ${ST ? "" : "disabled"} /><span>${t("common.movie")}</span></label>
+          <label class="kind-pick"><input type="radio" name="up-kind" value="tv" ${ST ? "" : "disabled"} /><span>${t("common.series")}</span></label>
+          <label class="kind-pick"><input type="radio" name="up-kind" value="market" ${ST ? "" : "disabled"} /><span>${t("nav.market")}</span></label>
+        </div>
+        <div class="sub-fields" id="up-movie-box">
+          <p class="muted">${t("up.movieHint")}</p>
+          <div class="form-row">
+            <input id="up-tmdb" type="number" min="1" placeholder="${t("panel.tmdbId")}" />
+          </div>
+        </div>
+        <div class="sub-fields" id="up-tv-box" hidden>
+          <p class="muted">${t("up.tvHint")}</p>
+          <div class="form-row">
+            <input id="up-tv-tmdb" type="number" min="1" placeholder="${t("panel.tmdbId")}" />
+            <input id="up-season" type="number" min="1" max="99" placeholder="${t("common.season")}" />
+            <input id="up-episode" type="number" min="1" max="999" placeholder="${t("common.episode")}" />
+          </div>
+        </div>
+        <div class="addlink-field" id="up-q-box">
+          <span>${t("watch.al.quality")}</span>
+          <div class="lang-picker">${qualityPickerHtml("up-q")}</div>
+        </div>
+        <div class="sub-fields" id="up-market-box" hidden>
+          <p class="muted">${t("up.marketHint")}</p>
+          <select id="up-product">
+            <option value="">${t("up.pickProduct")}</option>
+            ${products.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.title || p.id)}</option>`).join("")}
+          </select>
+          <p class="muted" id="up-product-no" ${products.length ? "hidden" : ""}>${t("up.noProduct")}</p>
+        </div>
+        <div class="sub-fields">
+          <label class="addlink-field">
+            <span>${t("watch.al.uploadFile")}</span>
+            <input id="up-file" type="file" accept="video/*" ${ST ? "" : "disabled"} />
+            <p class="muted" id="up-batch-hint">${t("up.batchHint", { n: batchMax })}</p>
+          </label>
+          <div class="up-prog" id="up-prog" hidden>
+            <div class="up-prog-bar" id="up-bar"></div>
+            <span class="up-prog-n" id="up-n">0%</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-primary" id="up-go" type="button" ${ST ? "" : "disabled"}>${t("dash.nav.upload")}</button>
+      </div>
+      <h2 style="margin:22px 0 10px">${t("up.mine")}</h2>
+      <div id="up-list"></div>
+      <h2 style="margin:22px 0 10px">${t("up.folder")}</h2>
+      <p class="muted">${t("up.folderHint")}</p>
+      <div id="up-browse"></div>`;
+
+    const $ = (s) => main.querySelector(s);
+    $("#up-file").multiple = batchMax > 1;
+    /* The metadata quality of a film / an episode is one of the palette: the
+       first picked chip. */
+    const oneQuality = () => (selectedQualities("up-q").split(", ").filter(Boolean)[0] || "").trim();
+
+    $$('input[name="up-kind"]').forEach((el) => {
+      el.onchange = () => {
+        const kind = $('input[name="up-kind"]:checked')?.value || "movie";
+        $("#up-movie-box").hidden = kind !== "movie";
+        $("#up-tv-box").hidden = kind !== "tv";
+        $("#up-market-box").hidden = kind !== "market";
+        $("#up-q-box").hidden = kind === "market";
+      };
+    });
+
+    const quotaGate = async () => {
+      const q = await publishQuota(state.member.member_id, "links");
+      if (q.cap != null && q.left <= 0) {
+        toast(t("watch.al.dayFull", { cap: q.cap, lv: q.level }));
+        return null;
+      }
+      return q;
+    };
+
+    $("#up-go").onclick = async () => {
+      if (!ST) return toast(t("up.fail"));
+      const kind = $('input[name="up-kind"]:checked')?.value || "movie";
+      // the plan's batch: picked once, named and uploaded one after another
+      let files = Array.from($("#up-file")?.files || []);
+      if (!files.length) return toast(t("up.needFile"));
+      if (files.length > batchMax) {
+        toast(t("up.batchTooMany", { n: batchMax }));
+        files = files.slice(0, batchMax);
+      }
+      files = files.filter((file) =>
+        /^(video\/|application\/(mp4|x-matroska|x-msvideo))/i.test(String(file.type || "")) || /\.(mp4|mkv|avi|mov|webm|m4v|mpg|mpeg)$/i.test(String(file.name || "")));
+      if (!files.length) return toast(t("up.needVideo"));
+      // The radio says movie/tv/market; the folder grammar says movies/tv/market.
+      const folder = kind === "movie" ? "movies" : kind;
+      let tmdbId = 0;
+      let season = 0;
+      let episode = 0;
+      let quality = "";
+      let product = null;
+      if (kind === "market") {
+        product = products.find((p) => p.id === $("#up-product")?.value);
+        if (!product) return toast(t("up.pickProduct"));
+      } else {
+        tmdbId = Number($(kind === "tv" ? "#up-tv-tmdb" : "#up-tmdb")?.value) || 0;
+        if (!tmdbId) return toast(t("panel.needTmdb"));
+        quality = oneQuality();
+        if (!quality) return toast(t("up.needQuality"));
+        if (kind === "tv") {
+          season = Number($("#up-season")?.value) || 0;
+          episode = Number($("#up-episode")?.value) || 0;
+          if (!(season >= 1 && season <= 99 && episode >= 1 && episode <= 999)) return toast(t("watch.al.seBad"));
+        }
+        if (!(await quotaGate())) return;
+        // the first batch file picks up where the duplicates check says
+        const taken = kind === "tv"
+          ? await ST.tvQualityTaken(tmdbId, season, episode, quality)
+          : await ST.movieQualityTaken(quality, tmdbId);
+        if (taken.length) return toast(t("up.dupTitle"));
+        if (kind === "tv" && episode + files.length - 1 > 999) {
+          return toast(t("watch.al.seBad"));
+        }
+      }
+      // one TMDB look at most: the title under every link the batch publishes
+      let tmdbTitle = "";
+      if (kind !== "market") {
+        try {
+          const info = await tmdb(`/${kind}/${tmdbId}`, "");
+          tmdbTitle = info?.title || info?.name || "";
+        } catch { /* TMDB unreachable: the id says enough */ }
+      }
+      let marketOrdinal = null;
+      if (kind === "market") {
+        const mine = await ST.uploadsByRef("market", product.id);
+        marketOrdinal = mine.reduce((m, r) => Math.max(m, Number(r.ordinal) || 0), -1) + 1;
+      }
+      const button = $("#up-go");
+      button.disabled = true;
+      const prog = $("#up-prog");
+      const bar = $("#up-bar");
+      const nEl = $("#up-n");
+      prog.hidden = false;
+      let doneN = 0;
+      let lastFail = "";
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i];
+        // the tv batch walks the episodes up from the typed one; a film batch of
+        // more than one keeps "Part N" names apart; market ordinals follow
+        const ep = kind === "tv" ? episode + i : null;
+        let base = "";
+        if (kind === "tv") base = ST.names.tv(tmdbId, season, ep, quality);
+        else if (kind === "movie") base = ST.names.movie(quality, tmdbId) + (i ? ` Part ${i + 1}` : "");
+        else base = ST.names.market(product.id, marketOrdinal + i);
+        const paint = (n) => {
+          bar.style.width = `${n}%`;
+          nEl.textContent = files.length > 1 ? `${i + 1}/${files.length} · ${n}%` : `${n}%`;
+        };
+        paint(0);
+        const up = await ST.uploadNamed(state.member.member_id, folder, file, base, paint);
+        if (!up.ok) {
+          lastFail = up.reason === "toobig" ? "up.tooBig" : "up.fail";
+          continue;
+        }
+        /* The upload's own thumbnail: inside Home/Thumbnails there is an image
+           file that carries the very same name — it is grafted to the registry
+           row so every surface of the site can show the video's picture. */
+        let thumb = null;
+        try { thumb = await ST.thumbFor(base.replace(/\.[a-z0-9]+$/i, "")); } catch { /* no Thumbnails folder: fine */ }
+        const regOk = await ST.registerUpload({
+          owner_id: state.member.member_id,
+          owner_username: state.member.username,
+          folder,
+          name: up.name,
+          file_id: up.fileId,
+          page_url: up.pageUrl,
+          embed_url: up.embedUrl,
+          quality: quality || "",
+          tmdb_id: kind === "market" ? null : tmdbId,
+          season: kind === "tv" ? season : null,
+          episode: kind === "tv" ? ep : null,
+          ref_id: kind === "market" ? String(product.id) : "",
+          ordinal: kind === "market" ? marketOrdinal + i : null,
+          size_bytes: file.size || 0,
+          ...(thumb ? { thumb_url: thumb.pageUrl, thumb_file_id: thumb.fileId } : {}),
+        });
+        if (!regOk.ok) {
+          try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
+          lastFail = regOk.reason === "sql" ? "up.needSql" : regOk.reason === "dup" ? "up.dupTitle" : "up.fail";
+          continue;
+        }
+        /* A film or an episode becomes ordinary links of its title right away:
+           watching reads the /e/ embed address, downloading the /v/ page
+           address — both rows published, title from TMDB. One film = one pair
+           of links; the tv batch links every episode of its run. */
+        if (kind !== "market") {
+          const row = {
+            tmdb_id: tmdbId,
+            member_id: state.member.member_id,
+            username: state.member.username,
+            watch_url: up.embedUrl,
+            title: tmdbTitle || `#${tmdbId}`,
+            quality,
+            original_language: "",
+            has_subtitles: false,
+            subtitle_languages: "",
+            has_ads: false,
+            url_hidden: false,
+            link_kind: "watch",
+          };
+          if (kind === "tv") {
+            row.season = season;
+            row.episode = ep;
+          }
+          if (kind === "tv" || i === 0) {
+            await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", row, ["watch"]);
+            try {
+              await publishWatchLink(kind === "tv" ? "tvlink" : "movielink", { ...row, watch_url: up.pageUrl, link_kind: "download" }, ["download"]);
+            } catch { /* the download row is a bonus: its failure never fails the upload */ }
+          }
+        } else if (product && !(product.video_url || "")) {
+          const patch = await supabaseRequest(`/rest/v1/market_products?id=eq.${restValue(product.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ video_url: up.pageUrl }),
+          });
+          if (patch.ok) product.video_url = up.pageUrl;
+        }
+        doneN += 1;
+      }
+      prog.hidden = true;
+      button.disabled = false;
+      if (!doneN) return toast(t(lastFail || "up.fail"));
+      toast(doneN > 1 ? t("up.doneBatch", { n: doneN }) : t("up.done"));
+      $("#up-file").value = "";
+      viewUpload(main);
+    };
+
+    /* Every upload of the member, newest first, each row with its delete: the
+       film/episode link goes with the file, a product keeps its other videos. */
+    const listEl = $("#up-list");
+    const drawUploads = () => {
+      listEl.innerHTML =
+        sqlMissing
+          ? ""
+          : (rows
+              .map((r) => {
+                const chip = r.folder === "market" ? t("nav.market") : r.folder === "tv" ? t("common.series") : r.folder === "movies" ? t("common.movie") : r.folder;
+                const when = String(r.created_at || "").slice(0, 10);
+                const thumb = r.thumb_url
+                  ? `<img class="up-thumb" src="${escapeHtml(r.thumb_url)}" alt="" loading="lazy" onerror="this.remove()" />`
+                  : `<span class="up-thumb up-thumb-none" title="${t("up.noThumb")}">✦</span>`;
+                return `
+          <div class="item-row">
+            ${thumb}
+            <a href="${escapeHtml(r.page_url || "")}" target="_blank" rel="noopener">
+              <strong>${escapeHtml(r.name || r.file_id)}</strong>
+              <div class="muted">${escapeHtml(chip)} · ${Number(r.size_bytes || 0) ? `${(Number(r.size_bytes) / 1048576).toFixed(1)} MB · ` : ""}${when}</div>
+            </a>
+            <button class="btn btn-sm btn-ghost" data-up-del="${escapeHtml(r.file_id)}" data-up-folder="${escapeHtml(r.folder)}" type="button">${t("common.remove")}</button>
+          </div>`;
+              })
+              .join("") || `<p class="empty">${t("up.empty")}</p>`);
+    };
+    drawUploads();
+    listEl.onclick = async (e) => {
+      const btn = e.target.closest("[data-up-del]");
+      if (!btn) return;
+      const row = rows.find((r) => String(r.file_id) === btn.dataset.upDel);
+      if (!row) return;
+      btn.disabled = true;
+      const table = row.folder === "tv" ? "tvlink" : row.folder === "movies" ? "movielink" : "";
+      if (table) {
+        /* The upload was published twice — the /e/ embed row for watching and
+           the /v/ page row for downloading: both leave with their file. */
+        const urls = [row.page_url, row.embed_url].filter(Boolean);
+        const filt = urls.length === 1
+          ? `watch_url=eq.${encodeURIComponent(urls[0])}`
+          : `watch_url=in.(${urls.map((u) => encodeURIComponent(u)).join(",")})`;
+        await supabaseRequest(
+          `/rest/v1/${table}?${filt}&member_id=eq.${restValue(state.member.member_id)}`,
+          { method: "DELETE" }
+        );
+      }
+      await ST.dropFileUpload(state.member.member_id, row.file_id);
+      if (row.folder === "market") {
+        // Only stay the main product video if another product video can take over.
+        const rest = await ST.uploadsByRef("market", row.ref_id);
+        const next = rest.find((x) => x.file_id !== row.file_id);
+        await supabaseRequest(`/rest/v1/market_products?id=eq.${restValue(row.ref_id)}&video_url=eq.${encodeURIComponent(row.page_url)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ video_url: next ? next.page_url : "" }),
+        });
+      }
+      toast(t("up.delDone"));
+      viewUpload(main);
+    };
+
+    /* ── browse the files of the member's OWN folder (Streamtape Users/{id}) ──
+       The walk itself never descends into another member's folder; deleting a
+       row removes the storage file and its site record (js/streamtape.js). */
+    const browseEl = $("#up-browse");
+    const prettySize = (bytes) => {
+      const n = Number(bytes) || 0;
+      if (n >= 1073741824) return `${(n / 1073741824).toFixed(2)} GB`;
+      if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
+      if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+      return `${n} B`;
+    };
+    const drawBrowse = (data) => {
+      if (!browseEl || !browseEl.isConnected) return;
+      if (!data?.ok) {
+        browseEl.innerHTML = `<p class="empty">${t("up.folderFailed")}</p>`;
+        return;
+      }
+      let total = 0;
+      browseEl.innerHTML = data.groups
+        .map((g) => {
+          total += g.files.length;
+          const rows = g.files
+            .map((f) => `
+              <div class="item-row" data-upb-row>
+                <a href="${escapeHtml(f.pageUrl)}" target="_blank" rel="noopener">
+                  <strong>${escapeHtml(f.name || f.id)}</strong>
+                  <div class="muted">${prettySize(f.size)}</div>
+                </a>
+                <button class="btn btn-sm btn-ghost" data-upb-del="${escapeHtml(f.id)}" type="button">${t("common.remove")}</button>
+              </div>`)
+            .join("");
+          return `
+            <div class="up-browse-group" data-upb-group="${escapeHtml(g.folder)}">
+              <div class="item-row up-browse-head">
+                <strong>${t(`up.folders.${g.key}`)}</strong>
+                <span class="muted" data-upb-count="${escapeHtml(g.folder)}">${t("up.folderFiles", { n: g.files.length })}</span>
+              </div>
+              ${rows || `<p class="empty" data-upb-empty="${escapeHtml(g.folder)}">${t("up.folderEmpty")}</p>`}
+            </div>`;
+        })
+        .join("");
+      if (total === 0) {
+        browseEl.insertAdjacentHTML("beforeend", `<p class="muted">${t("up.folderAllEmpty")}</p>`);
+      }
+    };
+    const loadBrowse = async () => {
+      if (!ST || !browseEl) return;
+      browseEl.innerHTML = `<p class="muted">${t("up.folderLoading")}</p>`;
+      drawBrowse(await ST.browseMemberFolders(state.member.member_id));
+    };
+    browseEl?.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-upb-del]");
+      if (!btn) return;
+      const fileId = btn.dataset.upbDel;
+      if (!window.confirm(t("up.folderDelAsk"))) return;
+      btn.disabled = true;
+      const ok = await ST.dropMyFile(state.member.member_id, fileId);
+      if (!browseEl.isConnected) return;
+      if (ok) toast(t("up.delDone"));
+      else toast(t("up.fail"));
+      loadBrowse();
+    });
+    loadBrowse();
+  }
 
   async function viewReports(main) {
     const incoming = await supabaseRequest(
@@ -1446,12 +2006,16 @@
       ${mineOut.length ? mineOut.map((r) => rowHtml(r, "out")).join("") : `<p class="empty">${t("dash.noReportsOut")}</p>`}`;
   }
 
-  function codeLimit() {
+  async function codeLimit() {
+    // Panel > Plans wins; the local table stands in for a site that has not
+    // deployed sql/plans_settings.sql yet.
+    const rules = await C.planRules?.(state.member.membership_type);
+    if (rules) return { maxCodes: rules.codesMax, months: rules.codeMonths };
     return PLAN[state.member.membership_type] || PLAN.Free;
   }
 
   async function viewCodes(main) {
-    const plan = codeLimit();
+    const plan = await codeLimit();
     const res = await supabaseRequest(
       `/rest/v1/codes?owner=eq.${restValue(state.member.member_id)}&select=*&order=created_at.desc`
     );
@@ -1780,9 +2344,31 @@
       if (!ip) return toast(t("dash.needIp"));
       const btn = $("#save-code");
       btn.disabled = true;
+      const age = $("#new-age").value || "adult";
+      // The server decides the count and the lifetime from the member's plan
+      // (code_create, sql/plans_settings.sql); an install without the function
+      // falls back to the legacy REST insert below.
+      const via = await supabaseRequest("/rest/v1/rpc/code_create", {
+        method: "POST",
+        body: JSON.stringify({ p_member: state.member.member_id, p_code: code, p_ip: ip, p_age: age }),
+      });
+      const viaData =
+        via.ok && via.data && typeof via.data === "object" && !Array.isArray(via.data) ? via.data : null;
+      if (viaData?.ok === true) {
+        btn.disabled = false;
+        toast(t("dash.codeSavedIp", { ip }));
+        viewCodes(main);
+        return;
+      }
+      if (viaData && "reason" in viaData) {
+        btn.disabled = false;
+        if (viaData.reason === "limit") return toast(t("dash.planAllows", { n: Number(viaData.max) || plan.maxCodes }));
+        if (viaData.reason === "exists") return toast(t("dash.codeExists"));
+        if (viaData.reason === "code") return toast(t("dash.need6"));
+        return toast(t("dash.codeFail"));
+      }
       const exp = new Date();
       exp.setMonth(exp.getMonth() + plan.months);
-      const age = $("#new-age").value || "adult";
       const row = {
         owner: state.member.member_id,
         code,
@@ -2102,7 +2688,7 @@
             <div class="ipx-rows">${C.iptvDetailRows(p)}</div>
             <footer class="ipx-actions">
               ${C.iptvActionsHtml(p)}
-              <a class="btn btn-sm btn-primary" href="./Listchannels.html?package=${encodeURIComponent(p.name)}">${t("common.channels")}</a>
+              <a class="btn btn-sm btn-primary" href="./listchannels.html?package=${encodeURIComponent(p.name)}">${t("common.channels")}</a>
             </footer>
           </article>`;
     main.innerHTML = `
@@ -2165,7 +2751,7 @@
           <p>${escapeHtml(t("ipl.dashLead"))}</p>
           <div class="ipl-dash-acts">
             ${got.ok || !got.setup ? `<button class="btn btn-sm btn-primary" type="button" data-ipl-new>${plus}<span>${escapeHtml(t("ipl.publish"))}</span></button>` : ""}
-            <a class="btn btn-sm btn-ghost" href="./IPTV.html">${escapeHtml(t("ipl.pageLink"))}</a>
+            <a class="btn btn-sm btn-ghost" href="./iptv.html">${escapeHtml(t("ipl.pageLink"))}</a>
           </div>
         </div>
         ${body}`;
@@ -2663,7 +3249,7 @@
           const cap = mode ? (modeName === "lottery" ? mode.winners_needed : mode.quantity) : p.winners_needed;
           const people = cap == null || cap === "" ? `${winCount} ${t("prize.winners")}` : `${winCount}/${cap} ${t("prize.winners")}`;
           const params = new URLSearchParams({ GroupPrize: String(p.group_id ?? 0), Prize: String(p.id), mode: modeName });
-          const href = `./Prize.html?${params.toString()}`;
+          const href = `./prize.html?${params.toString()}`;
           const summary = [groupName(p), t("prize.points", { n: cost }), people, detail].filter(Boolean).join(" · ");
           const badge = row.claimReady ? `<span class="dash-prize-badge ready">${escapeHtml(t("dash.readyToClaim"))}</span>` : mode ? `<span class="dash-prize-badge mode-${escapeHtml(modeName)}">${escapeHtml(t(`prize.mode.${modeName}`))}</span>` : "";
           return `<a class="dash-prize-card glass" href="${escapeHtml(href)}">
@@ -2708,7 +3294,7 @@
     const groupCards = Object.values(groupsByName).length
       ? `<div class="dash-prize-grid">${Object.values(groupsByName).map((group) => {
           const image = /^https?:\/\//i.test(String(group.thumb || "")) ? group.thumb : initialsAvatar(group.name);
-          const href = group.id == null ? "./Prize.html" : `./Prize.html?GroupPrize=${encodeURIComponent(group.id)}`;
+          const href = group.id == null ? "./prize.html" : `./prize.html?GroupPrize=${encodeURIComponent(group.id)}`;
           return `<a class="dash-prize-group-card glass" href="${escapeHtml(href)}"><img src="${escapeHtml(image)}" alt="" loading="lazy" /><span><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(t("dash.nPrizes", { n: group.count }))}</small></span></a>`;
         }).join("")}</div>`
       : `<p class="empty">${escapeHtml(t("dash.noGroups"))}</p>`;
@@ -2725,7 +3311,7 @@
           const fallback = initialsAvatar(title || "CineAura");
           const modeName = R.lc(c.mode);
           const query = p ? new URLSearchParams({ GroupPrize: String(p.group_id ?? 0), Prize: String(p.id), ...(R.MODES.includes(modeName) ? { mode: modeName } : {}) }) : null;
-          const href = query ? `./Prize.html?${query.toString()}` : "";
+          const href = query ? `./prize.html?${query.toString()}` : "";
           const meta = [R.MODES.includes(modeName) ? t(`prize.mode.${modeName}`) : "", t("pza.paid", { n: Number(c.points_paid || 0) })].filter(Boolean).join(" · ");
           const thumb = `<img src="${escapeHtml(p ? imageOf(p) : fallback)}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fallback)}'" />`;
           return `<article class="pzc-item is-${st}" data-claim="${escapeHtml(c.id)}">
@@ -2770,6 +3356,269 @@
       </div>
       ${tabs.map((tab) => `<section class="follow-pane dash-prize-pane" data-dpane="prize-${tab.id}" hidden><h2>${escapeHtml(tab.label)}</h2>${tab.pane}</section>`).join("")}`;
     wireTabs(main, "prizeModes");
+  }
+
+  /* ---------- Articles: the ones this member wrote (article-Editor.html) ----------
+     The editor itself is never rebuilt here — the dashboard lists what it saved
+     and sends the member back to the one editor. */
+  function dashWhen(iso) {
+    const ms = Date.parse(iso || "");
+    if (!ms) return "";
+    const mins = Math.round((Date.now() - ms) / 60000);
+    if (mins < 1) return t("dash.ar.now");
+    if (mins < 60) return t("dash.ar.mins", { n: mins });
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return t("dash.ar.hours", { n: hours });
+    const days = Math.round(hours / 24);
+    if (days < 31) return t("dash.ar.days", { n: days });
+    return String(iso).slice(0, 10);
+  }
+
+  function articleState(a) {
+    if (a.status === "draft") return "draft";
+    if (a.status === "pending") return "pending";
+    if (a.publish_at && Date.parse(a.publish_at) > Date.now()) return "scheduled";
+    return "published";
+  }
+
+  async function viewArticles(main) {
+    const m = state.member;
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.ar.eyebrow")}</p>
+      <h1>${t("dash.nav.articles")}</h1>
+      <p class="muted">${t("dash.ar.lead")}</p>
+      <div class="dash-acts">
+        <a class="btn btn-primary" href="./article-Editor.html">${C.navIcon("create")}<span>${t("dash.ar.new")}</span></a>
+        <a class="btn btn-ghost" href="./articles.html">${t("dash.ar.browse")}</a>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><b data-ar="all">…</b><span>${t("dash.ar.all")}</span></div>
+        <div class="stat"><b data-ar="published">…</b><span>${t("ae.published")}</span></div>
+        <div class="stat"><b data-ar="pending">…</b><span>${t("ae.pending")}</span></div>
+        <div class="stat"><b data-ar="views">…</b><span>${t("dash.ar.views")}</span></div>
+      </div>
+      <div id="dash-ar-list"><p class="muted">${t("common.loading")}</p></div>`;
+    const box = main.querySelector("#dash-ar-list");
+    const res = await supabaseRequest(
+      `/rest/v1/community_articles?member_id=eq.${restValue(m.member_id)}&select=*&order=updated_at.desc&limit=100`
+    ).catch(() => ({ ok: false }));
+    if (!main.isConnected || state.section !== "articles") return;
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    if (!res.ok) {
+      box.innerHTML = `<p class="empty">⚠ ${t("dash.ar.fail")}</p>`;
+      return;
+    }
+    const count = (k) => rows.filter((a) => articleState(a) === k).length;
+    const set = (k, v) => {
+      const el = main.querySelector(`[data-ar="${k}"]`);
+      if (el) el.textContent = String(v);
+    };
+    set("all", rows.length);
+    set("published", count("published") + count("scheduled"));
+    set("pending", count("pending"));
+    set("views", rows.reduce((n, a) => n + Number(a.views || 0), 0));
+
+    if (!rows.length) {
+      box.innerHTML = `<p class="empty">${t("dash.ar.none")}</p>`;
+      return;
+    }
+    const stateLabel = { draft: t("ae.draft"), pending: t("ae.pending"), scheduled: t("ae.scheduled"), published: t("ae.published") };
+    const placeLabel = (p) => String(p || "content").split("+").map((x) => (x === "help" ? t("ae.inHelp") : t("ae.inContent"))).join(" · ");
+    box.innerHTML = `<div class="dash-ar-grid">${rows
+      .map((a) => {
+        const st = articleState(a);
+        const mine = a.member_id === m.member_id;
+        const cover = a.thumb
+          ? `<img class="dash-ar-cover" src="${escapeHtml(a.thumb)}" alt="" loading="lazy" />`
+          : `<span class="dash-ar-cover is-empty" aria-hidden="true">${C.navIcon("posts")}</span>`;
+        return `<article class="glass dash-ar is-${st}">
+          ${cover}
+          <div class="dash-ar-body">
+            <div class="dash-ar-top">
+              <strong>${escapeHtml(a.title || t("ae.untitled"))}</strong>
+              <span class="dash-ar-st is-${st}">${stateLabel[st]}</span>
+            </div>
+            ${a.description ? `<p class="muted dash-ar-desc">${escapeHtml(a.description)}</p>` : ""}
+            <p class="muted dash-ar-meta">${escapeHtml(placeLabel(a.places))} · ${escapeHtml(t("pm.vis." + (a.visibility || "public")))} · 👁 ${Number(a.views || 0)} · ${escapeHtml(dashWhen(a.updated_at || a.created_at))}</p>
+            <div class="dash-ar-acts">
+              ${mine ? `<a class="btn btn-sm btn-ghost" href="./article-Editor.html?edit=${encodeURIComponent(a.id)}">${t("ae.edit")}</a>` : ""}
+              ${st === "published" || st === "scheduled"
+                ? `<a class="btn btn-sm btn-primary" href="./articles.html?id=${encodeURIComponent(a.id)}">${t("dash.ar.read")}</a>`
+                : `<span class="muted">${st === "pending" ? t("dash.ar.waiting") : t("dash.ar.draftHint")}</span>`}
+            </div>
+          </div>
+        </article>`;
+      })
+      .join("")}</div>`;
+  }
+
+  /* ---------- Documents: the same list and the same uploader as the Studio ---- */
+  function docSize(bytes) {
+    const n = Number(bytes || 0);
+    if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
+    if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+    return `${n} B`;
+  }
+
+  async function viewDocuments(main) {
+    const m = state.member;
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.docs.eyebrow")}</p>
+      <h1>${t("dash.nav.documents")}</h1>
+      <p class="muted">${t("dash.docs.lead")}</p>
+      <div class="stat-row">
+        <div class="stat"><b data-doc="n">…</b><span>${t("dash.docs.all")}</span></div>
+        <div class="stat"><b data-doc="size">…</b><span>${t("dash.docs.size")}</span></div>
+        <div class="stat"><b data-doc="views">…</b><span>${t("dash.ar.views")}</span></div>
+        <div class="stat"><b data-doc="scans">…</b><span>${t("dash.docs.scanned")}</span></div>
+      </div>
+      <details class="ov-more dash-doc-upload">
+        <summary>${t("dash.docs.upload")}</summary>
+        <p class="muted">${t("dash.docs.uploadLead")}</p>
+        <div id="dash-doc-up"></div>
+      </details>
+      <h2 class="dash-doc-h">${t("dash.docs.mine")}</h2>
+      <div id="dash-doc-list"><p class="muted">${t("common.loading")}</p></div>`;
+    const list = main.querySelector("#dash-doc-list");
+    const upBox = main.querySelector("#dash-doc-up");
+    const load = async () => {
+      if (!main.isConnected) return;
+      const res = await supabaseRequest(
+        `/rest/v1/community_documents?member_id=eq.${restValue(m.member_id)}&select=id,size_bytes,views,downloads,likes,scan_status&limit=200`
+      ).catch(() => ({ ok: false }));
+      const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+      const set = (k, v) => {
+        const el = main.querySelector(`[data-doc="${k}"]`);
+        if (el) el.textContent = String(v);
+      };
+      set("n", rows.length);
+      set("size", docSize(rows.reduce((n, r) => n + Number(r.size_bytes || 0), 0)));
+      set("views", rows.reduce((n, r) => n + Number(r.views || 0), 0));
+      set("scans", rows.filter((r) => r.scan_status === "clean").length);
+      if (!window.CineAuraDocs) {
+        list.innerHTML = `<p class="empty">⚠ ${t("doc.loadFail")}</p>`;
+        return;
+      }
+      // the Studio's own list, so there is exactly one document tool
+      window.CineAuraDocs.renderManage(list, m.member_id, { onRemoved: load });
+    };
+    if (window.CineAuraDocs) {
+      // the Studio's own uploader: VirusTotal gate, buckets and all
+      window.CineAuraDocs.renderUpload(upBox, { member: m, onDone: load });
+    } else {
+      upBox.innerHTML = `<p class="empty">⚠ ${t("doc.loadFail")}</p>`;
+    }
+    await load();
+  }
+
+  /* ---------- Site customization: one panel, four surfaces ---------------
+     The engine is js/customizer.js + js/layouts.js (loaded by prefs.js). This
+     section is the dashboard's door to it: it shows what is customized right
+     now and opens the very same panel on the tab that was asked for — it does
+     not re-implement ordering, colours or pins. */
+  function whenCustomizer(timeout = 2500) {
+    return new Promise((resolve) => {
+      const t0 = Date.now();
+      const tick = () => {
+        if (window.CineAuraLayouts && window.CineAuraCustomizer) return resolve(true);
+        if (Date.now() - t0 > timeout) return resolve(false);
+        setTimeout(tick, 80);
+      };
+      tick();
+    });
+  }
+
+  async function viewCustomize(main) {
+    const styleName = {
+      default: "Cineaura", facebook: "Facebook", youtube: "YouTube", instagram: "Instagram",
+      netflix: "Netflix", prime: "Prime Video", appletv: "Apple TV+", win7: "Windows 7",
+      win8: "Windows 8", win10: "Windows 10", win11: "Windows 11", macos: "macOS",
+      android: "Android", ios: "iOS",
+    };
+    const card = (key, tab, icon, title, lead) => `
+      <button class="glass dash-cust-card" type="button" data-cust="${key}" data-cust-tab="${tab}">
+        <span class="dash-cust-ic" aria-hidden="true">${icon}</span>
+        <strong>${title}</strong>
+        <span class="muted">${lead}</span>
+      </button>`;
+
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.cust.eyebrow")}</p>
+      <h1>${t("dash.cust.title")}</h1>
+      <p class="muted">${t("dash.cust.lead")}</p>
+      <div class="stat-row">
+        <div class="stat"><b data-cust-stat="style">…</b><span>${t("dash.cust.style")}</span></div>
+        <div class="stat"><b data-cust-stat="preset">…</b><span>${t("dash.cust.preset")}</span></div>
+        <div class="stat"><b data-cust-stat="pins">…</b><span>${t("dash.cust.pins")}</span></div>
+        <div class="stat"><b data-cust-stat="icons">…</b><span>${t("dash.cust.icons")}</span></div>
+      </div>
+      <div class="dash-cust-grid">
+        ${card("sections", "templates", "≡", t("dash.cust.sections"), t("dash.cust.sectionsLead"))}
+        ${card("colors", "styles", "◐", t("dash.cust.colors"), t("dash.cust.colorsLead"))}
+        ${card("icons", "icons", "★", t("dash.cust.iconSet"), t("dash.cust.iconsLead"))}
+        ${card("pins", "pins", "📌", t("dash.cust.pinsTitle"), t("dash.cust.pinsLead"))}
+      </div>
+      <p class="muted dash-cust-groups" id="dash-cust-groups"></p>
+      <div class="dash-acts">
+        <button class="btn btn-primary" type="button" data-cust-open="dashboard">${t("dash.cust.open")}</button>
+        <button class="btn btn-ghost" type="button" data-cust-reset>${t("dash.cust.reset")}</button>
+      </div>
+      <p class="muted dash-cust-note" id="dash-cust-note"></p>`;
+
+    const ready = await whenCustomizer();
+    if (!main.isConnected || state.section !== "customize") return;
+    const note = main.querySelector("#dash-cust-note");
+    const set = (k, v) => {
+      const el = main.querySelector(`[data-cust-stat="${k}"]`);
+      if (el) el.textContent = String(v);
+    };
+
+    if (!ready) {
+      note.textContent = t("dash.cust.needEngine");
+      main.querySelectorAll("[data-cust], [data-cust-open], [data-cust-reset]").forEach((b) => (b.disabled = true));
+      return;
+    }
+
+    const L = window.CineAuraLayouts;
+    const cfg = L.loadConfig() || {};
+    const style = window.CineAuraCustomizer.getActiveStyle ? window.CineAuraCustomizer.getActiveStyle() : "default";
+    const pins = (L.getPins ? L.getPins() : []).length;
+    let icons = 0;
+    try {
+      icons = (JSON.parse(localStorage.getItem("cineaura_icons") || "[]") || []).length;
+    } catch {
+      icons = 0;
+    }
+    set("style", styleName[style] || style);
+    set("preset", styleName[cfg.preset] || cfg.preset || "—");
+    set("pins", pins);
+    set("icons", icons);
+
+    const open = (page, tab) => {
+      try {
+        window.CineAuraCustomizer.open({ page: page || "dashboard", tab: tab || "templates" });
+      } catch {
+        toast(t("dash.cust.needEngine"));
+      }
+    };
+    main.querySelectorAll("[data-cust]").forEach((b) => {
+      b.onclick = () => open(b.dataset.cust === "pins" ? "home" : "dashboard", b.dataset.custTab);
+    });
+    main.querySelector("[data-cust-open]").onclick = () => open("dashboard", "templates");
+    main.querySelector("[data-cust-reset]").onclick = () => {
+      const c = L.resetToDefault();
+      L.applyAll(c);
+      toast(t("dash.cust.resetDone"));
+      renderSection(); // the sidebar order may have just changed
+    };
+    // the sidebar is grouped, so the panel is too: show the order of the headings
+    const groupsEl = main.querySelector("#dash-cust-groups");
+    if (groupsEl && L.groupOrder) {
+      groupsEl.textContent = `${t("dash.cust.groups")}: ${L.groupOrder(cfg)
+        .map((k) => t("dash.grp." + k))
+        .join(" · ")}`;
+    }
+    note.textContent = t("dash.cust.note", { colors: cfg.customStyle ? t("dash.cust.on") : t("dash.cust.off") });
   }
 
   async function viewHistory(main) {
@@ -2868,8 +3717,8 @@
   //   Earn points   a points code — the serial of a points package (sql/point_codes.sql) —
   //                 adds the points stored with it, once
   //   Buy points    Patreon (the link is set in Panel > Settings)
-  //   Earn prizes   Prize.html, where points enter the prizes
-  //   Shop now      Market.html, where points buy the members' products
+  //   Earn prizes   prize.html, where points enter the prizes
+  //   Shop now      market.html, where points buy the members' products
   const PT_ICONS = {
     earn: '<path d="M3.5 8.5V6A1.5 1.5 0 0 1 5 4.5h14A1.5 1.5 0 0 1 20.5 6v2.5a2.5 2.5 0 0 0 0 5V16a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 16v-2.5a2.5 2.5 0 0 0 0-5z"/><path d="M14 4.5v13" stroke-dasharray="2 2"/><path d="M8 9.5l1 2 2 .3-1.5 1.4.4 2L8 14.2l-1.9 1 .4-2L5 11.8l2-.3z"/>',
     buy: '<circle cx="14.5" cy="9.5" r="5.5"/><path d="M4.5 4v16"/>',
@@ -2887,7 +3736,7 @@
       // taken by the prize team when a claim was rejected (sql/prize_claims.sql)
       penalty: t("points.mode.penalty"),
       reset: t("points.mode.reset"),
-      // Market.html (sql/market.sql): a purchase, and the points given back (negative amount)
+      // market.html (sql/market.sql): a purchase, and the points given back (negative amount)
       market: t("mkt.spendMode"),
       market_refund: t("mkt.refundMode"),
       // Dashboard > Withdraw (sql/withdrawals.sql): the points of a request, and the points back
@@ -2951,16 +3800,85 @@
         <div class="pts-actions">
           <button class="btn btn-lg btn-primary pts-act" id="pt-earn" type="button">${ptIcon("earn")}<span><b>${t("points.earnBtn")}</b><small>${t("points.earnSub")}</small></span></button>
           <a class="btn btn-lg btn-ghost pts-act" id="pt-buy" href="${escapeHtml(C.PATREON_DEFAULT)}" target="_blank" rel="noopener noreferrer">${ptIcon("buy")}<span><b>${t("points.buyBtn")}</b><small>${t("points.buySub")}</small></span></a>
-          <a class="btn btn-lg btn-ghost pts-act" id="pt-prizes" href="./Prize.html">${ptIcon("prizes")}<span><b>${t("points.prizesBtn")}</b><small>${t("points.prizesSub")}</small></span></a>
-          <a class="btn btn-lg btn-ghost pts-act" id="pt-shop" href="./Market.html">${ptIcon("shop")}<span><b>${t("points.shopBtn")}</b><small>${t("points.shopSub")}</small></span></a>
+          <a class="btn btn-lg btn-ghost pts-act" id="pt-prizes" href="./prize.html">${ptIcon("prizes")}<span><b>${t("points.prizesBtn")}</b><small>${t("points.prizesSub")}</small></span></a>
+          <a class="btn btn-lg btn-ghost pts-act" id="pt-shop" href="./market.html">${ptIcon("shop")}<span><b>${t("points.shopBtn")}</b><small>${t("points.shopSub")}</small></span></a>
         </div>
       </div>
-      <div id="pt-body"><p class="muted">${t("points.loading")}</p></div>`;
+      <div id="pt-body"><p class="muted">${t("points.loading")}</p></div>
+      <div id="mp-shop"></div>`;
     C.siteLink("patreon_points").then((url) => {
       main.querySelectorAll("#pt-buy").forEach((a) => { a.href = url; });
     });
     main.querySelector("#pt-earn").onclick = () => openEarnPoints(main);
     await drawPointsBody(main);
+    loadMembershipShop(main);
+  }
+
+  /* ── Buy a membership with POINTS (sql/membership_points.sql). The points
+     price simply equals the money price × the withdrawal rate — tap a plan,
+     the same locked transaction as the prizes spends the points, the exact
+     helper of the activation codes hands over the months (a plan still
+     running stacks), and the expiry shows up at once. ── */
+  async function loadMembershipShop(main) {
+    const slot = main.querySelector("#mp-shop");
+    if (!slot) return;
+    const me = state.member.member_id;
+    let cat = null;
+    try {
+      const res = await C.rpc("membership_points_catalog", { p_member: me });
+      if (res.ok) cat = res.data;
+    } catch { /* the rpc did not ship yet */ }
+    if (!main.isConnected || state.section !== "points") return;
+    if (!cat || !cat.ok) {
+      slot.innerHTML = `<p class="mp-missing muted">${t("ptsShop.missing")}</p>`;
+      return;
+    }
+    slot.innerHTML = `
+      <section class="pt-box mp-cat" aria-label="${escapeHtml(t("ptsShop.title"))}">
+        <div class="pt-head"><span>${escapeHtml(t("ptsShop.title"))}</span></div>
+        <p class="muted pts-sub">${escapeHtml(t("ptsShop.sub"))}</p>
+        <div class="mp-grid" id="mp-grid"></div>
+      </section>`;
+    const grid = slot.querySelector("#mp-grid");
+    const drawPlan = (p) => {
+      const plan = p.plan;
+      const price = Number(p.price_points || 0);
+      const same = cat.membership?.type === plan && cat.membership?.active;
+      const money = `$${Number(p.price_usd_cents || 0) / 100}`;
+      const canAfford = Number(cat.available || 0) >= price;
+      return `
+        <div class="mp-plan ${same ? "is-active" : ""}">
+          <h3 class="mp-name">${escapeHtml(t(`membership.${plan.toLowerCase()}`) === `membership.${plan.toLowerCase()}` ? plan : t(`membership.${plan.toLowerCase()}`))}</h3>
+          <p class="mp-dur">${escapeHtml(t(Number(p.months) === 1 ? "ptsShop.term1" : "ptsShop.term", { m: p.months }))}</p>
+          <p class="mp-money">${escapeHtml(money)}</p>
+          <p class="mp-price">${escapeHtml(t("ptsShop.price", { n: price }))}</p>
+          ${cat.membership?.active && same
+            ? `<p class="mp-active">${escapeHtml(t("ptsShop.activeUntil", { d: String(cat.membership.expires_at || "").slice(0, 10) }))}</p>`
+            : ""}
+          <button class="btn btn-sm ${canAfford ? "btn-primary" : "btn-ghost"} mp-buy" data-plan="${plan}" type="button" ${canAfford ? "" : "disabled"}>${escapeHtml(t(same ? "ptsShop.extend" : "ptsShop.buy"))}</button>
+        </div>`;
+    };
+    grid.innerHTML = (cat.plans || []).map(drawPlan).join("");
+    grid.querySelectorAll(".mp-buy").forEach((btn) => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        let out = null;
+        try {
+          const res = await C.rpc("membership_buy_with_points", { p_member: me, p_plan: btn.dataset.plan });
+          if (res.ok) out = res.data;
+        } catch { out = null; }
+        btn.disabled = false;
+        if (out?.ok) {
+          toast(t(out.extended ? "ptsShop.boughtExt" : "ptsShop.bought", { plan: btn.dataset.plan, d: String(out.expires_at || "").slice(0, 10) }));
+          drawPointsBody(main);
+          loadMembershipShop(main);
+          return;
+        }
+        if (out?.reason === "no_points") toast(t("ptsShop.noPoints", { p: Number(out.price || 0), a: Number(out.available || 0) }));
+        else if (out?.reason === "setup") toast(t("ptsShop.missing"));
+        else toast(t("ptsShop.fail"));
+      };
+    });
   }
 
   async function drawPointsBody(main) {
@@ -3117,7 +4035,7 @@
           ${r.level_up ? `<p class="pts-ok-level">${t("points.newLevel", { level: escapeHtml(r.level_name || ""), n: Number(r.multiplier || 1) })}</p>` : ""}
           <div class="pts-ok-actions">
             <button class="btn btn-lg btn-primary" type="button" data-close>${t("points.done")}</button>
-            <a class="btn btn-lg btn-ghost" href="./Prize.html">${t("points.prizesBtn")}</a>
+            <a class="btn btn-lg btn-ghost" href="./prize.html">${t("points.prizesBtn")}</a>
           </div>
         </div>`;
       ov.querySelector(".pts-ok [data-close]").focus();
@@ -3162,7 +4080,9 @@
   }
 
   // ---------- Withdraw: points exchanged for real money (js/withdraw.js, sql/withdrawals.sql) ----------
-  // LV3 and an account old enough for its membership (Free 12 months, Silver 6, Gold 3, Diamond 1);
+  // LV5+ (the membership is the level's ceiling) and enough renewals of the current paid
+  // membership (Silver 12, Gold 6, Diamond 1; Free never); the least a request asks for
+  // follows the level (LV5 5,000 PT … LV10 160,000).
   // a bank transfer or a money transfer agency such as Western Union.
   async function viewWithdraw(main) {
     const W = window.CineAuraWithdraw;
@@ -3278,6 +4198,7 @@
       </div>
       <div class="stack">
         <div class="follow-pane stack" data-dpane="set0">
+          <p class="muted dash-set-note">${t("dash.settings.profNote")} <a class="btn btn-sm btn-ghost" href="./profile.html?section=settings">${t("prof.settings")}</a></p>
           ${C.avatarFieldHtml({ id: "s-avatar", value: p.avatar_url || "", name: m.username, memberId: m.member_id })}
           <input id="s-name" value="${escapeHtml(m.full_name||"")}" placeholder="${t("common.displayName")}" />
           <textarea id="s-bio" placeholder="${t("common.bio")}">${escapeHtml(p.bio||"")}</textarea>
@@ -3304,6 +4225,11 @@
               <option value="nl">${t("lang.nl")}</option>
               <option value="it">${t("lang.it")}</option>
             </select>
+          </div>
+          <div class="set-site stack">
+            <span class="sset-lbl">${t("dash.nav.customize")}</span>
+            <p class="sset-hint">${t("dash.cust.lead")}</p>
+            <button class="btn btn-sm btn-ghost" type="button" data-section="customize">${t("dash.cust.open")} →</button>
           </div>
           <div class="set-site stack">
             <span class="sset-lbl" id="s-style-lbl">${t("set.style")}</span>
@@ -3439,7 +4365,19 @@
 
   // "points" (Earn points / Buy points / Earn prizes / Shop now, the sources and the spends) moved here from the profile;
   // "withdraw": points exchanged for money (js/withdraw.js, sql/withdrawals.sql)
-  const SECTIONS = ["overview","level","points","withdraw","playlists","links","reports","codes","iptv","views","analytics","prizes","history","settings"];
+  // The sidebar groups the member journey: Main (account summary) → Content
+  // (the tools) → Performance (the numbers) → Earnings (rewards & payouts) →
+  // Account (settings, then the staff-only Panel link). Group headings render
+  // between them (hidden in the phone strip). SECTIONS is their flat union and
+  // feeds the router (dashboard.html#codes, #iptv-lists …).
+  const NAV_GROUPS = [
+    ["dash.grp.main", ["overview", "level", "points"]],
+    ["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]],
+    ["dash.grp.perf", ["views", "analytics", "reports", "history"]],
+    ["dash.grp.earn", ["withdraw", "prizes"]],
+    ["dash.grp.account", ["customize", "settings"]],
+  ];
+  const SECTIONS = NAV_GROUPS.flatMap((g) => g[1]);
   // dashboard.html#claims: Prizes > Prize claims (where the claim notifications lead)
   // dashboard.html#devices: Codes > Linked devices (named by the watch page)
   // dashboard.html#iptv-lists: IPTV > Your lists
@@ -3526,7 +4464,7 @@
     const nav = $("#dash-root .side-nav");
     if (nav) {
       nav.querySelector("[data-panel-link]")?.remove();
-      if (visible) nav.insertAdjacentHTML("beforeend", `<a href="./Panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`);
+      if (visible) nav.insertAdjacentHTML("beforeend", `<a href="./panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`);
     }
     const ovPanel = document.querySelector("#ov-panel-block");
     if (ovPanel) ovPanel.hidden = !visible;

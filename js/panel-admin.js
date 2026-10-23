@@ -71,9 +71,10 @@
     const v = Math.max(0, Math.min(100, Number(pct) || 0));
     return v >= 10 ? String(Math.floor(v)) : String(Math.floor(v * 10) / 10);
   };
+  // the badge of the unified balance tier (N1 … B3): the colour follows the letter
   const tierHtml = (tier) =>
     tier && tier.code
-      ? `<span class="mkt-tier t-${esc(tier.code)}" dir="ltr" title="${esc(t("mkt.tier.badge", { code: tier.code, pct: tierPct(tier.pct), points: num(tier.points) }))}"><b>${esc(tier.code)}</b><span>${esc(tierPct(tier.pct))}%</span></span>`
+      ? `<span class="mkt-tier t-${esc(String(tier.code).slice(0, 1))}" dir="ltr" title="${esc(t("mkt.tier.badge", { code: tier.code, pct: tierPct(tier.pct), points: num(tier.points) }))}"><b>${esc(tier.code)}</b><span>${esc(tierPct(tier.pct))}%</span></span>`
       : "";
   const suspLine = (s) =>
     s ? `<p class="mkr-why pa-why">${t("pa.suspendedBy", { by: esc(s.by || "—"), date: esc(when(s.at)) })} <q>${esc(s.reason || "")}</q></p>` : "";
@@ -387,7 +388,7 @@
       placeholder: t("pa.ct.searchVideos"),
       fetch: (st, off) => rpc("content_admin", { p_kind: "videos", p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (v, i) => {
-        const href = `./Content.html?idcontent=${encodeURIComponent(v.id)}`;
+        const href = `./video.html?id=${encodeURIComponent(v.id)}`;
         return `
           <article class="crp-card pa-card${v.suspended ? " pa-susp" : ""}" data-pa-i="${i}">
             <div class="crp-top">
@@ -458,7 +459,7 @@
       placeholder: t("pa.ct.searchLists"),
       fetch: (st, off) => rpc("iptv_lists_admin", { p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (l, i) => {
-        const href = `./Listchannels.html?list=${encodeURIComponent(l.id)}`;
+        const href = `./listchannels.html?list=${encodeURIComponent(l.id)}`;
         const src = l.url || l.path || "";
         return `
           <article class="crp-card pa-card${l.suspended ? " pa-susp" : ""}" data-pa-i="${i}">
@@ -524,10 +525,10 @@
   }
 
   async function viewContent(main) {
-    const tab = ["videos", "playlists", "iptv"].includes(ctx.state.paContentTab) ? ctx.state.paContentTab : "videos";
+    const tab = ["videos", "playlists", "iptv", "articles"].includes(ctx.state.paContentTab) ? ctx.state.paContentTab : "videos";
     main.innerHTML = `
       ${head(t("panel.nav.content"), t("pa.ct.title"), t("pa.ct.lead"))}
-      ${tabsHtml("pa-ctab", [["videos", t("pa.ct.videos")], ["playlists", t("pa.ct.playlists")], ["iptv", t("pa.ct.iptv")]], tab)}
+      ${tabsHtml("pa-ctab", [["videos", t("pa.ct.videos")], ["playlists", t("pa.ct.playlists")], ["iptv", t("pa.ct.iptv")], ["articles", t("pa.ct.articles")]], tab)}
       <div class="follow-pane pa-pane" id="pa-pane"></div>`;
     main.querySelector(".pa-tabs").onclick = (e) => {
       const b = e.target.closest("[data-pa-ctab]");
@@ -535,7 +536,76 @@
       ctx.state.paContentTab = b.dataset.paCtab;
       viewContent(main);
     };
+    if (tab === "articles") return viewArticles(main.querySelector("#pa-pane"));
     await drawList(main.querySelector("#pa-pane"), contentCfg[tab]());
+  }
+
+  // ---------------------------------------------------------------- Articles
+  // Staff write with the very same editor members use (article-Editor.html), and the
+  // Help submissions waiting for a decision are handled here.
+  async function viewArticles(pane) {
+    pane.innerHTML = `
+      <div class="pa-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <a class="btn btn-sm btn-primary" href="./article-Editor.html">${esc(t("pa.ct.newArticle"))}</a>
+        <span class="muted" style="font-size:13px">${esc(t("pa.ct.articlesLead"))}</span>
+      </div>
+      <div id="pa-arts"><p class="muted">${esc(t("common.loading"))}</p></div>`;
+    const res = await C.supabaseRequest(
+      "/rest/v1/community_articles?select=id,title,member_id,status,visibility,places,created_at,publish_at&order=created_at.desc&limit=100"
+    );
+    const box = pane.querySelector("#pa-arts");
+    if (!res.ok) return (box.innerHTML = `<p class="empty">${esc(t("pa.ct.articlesFail"))}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    if (!rows.length) return (box.innerHTML = `<p class="empty">${esc(t("pa.ct.articlesNone"))}</p>`);
+    const pending = rows.filter((r) => r.status === "pending");
+    const card = (r) => `
+      <article class="crp-card pa-card" data-art="${esc(r.id)}">
+        <div class="crp-title">
+          <h3><a href="./articles.html?id=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${esc(r.title)}</a></h3>
+          <p>${esc(r.member_id)} · ${esc(when(r.created_at))} · ${esc(r.visibility || "public")}</p>
+        </div>
+        <div class="crp-tags">
+          ${tag(r.status)}
+          ${String(r.places || "").includes("help") ? tag("Help") : ""}
+          ${r.publish_at && new Date(r.publish_at) > new Date() ? tag(t("pa.ct.scheduledFor", { date: when(r.publish_at) })) : ""}
+        </div>
+        <div class="crp-actions">
+          <a class="btn btn-sm btn-ghost" href="./article-Editor.html?edit=${encodeURIComponent(r.id)}">${esc(t("ae.edit"))}</a>
+          ${r.status === "pending" ? `<button class="btn btn-sm btn-primary" type="button" data-art-act="approve">${esc(t("pa.ct.approve"))}</button>
+          <button class="btn btn-sm btn-danger" type="button" data-art-act="reject">${esc(t("pa.ct.reject"))}</button>` : ""}
+        </div>
+        <div data-pa-slot></div>
+      </article>`;
+    box.innerHTML =
+      (pending.length ? `<h3 style="margin:6px 0 10px">${esc(t("pa.ct.pendingN", { n: pending.length }))}</h3>` + pending.map(card).join("") : "") +
+      `<h3 style="margin:14px 0 10px">${esc(t("pa.ct.allArticles"))}</h3>` +
+      rows.map(card).join("");
+    box.onclick = async (e) => {
+      const b = e.target.closest("[data-art-act]");
+      if (!b) return;
+      const id = b.closest("[data-art]").dataset.art;
+      const approve = b.dataset.artAct === "approve";
+      b.disabled = true;
+      // the review row is the trace; the article changes only when it lands
+      const log = await C.supabaseRequest("/rest/v1/community_article_reviews", {
+        method: "POST",
+        body: JSON.stringify({ article_id: Number(id), reviewer_id: ctx.state.staff?.member_id || "", decision: approve ? "approved" : "rejected" }),
+      });
+      if (!log.ok) {
+        b.disabled = false;
+        return toast(t("pa.ct.reviewFail"));
+      }
+      const upd = await C.supabaseRequest(`/rest/v1/community_articles?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: approve ? "published" : "draft" }),
+      });
+      if (!upd.ok) {
+        b.disabled = false;
+        return toast(t("pa.ct.reviewFail"));
+      }
+      toast(approve ? t("pa.ct.approved") : t("pa.ct.rejected"));
+      viewArticles(pane);
+    };
   }
 
   // ================================================================ Market
@@ -548,11 +618,11 @@
     stores: () => ({
       key: "mk-stores",
       filters: [["all", t("pa.f.all")], ["open", t("pa.mk.open")], ["closed", t("pa.mk.closed")], ["suspended", t("pa.f.suspended")]],
-      sorts: [["new", t("pa.s.new")], ["old", t("pa.s.old")], ["sales", t("pa.s.salesPoints")], ["products", t("pa.s.products")]],
+      sorts: [["new", t("pa.s.new")], ["old", t("pa.s.old")], ["balance", t("pa.s.balance")], ["sales", t("pa.s.salesPoints")], ["products", t("pa.s.products")]],
       placeholder: t("pa.mk.searchStores"),
       fetch: (st, off) => rpc("market_admin_stores", { p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (s, i) => {
-        const href = `./Market.html?Store=${encodeURIComponent(s.id)}`;
+        const href = `./market.html?Store=${encodeURIComponent(s.id)}`;
         return `
           <article class="crp-card pa-card${s.suspended ? " pa-susp" : ""}" data-pa-i="${i}">
             <div class="crp-top">
@@ -561,6 +631,7 @@
                 <h3><a href="${href}" target="_blank" rel="noopener">${esc(s.name)}</a> ${tierHtml(s.tier)}</h3>
                 <p>${who(s.owner)} · <span dir="ltr">${esc(s.id)}</span> · ${esc([s.city, s.country].filter(Boolean).join(", "))} · ${esc(day(s.created_at))}</p>
                 <p class="pa-stats">${t("pa.mk.storeStats", { products: num(s.products), sales: num(s.sales), points: pt(s.sales_points), orders: num(s.open_orders) })}</p>
+                ${s.balance !== undefined ? `<p class="pa-stats">${t("pa.mk.storeBalance", { balance: pt(s.balance), capital: pt(s.capital), held: pt(s.held) })}</p>` : ""}
               </div>
             </div>
             <div class="crp-tags">
@@ -612,7 +683,7 @@
       placeholder: t("pa.mk.searchProducts"),
       fetch: (st, off) => rpc("market_admin_products", { p_filter: st.filter, p_q: st.q, p_sort: st.sort, p_limit: PAGE, p_offset: off }),
       card: (p, i) => {
-        const href = `./Market.html?Product=${encodeURIComponent(p.id)}`;
+        const href = `./market.html?Product=${encodeURIComponent(p.id)}`;
         const susp = p.status === "suspended";
         return `
           <article class="crp-card pa-card${susp ? " pa-susp" : ""}" data-pa-i="${i}">
@@ -671,7 +742,7 @@
       lead: t("pa.mk.ordersLead"),
       fetch: (st, off) => rpc("market_admin_orders", { p_filter: st.filter, p_q: st.q, p_limit: PAGE, p_offset: off }),
       card: (o, i) => {
-        const href = `./Market.html?Product=${encodeURIComponent(o.product_id)}`;
+        const href = `./market.html?Product=${encodeURIComponent(o.product_id)}`;
         const paid = Boolean(o.settled_at);
         const can = Array.isArray(o.can) ? o.can : [];
         const staff = o.staff;
@@ -729,7 +800,7 @@
         <article class="crp-card pa-card pa-cat" data-pa-i="${i}">
           <div class="crp-top">
             <div class="crp-title">
-              <h3><a href="./Market.html?Categories=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${esc(c.name)}</a></h3>
+              <h3><a href="./market.html?Categories=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${esc(c.name)}</a></h3>
               <p><span dir="ltr">${esc(c.id)}</span> · ${t("pa.mk.catBy", { name: c.by?.username ? "@" + esc(c.by.username) : "—" })} · ${esc(day(c.created_at))}</p>
             </div>
             <span class="crp-count">${t("pa.mk.catCount", { n: num(c.products) })}</span>
@@ -1214,7 +1285,7 @@
       <form class="pa-form-grid" id="pa-bform">
         <label class="wide"><span>${t("pa.an.text")} <small class="muted" id="pa-bcount"></small></span>
           <textarea name="text" rows="2" maxlength="280" placeholder="${esc(t("pa.an.textPh"))}" dir="auto">${esc(b.text || "")}</textarea></label>
-        <label><span>${t("pa.an.link")}</span><input name="link" type="text" maxlength="500" value="${esc(b.link || "")}" placeholder="./Market.html" dir="ltr" /></label>
+        <label><span>${t("pa.an.link")}</span><input name="link" type="text" maxlength="500" value="${esc(b.link || "")}" placeholder="./market.html" dir="ltr" /></label>
         <label><span>${t("pa.an.linkLabel")}</span><input name="link_label" type="text" maxlength="40" value="${esc(b.link_label || "")}" placeholder="${esc(t("pa.an.linkLabelPh"))}" dir="auto" /></label>
         <label><span>${t("pa.an.tone")}</span><select name="tone">${TONES.map((x) => `<option value="${x}"${x === b.tone ? " selected" : ""}>${t(`pa.an.tone.${x}`)}</option>`).join("")}</select></label>
         <label><span>${t("pa.an.starts")}</span><input name="starts_at" type="datetime-local" value="${esc(localInput(b.starts_at))}" /></label>
@@ -1258,7 +1329,7 @@
       <form class="pa-form-grid" id="pa-aform">
         <label class="wide"><span>${t("pa.an.aTitle")}</span><input name="title" type="text" maxlength="120" required placeholder="${esc(t("pa.an.aTitlePh"))}" dir="auto" /></label>
         <label class="wide"><span>${t("pa.an.aBody")}</span><textarea name="body" rows="3" maxlength="500" placeholder="${esc(t("pa.an.aBodyPh"))}" dir="auto"></textarea></label>
-        <label><span>${t("pa.an.link")}</span><input name="href" type="text" maxlength="500" placeholder="./Market.html" dir="ltr" /></label>
+        <label><span>${t("pa.an.link")}</span><input name="href" type="text" maxlength="500" placeholder="./market.html" dir="ltr" /></label>
         <label><span>${t("pa.an.audience")}</span>
           <select name="audience">
             <option value="all">${t("pa.an.aud.all")}</option>

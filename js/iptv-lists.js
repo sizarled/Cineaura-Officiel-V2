@@ -1,29 +1,29 @@
 /* CineAura — the IPTV lists that members publish (sql/iptv_lists.sql).
  *
- * Shared by IPTV.html (search box, the lists, "Publish a list"), Dashboard > IPTV >
- * Your lists, Search.html > Channels and Listchannels.html?list=IPL… (the channels of a
+ * Shared by iptv.html (search box, the lists, "Publish a list"), Dashboard > IPTV >
+ * Your lists, search.html > Channels and listchannels.html?list=IPL… (the channels of a
  * list with the channel player).
  *
  *   L.openForm({ list, onSaved })  the publish / edit dialog: name, description, the
  *                                  playlist (a link, or an .m3u file uploaded to Storage:
- *                                  bucket IPTV, folder Playlist), the programme guide and
+ *                                  bucket source, folder IPTV), the programme guide and
  *                                  who sees the list (public / exclusive / private)
  *   L.refresh(list)                reads the playlist again and saves its channels
  *   L.cardHtml(list, opts)         a list as a card
- *   L.channelHtml(item)            a channel found by Search.html > Channels
+ *   L.channelHtml(item)            a channel found by search.html > Channels
  *
  * Saving reads the playlist in the browser first (a link that refuses the browser goes
  * through /api/m3u of server.py), so a list without channels is never published. The
  * names, groups, logos and types of its channels (never their links) are then saved for
- * the channel search, with the id each channel has on Listchannels.html.
+ * the channel search, with the id each channel has on listchannels.html.
  */
 (() => {
   "use strict";
   const C = window.CineAura;
   const { t, escapeHtml: esc } = C;
 
-  const BUCKET = "IPTV";
-  const FOLDER = "Playlist";
+  const BUCKET = "source";
+  const FOLDER = "IPTV";
   const MAX_FILE = 30 * 1024 * 1024; // an uploaded playlist, at most
   const CHUNK = 2000; // channels sent per request
   const MAX_INDEX = 20000; // channels kept for the search (sql/iptv_lists.sql)
@@ -73,7 +73,7 @@
   const publicUrl = (path) =>
     `${C.SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${String(path || "").split("/").map(encodeURIComponent).join("/")}`;
   const sourceUrl = (l) => (l?.source === "upload" ? (l.path ? publicUrl(l.path) : "") : String(l?.url || ""));
-  const listHref = (id) => `./Listchannels.html?list=${encodeURIComponent(id)}`;
+  const listHref = (id) => `./listchannels.html?list=${encodeURIComponent(id)}`;
   const channelHref = (item) =>
     `${listHref(item.list?.id || "")}${item.key ? `&channel=${encodeURIComponent(item.key)}` : ""}&name=${encodeURIComponent(item.name || "")}`;
   const MANAGE_HREF = "./dashboard.html#iptv-lists";
@@ -235,7 +235,7 @@
   }
 
   // ---------------------------------------------------------------- reading a playlist
-  // rows shaped like public.listchannels, each with its id on Listchannels.html
+  // rows shaped like public.listchannels, each with its id on listchannels.html
   function parse(text) {
     return C.parseM3U(text).map((r) => ({ ...r, id: C.m3uRowId(r) }));
   }
@@ -298,7 +298,7 @@
   }
 
   // read the playlist of a list again and save its channels (Dashboard: "Refresh channels",
-  // the publisher's own visit of Listchannels.html when they changed)
+  // the publisher's own visit of listchannels.html when they changed)
   async function refresh(l, opts = {}) {
     let got;
     try {
@@ -317,7 +317,7 @@
     return [...buf].map((x) => abc[x % abc.length]).join("");
   }
 
-  // IPTV/Playlist/<member id>-<20 letters>.m3u, a new name for every upload
+  // source/IPTV/<member id>-<20 letters>.m3u, a new name for every upload
   // -> { ok: true, path } | { ok: false, reason: member | big | setup | network | failed }
   async function upload(file) {
     const id = memberId();
@@ -353,7 +353,7 @@
     if (status === 413 || /maximum allowed size|too large/i.test(message)) reason = "big";
     else if ([401, 403, 404, 415].includes(status) || /row-level security|bucket not found|mime/i.test(message)) reason = "setup";
     if (reason === "setup") {
-      console.warn(`[CineAura] Playlist upload refused (${status} ${message}). Run sql/iptv_lists.sql in the Supabase SQL editor; bucket ${BUCKET} must exist and accept audio/x-mpegurl.`);
+      console.warn(`[CineAura] Playlist upload refused (${status} ${message}). Run sql/iptv_lists.sql in the Supabase SQL editor; bucket ${BUCKET}, folder ${FOLDER}, must exist and accept audio/x-mpegurl.`);
     }
     return { ok: false, reason, status, message };
   }
@@ -393,7 +393,7 @@
     return t(ERR[reason] || ERR.failed);
   }
 
-  // why Listchannels.html?list= does not open a list for this visitor
+  // why listchannels.html?list= does not open a list for this visitor
   function refusalText(r) {
     const reason = r?.reason || "not_found";
     if (reason === "followers") return t("ipl.no.followers", { name: `@${r.owner || ""}` });

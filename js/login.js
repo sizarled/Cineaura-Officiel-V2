@@ -30,7 +30,7 @@
   }
 
   // ?next=dashboard.html%23iptv — only a dashboard section, the notifications
-  // page (with its period) or a channel list (Listchannels.html?free=1,
+  // page (with its period) or a channel list (listchannels.html?free=1,
   // ?package=…) of this site is accepted as a target.
   function nextTarget() {
     const next = new URLSearchParams(location.search).get("next") || "";
@@ -150,7 +150,7 @@
           return;
         }
         if (found.row.password !== hashed && found.row.password !== password) {
-          showAlert("error", 'The password is incorrect. <a class="btn btn-sm btn-primary" href="./Rest.html" style="margin-left:8px">Recovery</a>');
+          showAlert("error", 'The password is incorrect. <a class="btn btn-sm btn-primary" href="./rest.html" style="margin-left:8px">Recovery</a>');
           return;
         }
         result = { ok: true, reason: "ok", member: found.row };
@@ -158,7 +158,7 @@
 
       // the precise refusals first: every refusal has ok: false
       if (result.reason === "bad_password") {
-        showAlert("error", `${t("login.badPass")} <a class="btn btn-sm btn-primary" href="./Rest.html" style="margin-left:8px">${t("auth.recovery")}</a>`);
+        showAlert("error", `${t("login.badPass")} <a class="btn btn-sm btn-primary" href="./rest.html" style="margin-left:8px">${t("auth.recovery")}</a>`);
         return;
       }
       if (result.reason === "banned") {

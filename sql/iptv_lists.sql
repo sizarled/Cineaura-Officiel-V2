@@ -1,18 +1,18 @@
 -- ============================================================
--- Members' IPTV lists (IPTV.html, Dashboard > IPTV > Your lists, Search.html > Channels,
--- Listchannels.html?list=IPL…)
+-- Members' IPTV lists (iptv.html, Dashboard > IPTV > Your lists, search.html > Channels,
+-- listchannels.html?list=IPL…)
 -- Run in the Supabase SQL editor AFTER profile.sql, dashboard.sql and content.sql
 -- (safe to run more than once).
 --
 -- What members can do
---   * IPTV.html: a search box and the IPTV lists (M3U playlists) that members published,
+--   * iptv.html: a search box and the IPTV lists (M3U playlists) that members published,
 --     as far as the visitor may see them. "Publish a list": a name, a description, the
---     playlist (the link of an .m3u file, or a file uploaded to Storage: bucket IPTV,
---     folder Playlist) and who sees it.
+--     playlist (the link of an .m3u file, or a file uploaded to Storage: bucket source,
+--     folder IPTV) and who sees it.
 --   * Dashboard > IPTV > Your lists: the member's own lists; open, edit, read the
 --     channels again, copy the link, delete.
---   * Listchannels.html?list=IPL…: the channels of a list with the channel player.
---   * Search.html > Channels: the channels of the public lists, and of the exclusive
+--   * listchannels.html?list=IPL…: the channels of a list with the channel player.
+--   * search.html > Channels: the channels of the public lists, and of the exclusive
 --     lists whose criteria the member meets.
 --
 -- Visibility
@@ -27,14 +27,14 @@
 --   Visitors (not signed in) never see an exclusive or a private list.
 --
 -- Uploaded files
---   The browser uploads the file to IPTV/Playlist/<member id>-<20 random letters>.m3u, a
+--   The browser uploads the file to the bucket source at IPTV/<member id>-<20 random letters>.m3u, a
 --   new name for every upload (no x-upsert). The policy at the end allows exactly that:
 --   an upload (INSERT) under such a name for a member who is not banned. No listing, no
 --   replacing, no deleting with the public key. Only the publisher and the members who
 --   may see a list get its address (iptv_list_open), so the random name keeps the file of
 --   an exclusive or private list out of sight. A file left behind by an edit or by a
---   deleted list stays in Storage (Supabase dashboard > Storage > IPTV > Playlist).
---   If the bucket limits the file types, allow audio/x-mpegurl.
+--   deleted list stays in Storage (Supabase dashboard > Storage > source > IPTV).
+--   The bucket source exists; if it limits the file types, allow audio/x-mpegurl.
 --
 -- The channels of a list (name, group, logo and type; never the stream links) are read by
 -- the publisher's browser when the list is saved, and kept in iptv_list_channels for the
@@ -92,7 +92,7 @@ create index if not exists iptv_lists_updated_idx on public.iptv_lists (updated_
 
 comment on table public.iptv_lists is 'IPTV lists (M3U playlists) published by members. Read and written through the iptv_list* functions only.';
 comment on column public.iptv_lists.m3u_url is 'source = link: the address of the playlist';
-comment on column public.iptv_lists.storage_path is 'source = upload: Playlist/<member id>-<random>.m3u in the Storage bucket IPTV';
+comment on column public.iptv_lists.storage_path is 'source = upload: IPTV/<member id>-<random>.m3u in the Storage bucket source';
 comment on column public.iptv_lists.excl_countries is 'exclusive: country codes (MA,FR,…), empty = every country';
 comment on column public.iptv_lists.excl_languages is 'exclusive: site languages (en,ar,fr,de,es,nl,it), empty = every language';
 comment on column public.iptv_lists.sig is 'Fingerprint of the channels last read (the publisher''s page reads them again when it changes)';
@@ -249,7 +249,7 @@ begin
   return 'ok';
 end $$;
 
--- A list as a card (IPTV.html, the dashboard). Its address is never part of it.
+-- A list as a card (iptv.html, the dashboard). Its address is never part of it.
 create or replace function public._iptvl_card(l public.iptv_lists, p_member text) returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
@@ -283,7 +283,7 @@ $$;
 
 -- ------------------------------------------------------------------ 3. publishing
 -- d: { id (to edit one), name, description, source: link | upload, url (link),
---      path (upload: Playlist/<member id>-<20 letters>.m3u), epg, visibility,
+--      path (upload: IPTV/<member id>-<20 letters>.m3u), epg, visibility,
 --      followers, countries, languages (exclusive), people[] (private: usernames or ids) }
 -- -> { ok: true, id, created, notified }
 --    { ok: false, reason: member | blocked | bad_request | not_found | limit | name |
@@ -330,12 +330,12 @@ begin
     end if;
   else
     pth := btrim(coalesce(d->>'path', ''));
-    if pth !~ '^Playlist/ID[0-9]{1,20}-[A-Za-z0-9]{20}\.m3u8?$' or split_part(substr(pth, 10), '-', 1) <> m.member_id then
+    if pth !~ '^IPTV/ID[0-9]{1,20}-[A-Za-z0-9]{20}\.m3u8?$' or split_part(substr(pth, 6), '-', 1) <> m.member_id then
       return jsonb_build_object('ok', false, 'reason', 'path');
     end if;
     -- the file must be there (skipped where storage.objects can't be read)
     begin
-      if not exists (select 1 from storage.objects o where o.bucket_id = 'IPTV' and o.name = pth) then
+      if not exists (select 1 from storage.objects o where o.bucket_id = 'source' and o.name = pth) then
         return jsonb_build_object('ok', false, 'reason', 'file');
       end if;
     exception when others then null;
@@ -423,7 +423,7 @@ begin
   end loop;
   if coalesce(array_length(fresh, 1), 0) > 0 and to_regclass('public.notifications') is not null then
     insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
-    select v, 'iptv_list', 'IPTV list shared with you', nm, './Listchannels.html?list=' || lid, m.member_id, m.username
+    select v, 'iptv_list', 'IPTV list shared with you', nm, './listchannels.html?list=' || lid, m.member_id, m.username
     from unnest(fresh) as v;
     get diagnostics n = row_count;
   end if;
@@ -431,7 +431,7 @@ begin
 end $$;
 
 -- The channels of a list, read by the publisher's browser: p_rows = [{ n: name, g: group,
--- l: logo, k: live | movie | series, c: key of the channel on Listchannels.html }], sent
+-- l: logo, k: live | movie | series, c: key of the channel on listchannels.html }], sent
 -- in parts of at most 2 500 from position p_start (0 = the first part: the old channels go).
 -- 20 000 channels are kept at most. The last part (p_done) saves the totals of the whole
 -- playlist (p_counts: { channels, groups, live, movie, series }, else counted here), its
@@ -516,7 +516,7 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ------------------------------------------------------------------ 4. finding lists
--- IPTV.html: the lists the visitor may see.
+-- iptv.html: the lists the visitor may see.
 --   p_q       words found in the name, the description or the publisher's username
 --   p_sort    relevance | date (last changed) | views | channels | az | za
 --   p_filter  '' (all) | public | exclusive | private | mine
@@ -568,7 +568,7 @@ begin
   return jsonb_build_object('total', total, 'items', items, 'sort', srt);
 end $$;
 
--- Listchannels.html?list=IPL…: the list and where its playlist is, when the visitor may
+-- listchannels.html?list=IPL…: the list and where its playlist is, when the visitor may
 -- see it. Counts one view a day per member (or visitor address), the publisher's aside.
 -- -> { ok: true, list: { card…, description, url (link) | path (upload), epg_url, sig (publisher) } }
 --    { ok: false, reason: not_found | private | signin }
@@ -611,7 +611,7 @@ begin
     'sig', case when l.owner_id = me then l.sig else '' end));
 end $$;
 
--- Search.html > Channels: the channels of the public lists, and of the exclusive lists
+-- search.html > Channels: the channels of the public lists, and of the exclusive lists
 -- whose criteria the member meets (never a private list). Every word must be in the name
 -- of the channel or of its group. A channel listed in several groups of a list shows once.
 --   p_kind  '' | live | movie | series
@@ -680,21 +680,21 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------ 5. uploads to Storage
--- The name of an uploaded playlist: Playlist/<member id>-<20 letters or digits>.m3u (or
--- .m3u8) in the bucket IPTV, for a member who is not banned.
+-- The name of an uploaded playlist: IPTV/<member id>-<20 letters or digits>.m3u (or
+-- .m3u8) in the bucket source, for a member who is not banned.
 create or replace function public.iptv_playlist_object_ok(p_bucket text, p_name text)
 returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce(p_bucket = 'IPTV', false)
-     and coalesce(p_name ~ '^Playlist/ID[0-9]{1,20}-[A-Za-z0-9]{20}\.m3u8?$', false)
+  select coalesce(p_bucket = 'source', false)
+     and coalesce(p_name ~ '^IPTV/ID[0-9]{1,20}-[A-Za-z0-9]{20}\.m3u8?$', false)
      and exists (
        select 1 from public.members m
-       where m.member_id = substring(p_name from '^Playlist/(ID[0-9]{1,20})-')
+       where m.member_id = substring(p_name from '^IPTV/(ID[0-9]{1,20})-')
          and lower(btrim(coalesce(m.status, ''))) not in ('banned', 'blocked') and coalesce(m.status, '') <> 'محظور'
      )
 $$;
 
 comment on function public.iptv_playlist_object_ok(text, text) is
-  'Storage policy of the uploaded IPTV lists: true for IPTV / Playlist/<member id>-<random>.m3u of a member who is not banned';
+  'Storage policy of the uploaded IPTV lists: true for source / IPTV/<member id>-<random>.m3u of a member who is not banned';
 
 revoke all on function public.iptv_playlist_object_ok(text, text) from public;
 grant execute on function public.iptv_playlist_object_ok(text, text) to anon, authenticated, service_role;
@@ -802,7 +802,7 @@ begin
     insert into public.notifications (member_id, kind, title, body, href)
     values (l.owner_id, 'iptv_list_deleted', 'The team deleted your IPTV list', left(l.name || ' · ' || why, 300), './dashboard.html#iptv-lists');
   end if;
-  -- an uploaded file stays in Storage (IPTV/Playlist/…), like the files of a list its publisher deletes
+  -- an uploaded file stays in Storage (source/IPTV/…), like the files of a list its publisher deletes
   return jsonb_build_object('ok', true, 'status', 'deleted', 'path', l.storage_path);
 end $$;
 

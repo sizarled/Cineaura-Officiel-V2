@@ -1,11 +1,11 @@
 -- ============================================================
--- CineAura — Search system (Search.html)
+-- CineAura — Search system (search.html)
 -- Run in the Supabase SQL editor AFTER members.sql, profile.sql, dashboard.sql,
 -- content.sql, post_reviews.sql, post_analytics.sql, post_watch_points.sql,
 -- iptv_lists.sql, market.sql, prize_center.sql, prize_modes.sql, prize_admin.sql,
 -- prize_secure.sql and point_levels.sql (safe to run again).
 --
--- Search.html has seven tabs. Each tab shows several result types and every
+-- search.html has seven tabs. Each tab shows several result types and every
 -- result may be narrowed by "added" (today, yesterday, this week, this month,
 -- this year, all time) and ordered by the ranking points below.
 --
@@ -243,7 +243,7 @@ begin
   return 'ok';
 end $$;
 
--- A list as a card (search results, IPTV.html, the dashboard), with the new
+-- A list as a card (search results, iptv.html, the dashboard), with the new
 -- criteria and the viewer's join request, if any.
 create or replace function public._iptvl_card(l public.iptv_lists, p_member text) returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -528,6 +528,12 @@ begin
                                  where pi.post_id = p.post_id and pi.media_type = med))
         and public._search_has(words, p.title || ' ' || coalesce(p.body, '') || ' ' || p.owner_username)
         and public._search_when(p.created_at, p_when)
+        -- Silenced posts (net-negative day, sql/post_reach.sql) leave search too,
+        -- but their owner and the owner's followers keep finding them.
+        and (me = p.owner_id
+             or exists (select 1 from public.follows fo
+                        where fo.follower_id = me and fo.following_id = p.owner_id and fo.status = 'accepted')
+             or not public.post_silenced(p.post_id))
     ), seen as (
       select * from src where why = 'ok'
     )
@@ -574,6 +580,12 @@ begin
                                  where pi.post_id = p.post_id and pi.media_type = med))
         and public._search_has(words, p.title || ' ' || coalesce(p.body, '') || ' ' || p.owner_username)
         and public._search_when(p.created_at, p_when)
+        -- Silenced posts (net-negative day, sql/post_reach.sql) leave search too,
+        -- but their owner and the owner's followers keep finding them.
+        and (me = p.owner_id
+             or exists (select 1 from public.follows fo
+                        where fo.follower_id = me and fo.following_id = p.owner_id and fo.status = 'accepted')
+             or not public.post_silenced(p.post_id))
     ), seen as (
       select * from src where why = 'ok'
     )
@@ -854,6 +866,12 @@ begin
                                           or (b.blocker_id = p.owner_id and b.blocked_id = me)))
         and public._search_has(words, p.title || ' ' || coalesce(p.body, '') || ' ' || p.owner_username)
         and public._search_when(p.created_at, p_when)
+        -- Silenced posts (net-negative day, sql/post_reach.sql) leave search too,
+        -- but their owner and the owner's followers keep finding them.
+        and (me = p.owner_id
+             or exists (select 1 from public.follows fo
+                        where fo.follower_id = me and fo.following_id = p.owner_id and fo.status = 'accepted')
+             or not public.post_silenced(p.post_id))
     ), seen as (
       select * from src where why = 'ok'
     )

@@ -505,12 +505,7 @@ body.page-inner {
 
 .watch-recommend .rec-done a {
   color: var(--cyan);
-  margin-left: 6px;
-}
-
-html[dir="rtl"] .watch-recommend .rec-done a {
-  margin-left: 0;
-  margin-right: 6px;
+  margin-inline-start: 6px;
 }
 
 .watch-recommend .rec-hint {
@@ -849,7 +844,7 @@ html[data-theme="day"] .vis-chip.vis-private { color: #c62f35; }
 }
 
 .comment-card.reply {
-  margin-left: min(36px, 8vw);
+  margin-inline-start: min(36px, 8vw);
   background: rgba(1, 180, 228, 0.05);
 }
 
@@ -1151,6 +1146,31 @@ html[data-theme="day"] .vis-chip.vis-private { color: #c62f35; }
   color: var(--text);
   font: inherit;
   font-size: 14.5px;
+}
+
+.addlink-field textarea {
+  width: 100%;
+  min-height: 132px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.addlink-field textarea.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  direction: ltr;
+}
+
+.addlink-field textarea:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.25);
 }
 
 .addlink-field input:focus,
@@ -1987,12 +2007,12 @@ html[data-theme="day"] .vis-chip.vis-private { color: #c62f35; }
 }
 
 .password-wrap input {
-  padding-right: 44px;
+  padding-inline-end: 44px;
 }
 
 .password-wrap button {
   position: absolute;
-  right: 8px;
+  inset-inline-end: 8px;
   top: 50%;
   transform: translateY(-50%);
   width: 32px;
@@ -2076,6 +2096,13 @@ html[dir="rtl"] .success-user { padding: 8px 8px 8px 16px; }
 .success-who small { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: 13px; }
 .success-go { color: var(--cyan); font-weight: 600; }
 
+/* profile: the unified balance tier next to the name (the same N1 … B3 badge the stores
+   show; js/common.js balanceTierHtml — its colours come from .mkt-tier in css/market.css,
+   which profile.html also loads) */
+.prof-tier { display: inline-block; margin-inline-start: 6px; vertical-align: 4px; }
+.prof-tier .mkt-tier { font-size: 13px; padding: 2px 9px; }
+.prof-tier .mkt-tier b { font-size: 14px; }
+
 /* profile: the level next to the name (sql/point_levels.sql) */
 .prof-lv {
   display: inline-block;
@@ -2117,7 +2144,7 @@ html[dir="rtl"] .success-user { padding: 8px 8px 8px 16px; }
 .success-meta strong {
   color: var(--text);
   font-weight: 650;
-  text-align: right;
+  text-align: end;
 }
 
 .recovery-box {
@@ -2592,4 +2619,208 @@ html[data-theme="day"] .share-btn {
 .ld-hidden-note {
   color: var(--muted);
   font-size: 12.5px;
+}
+
+/* Profile > Market (viewMarket, js/profile.js): the own store's card — logo,
+   name, tier of its balance, balance/capital/held — and the sales + purchases
+   counters linked to their market.html panels */
+.prof-mkt-store {
+  margin: 14px 0 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--sub-bg);
+  display: grid;
+  gap: 10px;
+}
+
+.prof-mkt-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.prof-mkt-logo {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+}
+
+.prof-mkt-logo-ph {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.prof-mkt-logo-ph svg {
+  width: 22px;
+  height: 22px;
+}
+
+.prof-mkt-who {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  line-height: 1.25;
+}
+
+.prof-mkt-who strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prof-mkt-balance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prof-mkt-balance > span {
+  flex: 1;
+  min-width: 96px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--input-bg);
+  display: grid;
+  gap: 2px;
+}
+
+.prof-mkt-balance small {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.prof-mkt-balance b {
+  font-size: 14px;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.prof-mkt-nostore {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.prof-mkt-nostore p {
+  margin: 0;
+  flex: 1;
+  min-width: 180px;
+}
+
+.prof-mkt-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prof-mkt-cols {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 760px) {
+  .prof-mkt-cols {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.prof-mkt-col {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--sub-bg);
+  padding: 12px;
+}
+
+.prof-mkt-col h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.prof-mkt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prof-mkt-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.prof-mkt-chip b {
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.prof-mkt-chip:hover {
+  border-color: var(--cyan);
+}
+
+.prof-mkt-chip.has {
+  color: var(--text);
+  border-color: var(--cyan);
+}
+
+/* ── activate.html · the "Get the code" locker chooser (Task 23) ── */
+.getcode-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  background: rgba(2, 8, 16, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.getcode-card {
+  width: min(440px, 100%);
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+  text-align: center;
+}
+
+.getcode-card h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.getcode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.getcode-grid .choice strong {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 480px) {
+  .getcode-grid { grid-template-columns: 1fr; }
 }

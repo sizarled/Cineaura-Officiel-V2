@@ -1,4 +1,4 @@
-/* CineAura — Market.html, the coupons (sql/market.sql, section 17). Loaded after
+/* CineAura — market.html, the coupons (sql/market.sql, section 17). Loaded after
  * js/market-forms.js; adds to window.CineAuraMarket:
  *
  *   M.couponHtml(c, { as })       a coupon as a ticket: as = buyer (Purchase coupons: copy, download,
@@ -91,7 +91,7 @@
       const used = Boolean(c.used_at);
       extra = used && c.order
         ? `<p class="cpn-stats">${ICON.check}<span>${esc(t("mkt.cp.usedOn", { date: M.date(c.used_at), pts: M.pt(c.order.discount) }))}</span>
-             <a href="./Market.html#purchases/${c.order.status === "requested" ? "requests" : c.order.status === "shipped" ? "shipped" : c.order.status === "delivered" ? "received" : "purchased"}" data-nav dir="auto">${esc(c.order.title || "")}</a></p>`
+             <a href="./market.html#purchases/${c.order.status === "requested" ? "requests" : c.order.status === "shipped" ? "shipped" : c.order.status === "delivered" ? "received" : "purchased"}" data-nav dir="auto">${esc(c.order.title || "")}</a></p>`
         : `<p class="cpn-stats">${esc(t(c.how === "given" ? "mkt.cp.howGiven" : c.how === "typed" ? "mkt.cp.howTyped" : "mkt.cp.howGot", { date: M.date(c.got_at) }))}</p>`;
       acts = `
         <button class="btn btn-sm btn-ghost" type="button" data-cpn-copy>${ICON.copy}<span>${esc(t("common.copy"))}</span></button>

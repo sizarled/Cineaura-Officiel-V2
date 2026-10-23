@@ -1,5 +1,5 @@
 /* ==========================================================
-   Market.html — the members' market (sql/market.sql, js/market.js, js/market-forms.js):
+   market.html — the members' market (sql/market.sql, js/market.js, js/market-forms.js):
    the search box and its filters, the side menu of the member, product cards with their
    slideshow, rows and grids, the product page (gallery, zoom, buy box, good / bad points),
    stores, the panels (sales, purchases, rating, requests, settings) and the dialogs.
@@ -179,6 +179,23 @@ a.mkt-slide-empty { cursor: pointer; }
 .mkt-badge.b-digital { background: rgba(123, 92, 240, 0.92); }
 .mkt-badge.b-out { background: rgba(250, 56, 62, 0.92); }
 .mkt-badge.b-hidden { background: rgba(120, 120, 120, 0.9); }
+.mkt-badge.b-exclusive { background: rgba(233, 163, 0, 0.92); gap: 4px; color: #1a1200; }
+.mkt-badge.b-exclusive svg { width: 12px; height: 12px; }
+/* an exclusive product (round 32): the locked page, the criteria in words, the masked mini-card */
+.mkt-gate h2 { display: flex; align-items: center; gap: 8px; }
+.mkt-gate h2 svg { width: 20px; height: 20px; color: var(--gold, #e9a300); }
+.mkt-gate-lines { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; }
+.mkt-gate-lines li { display: flex; align-items: center; gap: 8px; }
+.mkt-gate-lines li svg { flex: none; width: 16px; height: 16px; color: var(--gold, #e9a300); }
+.mkt-gate-box { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--sub-bg); display: grid; gap: 8px; justify-items: start; }
+.mkt-gate-head { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; }
+.mkt-gate-head svg { width: 16px; height: 16px; color: var(--gold, #e9a300); }
+.mkt-gate-box .mkt-gate-lines { margin: 0; }
+.mkt-mini.mkt-gated { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--sub-bg); color: var(--muted); }
+.mkt-mini.mkt-gated > svg { flex: none; width: 18px; height: 18px; color: var(--gold, #e9a300); }
+.mkt-mini.mkt-gated .mkt-mini-body b { color: var(--muted); font-weight: 600; }
+.mkt-age-row { display: flex; gap: 8px; }
+.mkt-age-row input { flex: 1 1 110px; width: auto; min-width: 0; }
 .mkt-card-body { display: grid; gap: 4px; padding: 10px 12px 12px; align-content: start; min-width: 0; }
 .mkt-card-title {
   color: var(--text);
@@ -515,10 +532,10 @@ a.mkt-slide-empty { cursor: pointer; }
 .mkt-form-acts .btn { display: inline-flex; align-items: center; gap: 7px; }
 .mkt-seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .mkt-seg legend { width: 100%; margin-bottom: 6px; }
-.mkt-seg label { position: relative; flex: 1 1 120px; }
-.mkt-seg-4 label { flex-basis: 100px; }
-.mkt-seg input { position: absolute; opacity: 0; pointer-events: none; }
-.mkt-seg label span {
+.mkt-seg > label { position: relative; flex: 1 1 120px; }
+.mkt-seg-4 > label { flex-basis: 100px; }
+.mkt-seg > label > input { position: absolute; opacity: 0; pointer-events: none; }
+.mkt-seg > label > span {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -532,8 +549,24 @@ a.mkt-slide-empty { cursor: pointer; }
   cursor: pointer;
   text-align: center;
 }
-.mkt-seg input:checked + span { border-color: var(--cyan); background: rgba(45, 136, 255, 0.14); color: var(--cyan); }
-.mkt-seg input:focus-visible + span { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* Only the chip radios of the segment are hidden behind their label. Fields of
+   a nested block (the exclusive criteria of the product form) keep their normal
+   look and stay clickable — the old `.mkt-seg input` hit them all by accident. */
+.mkt-seg > label > input:checked + span { border-color: var(--cyan); background: rgba(45, 136, 255, 0.14); color: var(--cyan); }
+.mkt-seg > label > input:focus-visible + span { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* The criteria of an exclusive product: one clear panel under the chips, not a
+   loose flex item between them. */
+.mkt-seg > .mkt-aud-more {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+}
+.mkt-aud-more { display: grid; gap: 12px; }
 .mkt-chips-in {
   display: flex;
   flex-wrap: wrap;
@@ -673,6 +706,40 @@ html[data-theme="day"] .mkt-tier.t-B { --tier: #b07a00; }
 .mkt-tierbox-next { margin: 0; font-size: 12.5px; }
 .mkt-tierbox-help summary { cursor: pointer; font-size: 12.5px; color: var(--cyan); width: fit-content; }
 .mkt-tierbox-help p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+/* the balance inside the tier box: the capital, the held points, the store level */
+.mkt-tierbox-parts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+/* the store balance card (Store settings): the capital the seller placed in the store */
+.mkt-balance { display: grid; gap: 14px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.mkt-balance-head { display: grid; gap: 4px; }
+.mkt-balance-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+.mkt-balance-head .mkt-tier { margin-inline-start: 2px; }
+.mkt-balance-head p { margin: 0; font-size: 13px; line-height: 1.55; }
+.mkt-balance-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.mkt-balance-nums > div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--sub-bg);
+}
+.mkt-balance-nums span { font-size: 12px; color: var(--muted); }
+.mkt-balance-nums b { font-size: 16.5px; font-variant-numeric: tabular-nums; }
+.mkt-balance-yours b { color: var(--cyan); }
+.mkt-balance-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.mkt-balance-form .mkt-field { flex: 1 1 160px; min-width: 0; margin: 0; }
+.mkt-balance-form .mkt-field input { width: 100%; }
+.mkt-form-err[data-berr] { margin: 0; }
+.mkt-hint-bad { color: var(--red) !important; }
 
 .mkt-report-btn svg { color: var(--red); }
 .mkt-report-btn:hover { border-color: color-mix(in srgb, var(--red) 55%, transparent); }
@@ -1058,3 +1125,8 @@ html[dir="rtl"] .cpn-chip { padding: 6px 12px 6px 8px; }
 @media (max-width: 520px) {
   .mkt-lv-lock { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- Market review votes (sql/market_review_votes.sql) ---------- */
+.btn.btn-vote-on { background: var(--cyan, #22d3ee); color: #06222b; border-color: transparent; }
+.btn.btn-vote-on:hover { filter: brightness(1.06); }
+.mkt-rv-pts { align-self: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }

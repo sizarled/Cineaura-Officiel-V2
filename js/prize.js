@@ -16,7 +16,7 @@
   const R = window.PrizeRules;
   const { $, t, tr, escapeHtml, supabaseRequest, getSession, restValue, toast, formatDate, initialsAvatar, profilesByIds, avatarImg } = C;
 
-  const PAGE = "./Prize.html";
+  const PAGE = "./prize.html";
   const state = {
     groups: [],
     prizes: [],

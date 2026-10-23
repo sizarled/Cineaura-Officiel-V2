@@ -1,5 +1,5 @@
 -- ============================================================
--- Member videos ("Your content" on the profile, Content.html, Search.html)
+-- Member videos ("Your content" on the profile, content.html, search.html)
 -- Run in the Supabase SQL editor AFTER profile.sql, points.sql, prize_secure.sql,
 -- point_levels.sql and point_codes.sql (safe to run more than once).
 --
@@ -13,11 +13,11 @@
 --     to a playlist, delete.
 --   * Statistics: the numbers of a period (now = last 60 minutes, today,
 --     yesterday, this week, this month, this year).
---   * Content.html?idcontent=CT…: the player, title, description, publisher,
+--   * content.html?idcontent=CT…: the player, title, description, publisher,
 --     recommend / don't recommend, share, add to a playlist, comments and
---     suggestions. Content.html alone: a search box and the 50 videos with the most
---     watched minutes, recommendations or shares. Search.html finds videos.
---   * A member's page (Profile.html?@name) > Content: their videos (newest, most
+--     suggestions. content.html alone: a search box and the 50 videos with the most
+--     watched minutes, recommendations or shares. search.html finds videos.
+--   * A member's page (profile.html?@name) > Content: their videos (newest, most
 --     watched, most liked, most shared) and their playlists, each one with its
 --     videos, as far as the visitor may find them (content_search with p_owner,
 --     content_playlists_of, content_playlist_get).
@@ -85,7 +85,8 @@ create table if not exists public.content (
   shares integer not null default 0,
   comments integer not null default 0,
   playlists integer not null default 0,
-  watch_minutes bigint not null default 0
+  watch_minutes bigint not null default 0,
+  downloads boolean not null default false
 );
 
 do $$
@@ -484,7 +485,8 @@ create or replace function public._content_card(c public.content, p_reason text)
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'id', c.content_id, 'title', c.title, 'description', left(c.description, 280),
-    'thumb', c.thumb_url, 'provider', c.provider, 'tags', to_jsonb(c.tags), 'language', c.language,
+    'thumb', c.thumb_url, 'provider', c.provider, 'portrait', coalesce(c.portrait, false),
+    'tags', to_jsonb(c.tags), 'language', c.language,
     'age', c.age_rating, 'visibility', c.visibility, 'country', c.country,
     'publish_at', c.publish_at, 'created_at', c.created_at,
     'views', c.views, 'likes', c.likes, 'dislikes', c.dislikes, 'comments', c.comments, 'minutes', c.watch_minutes,
@@ -517,7 +519,7 @@ begin
   if c.visibility = 'private' or to_regclass('public.notifications') is null then return 0; end if;
   -- the followers who also find it in Profile > Updates (content_feed)
   insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
-  select f.follower_id, 'content', 'New video', c.title, './Content.html?idcontent=' || c.content_id, c.owner_id, c.owner_username
+  select f.follower_id, 'content', 'New video', c.title, './content.html?idcontent=' || c.content_id, c.owner_id, c.owner_username
   from public.follows f
   where f.following_id = c.owner_id and f.status = 'accepted' and f.follower_id <> c.owner_id
     and not public._content_feed_hidden(c.owner_id, f.follower_id)
@@ -577,23 +579,39 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------ 6. publishing
+-- The 11-character YouTube video id out of any link shape (lowercased whole —
+-- two links to one video only differ in host/casing). Null on anything else.
+-- Used by content_create's one-YouTube-video-one-page ban (dup_link);
+-- first shipped in sql/content_youtube_unique.sql.
+create or replace function public._youtube_id(p_url text) returns text
+language sql immutable strict as $$
+  select coalesce(
+    substring(lower(p_url) from 'youtu\.be/([a-z0-9_-]{11})'),
+    substring(lower(p_url) from 'youtube(?:-nocookie)?\.com/(?:watch\?[^#]*v=|embed/|shorts/|live/|v/)([a-z0-9_-]{11})')
+  )
+$$;
+
 -- d: { url, provider, thumb, title, description, tags[], language, age, visibility,
 --      followers, premium, countries, people[], playlist, playlist_name, publish_at }
--- -> { ok, id, publish_at, scheduled } | { ok: false, reason }
+-- -> { ok, id, publish_at, scheduled } | { ok: false, reason }  (reasons include 'dup_link' —
+--      a YouTube video lives once on the site, sql/content_youtube_unique.sql; the daily
+--      cap comes from the member's plan, plan_setting 'daily_uploads')
 create or replace function public.content_create(p_member text, d jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  m public.members; cid text; url text; title text; descr text; vis text; age int; lang text; prov text; thumb text;
+  m public.members; cid text; url text; title text; descr text; vis text; age int; lang text; prov text; thumb text; dup_id text;
+  is_portrait boolean; daycap int;
   tags text[]; people text[]; cty text; pub timestamptz; pid text; pname text; recent int; i int := 0; u text;
 begin
   m := public._content_viewer(p_member);
   if m.member_id is null then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
   if public._content_blocked(m.member_id, 'posts') then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
+  daycap := greatest(1, coalesce(public.plan_setting(public._plan_of_row(m), 'daily_uploads', '50')::int, 50));
   select count(*) into recent from public.content where owner_id = m.member_id and created_at > now() - interval '1 day';
-  if recent >= 50 then return jsonb_build_object('ok', false, 'reason', 'limit'); end if;
+  if recent >= daycap then return jsonb_build_object('ok', false, 'reason', 'limit'); end if;
 
   url := btrim(coalesce(d->>'url', ''));
-  if url !~* '^https?://[^/?#[:space:]]+' or length(url) > 2000 or url ~ '[[:space:]<>"`]' then
+  if url !~* '^https?://[^/?#[:space:]]+' or length(url) > 2000 or url ~ '[[:space:]<>"]' then
     return jsonb_build_object('ok', false, 'reason', 'url');
   end if;
   -- the link of one of their videos the team suspended cannot come back as a new video
@@ -606,9 +624,18 @@ begin
   if char_length(descr) > 5000 then return jsonb_build_object('ok', false, 'reason', 'description'); end if;
   prov := lower(coalesce(d->>'provider', 'link'));
   if prov not in ('youtube', 'vimeo', 'dailymotion', 'facebook', 'drive', 'tiktok', 'file', 'hls', 'link') then prov := 'link'; end if;
+  -- a YouTube video lives once on the site, whatever shape its link comes in,
+  -- whoever published it first — and only for as long as that video exists
+  if prov = 'youtube' then
+    select c.content_id into dup_id from public.content c
+     where public._youtube_id(c.video_url) is not null
+       and public._youtube_id(c.video_url) = public._youtube_id(url)
+     limit 1;
+    if dup_id is not null then return jsonb_build_object('ok', false, 'reason', 'dup_link'); end if;
+  end if;
   thumb := btrim(coalesce(d->>'thumb', ''));
-  if thumb <> '' and (thumb !~* '^https://[^/?#[:space:]]+' or length(thumb) > 1000 or thumb ~ '[[:space:]<>"`]') then thumb := ''; end if;
-  -- tags: lower case, no "#", 1 to 30 characters, 12 at most
+  if thumb <> '' and (thumb !~* '^https://[^/?#[:space:]]+' or length(thumb) > 1000 or thumb ~ '[[:space:]<>"]') then thumb := ''; end if;
+  is_portrait := coalesce((d->>'portrait')::boolean, false) or prov = 'tiktok' or lower(url) like '%/shorts/%';
   select coalesce(array_agg(t order by n), '{}') into tags from (
     select distinct on (t) t, n from (
       select lower(btrim(regexp_replace(x, '^#+', ''))) as t, n
@@ -636,7 +663,6 @@ begin
   if pub < now() then pub := now(); end if;
   if pub > now() + interval '1 year' then return jsonb_build_object('ok', false, 'reason', 'publish_at'); end if;
 
-  -- the playlist: one of the member's own, or a new one by name
   pid := nullif(btrim(coalesce(d->>'playlist', '')), '');
   pname := btrim(coalesce(d->>'playlist_name', ''));
   if pid is not null and not exists (select 1 from public.content_playlists where playlist_id = pid and owner_id = m.member_id) then
@@ -662,12 +688,13 @@ begin
   end loop;
   insert into public.content (content_id, owner_id, owner_username, video_url, provider, thumb_url, title, description,
                               tags, language, age_rating, visibility, excl_followers, excl_premium, excl_countries,
-                              country, playlist_id, publish_at)
+                              country, playlist_id, publish_at, portrait, downloads)
   values (cid, m.member_id, m.username, url, prov, thumb, title, descr, tags, lang, age, vis,
           vis = 'exclusive' and coalesce((d->>'followers')::boolean, false),
           vis = 'exclusive' and coalesce((d->>'premium')::boolean, false),
           case when vis = 'exclusive' then cty else '' end,
-          upper(coalesce(m.country, '')), pid, pub);
+          upper(coalesce(m.country, '')), pid, pub, is_portrait,
+          coalesce((d->>'downloads')::boolean, false));
   if vis = 'private' then
     foreach u in array people loop
       insert into public.content_access (content_id, username) values (cid, u) on conflict do nothing;
@@ -702,6 +729,62 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- Manage > row menu > Edit: the custom picture (a Streamtape-hosted video takes
+-- any https picture), who may watch (public / exclusive / private), the age
+-- rating and the downloads switch. The link and the text never pass through
+-- here. d: { thumb, downloads, age, visibility, followers, premium, countries,
+-- people[] } -> { ok, id } | { ok: false, reason }
+create or replace function public.content_update(p_member text, p_id text, d jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  c public.content; m public.members; vis text; age int; cty text; thumb text; people text[]; u text;
+begin
+  m := public._content_viewer(p_member);
+  if m.member_id is null then return jsonb_build_object('ok', false, 'reason', 'member'); end if;
+  if public._content_blocked(m.member_id, 'posts') then return jsonb_build_object('ok', false, 'reason', 'blocked'); end if;
+  select * into c from public.content where content_id = btrim(coalesce(p_id, '')) and owner_id = m.member_id for update;
+  if not found then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
+
+  thumb := btrim(coalesce(d->>'thumb', ''));
+  if thumb <> '' and (thumb !~* '^https://[^/?#[:space:]]+' or length(thumb) > 1000 or thumb ~ '[[:space:]<>"]') then
+    return jsonb_build_object('ok', false, 'reason', 'thumb');
+  end if;
+  age := coalesce(nullif(d->>'age', '')::int, 3);
+  if age not in (3, 6, 13, 16, 18) then return jsonb_build_object('ok', false, 'reason', 'age'); end if;
+  vis := coalesce(d->>'visibility', 'public');
+  if vis not in ('public', 'exclusive', 'private') then return jsonb_build_object('ok', false, 'reason', 'visibility'); end if;
+  cty := upper(regexp_replace(coalesce(d->>'countries', ''), '[^A-Za-z,]', '', 'g'));
+  select coalesce(array_agg(distinct x), '{}') into people from (
+    select lower(btrim(regexp_replace(x, '^@+', ''))) as x
+    from jsonb_array_elements_text(case when jsonb_typeof(d->'people') = 'array' then d->'people' else '[]'::jsonb end) as e(x)
+  ) s where x <> '' and char_length(x) <= 60;
+  if vis = 'private' and coalesce(array_length(people, 1), 0) = 0 then
+    return jsonb_build_object('ok', false, 'reason', 'people');
+  end if;
+  if coalesce(array_length(people, 1), 0) > 100 then return jsonb_build_object('ok', false, 'reason', 'people'); end if;
+
+  update public.content set
+    thumb_url = thumb,
+    downloads = coalesce((d->>'downloads')::boolean, false),
+    age_rating = age,
+    visibility = vis,
+    excl_followers = vis = 'exclusive' and coalesce((d->>'followers')::boolean, false),
+    excl_premium = vis = 'exclusive' and coalesce((d->>'premium')::boolean, false),
+    excl_countries = case when vis = 'exclusive' then cty else '' end
+  where content_id = c.content_id;
+
+  -- the private audience follows the new setting
+  if c.visibility = 'private' or vis = 'private' then
+    delete from public.content_access where content_id = c.content_id;
+  end if;
+  if vis = 'private' then
+    foreach u in array people loop
+      insert into public.content_access (content_id, username) values (c.content_id, u) on conflict do nothing;
+    end loop;
+  end if;
+  return jsonb_build_object('ok', true, 'id', c.content_id);
+end $$;
+
 -- Profile > Your content > Manage: every video of the member, newest first.
 create or replace function public.content_mine(p_member text) returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -712,6 +795,7 @@ language sql stable security definer set search_path = public as $$
     'country', c.country, 'publish_at', c.publish_at, 'created_at', c.created_at, 'scheduled', c.publish_at > now(),
     'views', c.views, 'impressions', c.impressions, 'clicks', c.clicks, 'likes', c.likes, 'dislikes', c.dislikes,
     'shares', c.shares, 'comments', c.comments, 'playlists_count', c.playlists, 'minutes', c.watch_minutes,
+    'downloads', c.downloads,
     'suspended', case when c.suspended_at is not null then jsonb_build_object('reason', c.suspended_reason, 'at', c.suspended_at) end,
     'people', coalesce((select jsonb_agg(a.username order by a.username) from public.content_access a where a.content_id = c.content_id), '[]'::jsonb),
     'playlists', coalesce((select jsonb_agg(jsonb_build_object('id', p.playlist_id, 'name', p.name) order by p.name)
@@ -722,7 +806,7 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ------------------------------------------------------------------ 7. watching
--- Content.html: the video, if the viewer may watch it.
+-- content.html: the video, if the viewer may watch it.
 -- -> { ok: true, access: 'ok' | 'signin' | 'followers' | 'premium' | 'country' | 'age',
 --      content: {..., url only when access = ok and the video is rated under 13,
 --                code: true when it is rated 13+ (content_unlock gives the link)},
@@ -748,13 +832,14 @@ begin
       'description', c.description, 'url', case when why = 'ok' and c.age_rating < 13 then c.video_url else null end,
       'code', c.age_rating >= 13,
       'shares', c.shares, 'playlists', c.playlists, 'excl_followers', c.excl_followers,
-      'excl_premium', c.excl_premium, 'excl_countries', c.excl_countries),
+      'excl_premium', c.excl_premium, 'excl_countries', c.excl_countries,
+      'downloads', c.downloads),
     'owner', jsonb_build_object('id', c.owner_id, 'username', coalesce(o.username, c.owner_username),
                                 'display_name', o.display_name, 'avatar_url', o.avatar_url, 'followers', o.followers),
     'my_vote', coalesce(v, 0));
 end $$;
 
--- Content.html, a video rated 13+: its link for a watch code (sql/code_devices.sql,
+-- content.html, a video rated 13+: its link for a watch code (sql/code_devices.sql,
 -- code_use: the code's state, its age tier against the rating, one device per code).
 --   p_silent  the code remembered on this device (not typed): only while it is still
 --             linked to this device
@@ -787,9 +872,9 @@ begin
   return res || jsonb_build_object('url', c.video_url, 'age', c.age_rating, 'code', true);
 end $$;
 
--- Search.html and the search box of Content.html.
+-- search.html and the search box of content.html.
 --   p_sort: relevance | views | recs | date | az | za, and for the 50 videos of
---           Content.html: minutes (watched minutes) | shares (recs = most recommended)
+--           content.html: minutes (watched minutes) | shares (recs = most recommended)
 --   p_lang (language), p_country (region of the video), p_age (3 6 13 16 18), p_owner (username), p_tag
 -- Public and exclusive videos, and the private ones the member was given; never
 -- scheduled ones, those of banned publishers, or a rating above a member's age.
@@ -845,7 +930,7 @@ begin
   return jsonb_build_object('total', total, 'items', items, 'sort', srt);
 end $$;
 
--- Content.html, the side column. First the videos under the same tags AND in the
+-- content.html, the side column. First the videos under the same tags AND in the
 -- same language (the publisher's own ones first); when no video matches both, the
 -- videos of the same country. Each group is ordered by how many of the criteria
 -- (shared tags, language, publisher) a video matches; the rest of the list is
@@ -932,7 +1017,7 @@ begin
   return jsonb_build_object('ok', true, 'logged', n) || case when pts is null then '{}'::jsonb else jsonb_build_object('points', pts) end;
 end $$;
 
--- One counted minute of a video (Content.html calls it once a minute while it plays).
+-- One counted minute of a video (content.html calls it once a minute while it plays).
 -- Shares the 45-second clock of watch_minute() (sql/point_levels.sql), so two pages
 -- playing at once still earn one minute at a time.
 -- -> { ok, country, tier, minutes, viewer?: {gain…}, owner?: {gain} } | { ok: false, reason }
@@ -1030,7 +1115,7 @@ begin
     if to_regclass('public.notifications') is not null then
       insert into public.notifications (member_id, kind, title, body, href, from_id, from_username)
       values (c.owner_id, 'content_comment', 'New comment', '@' || m.username || ': ' || left(b, 120),
-              './Content.html?idcontent=' || c.content_id || '#comments', m.member_id, m.username);
+              './content.html?idcontent=' || c.content_id || '#comments', m.member_id, m.username);
     end if;
   end if;
   return jsonb_build_object('ok', true, 'id', row_id)
@@ -1390,18 +1475,18 @@ begin
       if c.suspended_at is not null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content set suspended_at = now(), suspended_reason = why, suspended_by = who where content_id = c.content_id;
       perform public._content_tell(c.owner_id, 'content_suspended', 'The team suspended your video', c.title || ' · ' || why,
-                                   './Content.html?idcontent=' || c.content_id);
+                                   './content.html?idcontent=' || c.content_id);
       return jsonb_build_object('ok', true, 'status', 'suspended');
     elsif p_action = 'restore' then
       if c.suspended_at is null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content set suspended_at = null, suspended_reason = '', suspended_by = '' where content_id = c.content_id;
       perform public._content_tell(c.owner_id, 'content_restored', 'The team restored your video', c.title,
-                                   './Content.html?idcontent=' || c.content_id);
+                                   './content.html?idcontent=' || c.content_id);
       return jsonb_build_object('ok', true, 'status', 'active');
     end if;
     delete from public.content where content_id = c.content_id;
     perform public._content_tell(c.owner_id, 'content_deleted', 'The team deleted your video', c.title || ' · ' || why,
-                                 './Profile.html#content/manage');
+                                 './profile.html#content/manage');
     return jsonb_build_object('ok', true, 'status', 'deleted');
   elsif p_kind = 'playlist' then
     select * into pl from public.content_playlists where playlist_id = v_id for update;
@@ -1410,17 +1495,17 @@ begin
       if pl.suspended_at is not null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content_playlists set suspended_at = now(), suspended_reason = why, suspended_by = who where playlist_id = pl.playlist_id;
       perform public._content_tell(pl.owner_id, 'content_suspended', 'The team suspended your playlist', pl.name || ' · ' || why,
-                                   './Profile.html#playlists');
+                                   './profile.html#playlists');
       return jsonb_build_object('ok', true, 'status', 'suspended');
     elsif p_action = 'restore' then
       if pl.suspended_at is null then return jsonb_build_object('ok', false, 'reason', 'state'); end if;
       update public.content_playlists set suspended_at = null, suspended_reason = '', suspended_by = '' where playlist_id = pl.playlist_id;
-      perform public._content_tell(pl.owner_id, 'content_restored', 'The team restored your playlist', pl.name, './Profile.html#playlists');
+      perform public._content_tell(pl.owner_id, 'content_restored', 'The team restored your playlist', pl.name, './profile.html#playlists');
       return jsonb_build_object('ok', true, 'status', 'active');
     end if;
     delete from public.content_playlists where playlist_id = pl.playlist_id;
     perform public._content_tell(pl.owner_id, 'content_deleted', 'The team deleted your playlist', pl.name || ' · ' || why,
-                                 './Profile.html#playlists');
+                                 './profile.html#playlists');
     return jsonb_build_object('ok', true, 'status', 'deleted');
   end if;
   return jsonb_build_object('ok', false, 'reason', 'kind');

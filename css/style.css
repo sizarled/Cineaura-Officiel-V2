@@ -75,6 +75,48 @@ button {
   color: inherit;
 }
 
+/* ── Base form controls ─────────────────────────────────────────────
+   Any field or classless button, on any page (panel, dashboard, market,
+   profile, prizes, …), gets a usable size and the site look instead of
+   the browser's tiny default rendering. `:where()` keeps these rules at
+   zero class-specificity, so every page's own classed rule
+   (`.form-row input`, `.stack select`, `.pa-*`, `.mkt-form input`,
+   `.pz-*`, `.pin-input`, themes, …) always wins over them. */
+select,
+textarea,
+input:where(:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])) {
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+textarea {
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+button:where(:not([class])),
+input:where([type="submit"], [type="button"], [type="reset"]):where(:not([class])) {
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sub-bg, rgba(255, 255, 255, 0.06));
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 ul {
   list-style: none;
 }
@@ -273,7 +315,7 @@ ul {
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: 8px;
+  margin-inline-start: 8px;
   flex: 1;
 }
 
@@ -292,11 +334,32 @@ ul {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* the page you're on, in the one header menu every page shares (common.js
+   unifyHeaderNav) */
+.nav a[aria-current="page"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mobile-menu a[aria-current="page"] {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme="day"] .nav a[aria-current="page"] {
+  background: rgba(1, 180, 228, 0.1);
+}
+
+html[data-theme="day"] .mobile-menu a[aria-current="page"] {
+  border-color: rgba(13, 37, 63, 0.14);
+  background: rgba(1, 180, 228, 0.1);
+}
+
 .auth {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .auth-user,
@@ -397,18 +460,22 @@ body.is-logged-in .link-dashboard {
   display: block;
 }
 
+/* The burger menu: attached to the top edge of the screen (it slides behind the header,
+   whichever offset the active theme gives it), its links padded below the header. */
 .mobile-menu {
   position: fixed;
-  inset: 92px 14px auto;
+  inset: 0 14px auto;
   z-index: 49;
   display: none;
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  border-radius: 20px;
+  padding-top: calc(var(--header-offset, 18px) + 90px);
+  border-radius: 0 0 20px 20px;
   background: var(--mobile-bg);
   backdrop-filter: blur(24px);
   border: 1px solid var(--line);
+  border-top-width: 0;
 }
 
 .mobile-menu.open {
@@ -418,7 +485,7 @@ body.is-logged-in .link-dashboard {
 .mobile-menu a,
 .mobile-menu button {
   width: 100%;
-  text-align: left;
+  text-align: start;
   padding: 12px 14px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
@@ -1472,27 +1539,6 @@ html[lang="ar"] .prof-head h1 {
   font-family: "Cairo", var(--sans);
 }
 
-html[dir="rtl"] .nav {
-  margin-left: 0;
-  margin-right: 8px;
-}
-
-html[dir="rtl"] .auth {
-  margin-left: 0;
-  margin-right: auto;
-}
-
-html[dir="rtl"] .mobile-menu a,
-html[dir="rtl"] .mobile-menu button,
-html[dir="rtl"] .prof-side nav button {
-  text-align: right;
-}
-
-html[dir="rtl"] .bubble.mine {
-  margin-left: 0;
-  margin-right: auto;
-}
-
 /* ---------- Header Bell Notifications ---------- */
 .header-bell-wrap {
   position: relative;
@@ -1688,14 +1734,10 @@ html[dir="rtl"] .bubble.mine {
   color: #fff;
   font-size: 10px;
   font-weight: 700;
-  margin-left: 6px;
+  margin-inline-start: 6px;
   line-height: 1;
 }
 
-html[dir="rtl"] .prof-side nav button .sec-badge {
-  margin-left: 0;
-  margin-right: 6px;
-}
 
 @media (max-width: 640px) {
   .header-bell-panel {
@@ -2179,12 +2221,12 @@ body.is-logged-in .mobile-menu [data-open-settings] {
   }
 
   .mobile-menu {
-    inset: 84px 14px auto auto;
+    inset: 0 14px auto auto;
     width: min(360px, calc(100% - 28px));
   }
 
   html[dir="rtl"] .mobile-menu {
-    inset: 84px auto auto 14px;
+    inset: 0 auto auto 14px;
   }
 }
 
@@ -3130,3 +3172,119 @@ html[dir="rtl"] .acct-due { padding: 12px 14px 12px 12px; }
   .acct-due-txt { flex-basis: calc(100% - 34px); font-size: 13.5px; }
   .acct-due-acts { width: 100%; justify-content: flex-end; }
 }
+
+/* ── Round 35 · member video uploads (Streamtape) ────────────────── */
+/* The little progress meter every upload surface shares. */
+.up-prog { position: relative; height: 18px; margin-top: 8px; border-radius: 999px; background: var(--line, #2b3570); overflow: hidden; }
+.up-prog-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 999px; transition: width .2s ease; }
+.up-prog-n { position: absolute; inset: 0; display: grid; place-items: center; font-size: .72rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / .45); }
+
+/* The video a profile post carries: framed like the picture blocks of a post. */
+.post-video { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #000; margin: 8px 0 12px; }
+.post-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* Market: the seller's own video file control, under the video url field. */
+.mkt-st { margin-top: 6px; }
+.mkt-st .stvideo-box { margin-top: 8px; }
+.mkt-more-videos .mkt-video { margin-top: 10px; }
+
+/* Round 37 — the upload's own thumbnail on the My-uploads list and the
+   product video's main picture (grafted from Home/Thumbnails by name). */
+.up-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line, #2b3570); flex-shrink: 0; }
+.up-thumb-none { display: grid; place-items: center; color: var(--muted, #9aa3c7); font-size: 1.1rem; background: rgba(56,189,248,.08); }
+
+/* ── Patreon code activation page (codeactivation.html) ── */
+.ca-root { display: grid; place-items: center; min-height: 62vh; padding: 40px 16px 70px; }
+.ca-card { width: min(560px, 100%); padding: 34px 30px 28px; border-radius: 22px; text-align: center; background: color-mix(in srgb, var(--surface, #131b3d) 82%, transparent); border: 1px solid var(--line, #2b3570); box-shadow: 0 22px 60px rgb(0 0 0 / .35); }
+.ca-card h1 { font-size: clamp(1.45rem, 3vw, 2rem); margin: 8px 0 6px; }
+.ca-card .muted { line-height: 1.7; }
+.ca-field { display: grid; gap: 8px; text-align: start; margin: 22px 0 12px; font-weight: 600; }
+.ca-field input { min-height: 52px; padding: 12px 16px; font-size: 1.05rem; letter-spacing: .4px; border: 1px solid var(--line, #2b3570); border-radius: 14px; background: rgba(255,255,255,.04); color: inherit; }
+.ca-field input:focus { outline: 2px solid var(--cyan, #38bdf8); outline-offset: 1px; }
+.ca-note { margin: 16px 0 0; font-size: .86rem; line-height: 1.8; color: var(--muted, #9aa3c7); }
+.ca-spin { width: 46px; height: 46px; margin: 6px auto 16px; border-radius: 50%; border: 3px solid rgba(56,189,248,.25); border-top-color: var(--cyan, #38bdf8); animation: ca-spin .8s linear infinite; }
+@keyframes ca-spin { to { transform: rotate(360deg); } }
+.ca-code { margin: 22px auto 10px; padding: 18px 16px; width: min(430px, 100%); border: 1px dashed var(--cyan, #38bdf8); border-radius: 14px; background: rgba(56,189,248,.08); font-size: clamp(1.2rem, 3.4vw, 1.7rem); font-weight: 800; letter-spacing: 2px; word-break: break-all; user-select: all; }
+.ca-kind { margin: 4px 0 0; font-size: .95rem; font-weight: 600; color: var(--green, #90cea1); }
+.ca-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+.ca-ok-ic, .ca-err-ic { display: inline-grid; place-items: center; width: 54px; height: 54px; margin-bottom: 10px; border-radius: 50%; font-size: 1.5rem; font-weight: 800; }
+.ca-ok-ic { color: #052e16; background: var(--green, #90cea1); }
+.ca-err-ic { color: #2d0606; background: #f87171; }
+.btn.is-ok { background: var(--green, #90cea1); border-color: transparent; color: #052e16; }
+
+/* ── Buy membership with points (Dashboard → Points) ── */
+.mp-cat { margin-top: 18px; }
+.mp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+.mp-plan { padding: 16px 14px 14px; border: 1px solid var(--line, #2b3570); border-radius: 14px; text-align: center; background: rgba(255,255,255,.03); display: grid; gap: 4px; align-content: start; }
+.mp-plan.is-active { border-color: var(--green, #90cea1); background: rgba(144,206,161,.06); }
+.mp-name { margin: 0; }
+.mp-dur { margin: 0; font-size: .85rem; color: var(--muted, #9aa3c7); }
+.mp-money { margin: 6px 0 0; font-size: .82rem; color: var(--muted, #9aa3c7); }
+.mp-price { margin: 0; font-weight: 800; color: var(--cyan, #38bdf8); }
+.mp-active { margin: 2px 0 6px; font-size: .78rem; color: var(--green, #90cea1); }
+.mp-plan .mp-buy { margin-top: 8px; }
+.mp-missing { margin-top: 14px; }
+
+/* ── Activation page: premium upgrade cards with in-card actions ── */
+.plan-card.up-card { display: grid; gap: 6px; align-content: start; justify-items: center; }
+.plan .plan-pts { margin-top: -8px; margin-bottom: 0; padding-bottom: 0; border-bottom: 0; font-weight: 700; color: var(--cyan, #38bdf8); }
+.plan-card.up-card .up-pts { margin: 0; font-weight: 700; color: var(--cyan, #38bdf8); }
+.plan-card.up-card .btn { margin-top: 4px; width: 100%; }
+
+
+/* ── nav icons + country flags (professional chrome) ── */
+.ni { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; margin-inline-end: 0.45em; opacity: 0.88; flex: 0 0 auto; }
+.nav a, .hdr-menu a { display: inline-flex; align-items: center; }
+.side-nav a { display: flex; align-items: center; gap: 8px; }
+.side-nav .ni { width: 17px; height: 17px; opacity: 0.8; }
+.side-nav a:hover .ni, .side-nav a.active .ni, .side-nav a.on .ni, .side-nav a[aria-current] .ni { opacity: 1; }
+.pt-flag { width: 20px; height: 15px; border-radius: 3px; vertical-align: -2px; display: inline-block; margin: 0 3px 1px 0; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18); }
+.pf-badge .pf-badge-img { display: block; width: 62%; height: 62%; }
+
+
+/* ── home: the header menu (icon + visible label) ── */
+.nav.nav-icons a.nv-ic {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 40px; padding: 0 10px; border-radius: 12px;
+}
+.nav.nav-icons a.nv-ic .ni { margin: 0; width: 17px; height: 17px; vertical-align: 0; opacity: .82; transition: .18s; flex: 0 0 auto; }
+.nav.nav-icons a.nv-ic:hover .ni { opacity: 1; transform: translateY(-1px); }
+.nav.nav-icons a.nv-ic .nv-label { font-size: 13.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+
+/* ── home: the catalog search box (goes to search.html) ── */
+.hs-form {
+  display: flex; align-items: center; gap: 8px; margin-top: 18px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line);
+  border-radius: 16px; padding: 8px; max-width: 640px;
+}
+.hs-form:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(1, 180, 228, 0.14); }
+.hs-form .hs-ico { color: var(--muted); display: grid; place-items: center; padding: 0 4px 0 8px; flex: 0 0 auto; }
+.hs-form input {
+  flex: 1; min-width: 0; background: transparent; border: 0; outline: 0;
+  color: var(--text); font: inherit; font-size: 14.5px; padding: 9px 2px;
+}
+.hs-form input::placeholder { color: var(--muted); }
+@media (max-width: 560px) { .hs-form { flex-wrap: wrap; } .hs-form button { width: 100%; } }
+
+/* ── home: the Platforms horizontal icon track ── */
+.hpl-track {
+  display: flex; gap: 16px; overflow-x: auto; padding: 10px 4px 16px;
+  scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+}
+.hpl-item {
+  scroll-snap-align: start; display: grid; justify-items: center; gap: 7px;
+  min-width: 76px; text-decoration: none;
+}
+.hpl-item .pf-badge { transition: transform .18s, box-shadow .18s; }
+.hpl-item b { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.hpl-item:hover .pf-badge { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35); }
+.hpl-item:hover b { color: var(--accent); }
+
+/* the "New on CineAura" tiles live inside Features now */
+.hh-new-sub { margin: 30px 0 14px; }
+.hh-new-sub h3 { margin: 0 0 4px; font-size: 19px; }
+.hh-new-sub p { margin: 0; font-size: 13px; }
+
+
+/* Arabic: the decorative serif has no Arabic glyphs — Cairo takes over */
+html[lang="ar"] .hero-copy h1 { font-family: "Cairo", var(--sans); }

@@ -1,4 +1,4 @@
-/* CineAura — Search.html: the search system with seven tabs and their result
+/* CineAura — search.html: the search system with seven tabs and their result
    types (sql/search.sql).
 
    Videos     videos, playlists, recommendations, reviews
@@ -277,7 +277,7 @@
       ? `./profile.html?username=${encodeURIComponent(x.owner || "")}#playlists`
       : x.source === "post"
         ? `./profile.html?post=${encodeURIComponent(x.id)}`
-        : `./Playlist.html?ID=${encodeURIComponent(x.id)}`;
+        : `./playlist.html?ID=${encodeURIComponent(x.id)}`;
     return `<a class="sc-card" href="${href}">
       ${thumbStrip(x.thumbs)}
       <span class="sc-body">
@@ -291,7 +291,7 @@
 
   function reviewCard(x) {
     const href = x.content_id
-      ? `./Content.html?idcontent=${encodeURIComponent(x.content_id)}`
+      ? `./video.html?id=${encodeURIComponent(x.content_id)}`
       : x.tmdb
         ? `./watch.html?${x.media === "tv" ? "tv" : "movie"}=${encodeURIComponent(x.tmdb)}`
         : x.id && String(x.id).startsWith("P")
@@ -332,9 +332,9 @@
   function recCard(x) {
     const thumbs = (Array.isArray(x.items) ? x.items : []).filter((i) => i && i.poster);
     const href = x.product_id
-      ? `./Market.html?Product=${encodeURIComponent(x.product_id)}`
+      ? `./market.html?Product=${encodeURIComponent(x.product_id)}`
       : x.list_id
-        ? `./Market.html?List=${encodeURIComponent(x.list_id)}`
+        ? `./market.html?List=${encodeURIComponent(x.list_id)}`
         : `./profile.html?post=${encodeURIComponent(x.id)}`;
     return `<a class="sc-card sc-post" href="${href}">
       ${thumbStrip(x.thumb ? [x.thumb] : thumbs.map((i) => `https://image.tmdb.org/t/p/w200${i.poster}`))}
@@ -371,7 +371,7 @@
 
   function channelCard(x) {
     const logo = x.logo ? `<img class="sc-logo" src="${esc(x.logo)}" alt="" loading="lazy" />` : `<span class="sc-logo sc-logo-ph" aria-hidden="true">${esc((String(x.name || "?").trim()[0] || "?").toUpperCase())}</span>`;
-    return `<a class="sc-card sc-channel" href="./Listchannels.html?list=${encodeURIComponent(x.list_id || "")}${x.key ? `&channel=${encodeURIComponent(x.key)}` : ""}&name=${encodeURIComponent(x.name || "")}">
+    return `<a class="sc-card sc-channel" href="./listchannels.html?list=${encodeURIComponent(x.list_id || "")}${x.key ? `&channel=${encodeURIComponent(x.key)}` : ""}&name=${encodeURIComponent(x.name || "")}">
       ${logo}
       <span class="sc-body">
         <b class="sc-title">${esc(x.name || "")}</b>
@@ -382,7 +382,7 @@
   }
 
   function freeChannelCard(x) {
-    return `<a class="sc-card sc-channel" href="./IPTV.html">
+    return `<a class="sc-card sc-channel" href="./iptv.html">
       <span class="sc-logo sc-logo-ph sc-logo-free" aria-hidden="true">▶</span>
       <span class="sc-body">
         <b class="sc-title">${esc(x.name || "")}</b>
@@ -409,7 +409,7 @@
         )}</button>`
       : x.password && x.locked
         ? `<button class="btn btn-sm btn-primary" type="button" data-unlock="${esc(card)}">${esc(t("srch.ch.unlock"))}</button>`
-        : `<a class="btn btn-sm btn-ghost" href="./Listchannels.html?list=${encodeURIComponent(card)}">${esc(t("srch.ch.openList"))}</a>`;
+        : `<a class="btn btn-sm btn-ghost" href="./listchannels.html?list=${encodeURIComponent(card)}">${esc(t("srch.ch.openList"))}</a>`;
     return `<div class="sc-card sc-list ${join ? "sc-list-join" : ""}">
       <span class="sc-list-head">
         <b class="sc-title">${esc(x.name || "")}</b>
@@ -426,7 +426,7 @@
 
   function productCard(x) {
     const img = Array.isArray(x.images) && x.images[0] ? x.images[0] : x.thumb;
-    return `<a class="sc-card sc-product" href="./Market.html?Product=${encodeURIComponent(x.id || "")}">
+    return `<a class="sc-card sc-product" href="./market.html?Product=${encodeURIComponent(x.id || "")}">
       ${img ? `<span class="sc-thumbs"><img src="${esc(img)}" alt="" loading="lazy" /></span>` : `<span class="sc-thumbs sc-thumbs-ph" aria-hidden="true"></span>`}
       <span class="sc-body">
         <b class="sc-title">${esc(x.title || "")}</b>
@@ -442,7 +442,7 @@
   }
 
   function categoryCard(x) {
-    return `<a class="sc-card sc-product" href="./Market.html?Categories=${encodeURIComponent(x.id || "")}">
+    return `<a class="sc-card sc-product" href="./market.html?Categories=${encodeURIComponent(x.id || "")}">
       ${thumbStrip(x.images)}
       <span class="sc-body">
         <b class="sc-title">${esc(x.title || "")}</b>
@@ -452,7 +452,7 @@
   }
 
   function marketReviewCard(x) {
-    return `<a class="sc-card sc-review" href="./Market.html?Product=${encodeURIComponent(x.product_id || "")}">
+    return `<a class="sc-card sc-review" href="./market.html?Product=${encodeURIComponent(x.product_id || "")}">
       ${x.thumb ? `<span class="sc-thumbs"><img src="${esc(x.thumb)}" alt="" loading="lazy" /></span>` : ""}
       <span class="sc-body">
         <b class="sc-title">${esc(x.product || t("srch.reviewTitle"))}</b>
@@ -464,7 +464,7 @@
   }
 
   function marketListCard(x) {
-    return `<a class="sc-card" href="./Market.html?List=${encodeURIComponent(x.id || "")}">
+    return `<a class="sc-card" href="./market.html?List=${encodeURIComponent(x.id || "")}">
       ${thumbStrip(x.thumbs)}
       <span class="sc-body">
         <b class="sc-title">${esc(x.title || "")}</b>
@@ -476,7 +476,7 @@
 
   function prizeCard(x) {
     const modes = (Array.isArray(x.modes) ? x.modes : []).map((m) => `<span class="sc-tag">${esc(t(`srch.mode.${m}`))}</span>`).join("");
-    return `<a class="sc-card sc-prize" href="./Prize.html?GroupPrize=${encodeURIComponent(x.group_id ?? 0)}&Prize=${encodeURIComponent(x.id || "")}">
+    return `<a class="sc-card sc-prize" href="./prize.html?GroupPrize=${encodeURIComponent(x.group_id ?? 0)}&Prize=${encodeURIComponent(x.id || "")}">
       ${x.thumb ? `<span class="sc-thumbs"><img src="${esc(x.thumb)}" alt="" loading="lazy" /></span>` : `<span class="sc-thumbs sc-thumbs-ph" aria-hidden="true"></span>`}
       <span class="sc-body">
         ${x.group ? `<small class="sc-group">${esc(x.group)}</small>` : ""}
@@ -489,7 +489,7 @@
   }
 
   function groupCard(x) {
-    return `<a class="sc-card sc-prize" href="./Prize.html?GroupPrize=${encodeURIComponent(x.id || "")}">
+    return `<a class="sc-card sc-prize" href="./prize.html?GroupPrize=${encodeURIComponent(x.id || "")}">
       ${x.thumb ? `<span class="sc-thumbs"><img src="${esc(x.thumb)}" alt="" loading="lazy" /></span>` : ""}
       <span class="sc-body">
         <b class="sc-title">${esc(x.title || "")}</b>

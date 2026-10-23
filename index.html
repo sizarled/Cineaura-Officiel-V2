@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="css/videos.css" />
   <link rel="stylesheet" href="css/home-hub.css" />
   <link rel="stylesheet" href="css/home-updates.css" />
+  <link rel="stylesheet" href="css/platforms.css" />
   <link rel="stylesheet" href="css/facebook.css" />
   <link rel="stylesheet" href="css/mobile.css" />
 </head>
@@ -42,20 +43,18 @@
           <span class="logo-word">Cine<span>Aura</span></span>
         </a>
 
-        <!-- Find: the catalog search of this page; Search, Movies, Series, Videos, IPTV and
-             Prizes: their own pages; Features, Plans & Pricing and Support: this page -->
-        <nav class="nav" aria-label="Primary">
-          <a href="#features" data-i18n="nav.features">Features</a>
-          <a href="./index.html#search" data-i18n="nav.find">Find</a>
-          <a href="./search.html" data-i18n="nav.search">Search</a>
-          <a href="./movies.html" data-i18n="nav.movies">Movies</a>
-          <a href="./series.html" data-i18n="nav.series">Series</a>
-          <a href="./Content.html" data-i18n="nav.videos" data-videos-nav="1">Videos</a>
-          <a href="./IPTV.html" data-i18n="nav.iptv">IPTV</a>
-          <a href="./Prize.html" data-i18n="nav.prizes">Prizes</a>
-          <a href="./Market.html" data-i18n="nav.market">Market</a>
-          <a href="#plans" data-i18n="nav.plans">Plans & Pricing</a>
-          <a href="#support" data-i18n="nav.support">Support</a>
+        <!-- one menu of this page's sections: each item shows its icon + its label.
+             The nav-icon decorator (js/common.js) drops each .ni SVG in by data-ni-file. -->
+        <nav class="nav nav-icons" aria-label="Primary">
+          <a class="nv-ic" href="#search" data-ni-file="search"><span class="nv-label" data-i18n="nav.search">Search</span></a>
+          <a class="nv-ic" href="#features" data-ni-file="features"><span class="nv-label" data-i18n="nav.features">Features</span></a>
+          <a class="nv-ic" href="#movies" data-ni-file="movie"><span class="nv-label" data-i18n="nav.movies">Movies</span></a>
+          <a class="nv-ic" href="#series" data-ni-file="series"><span class="nv-label" data-i18n="nav.series">Series</span></a>
+          <a class="nv-ic" href="#iptv" data-ni-file="tv"><span class="nv-label" data-i18n="nav.iptv">IPTV</span></a>
+          <a class="nv-ic" href="#videos" data-ni-file="videos"><span class="nv-label" data-i18n="nav.videos">Videos</span></a>
+          <a class="nv-ic" href="#prizes" data-ni-file="trophy"><span class="nv-label" data-i18n="nav.prizes">Prizes</span></a>
+          <a class="nv-ic" href="#home-market" data-ni-file="store"><span class="nv-label" data-i18n="nav.market">Market</span></a>
+          <a class="nv-ic" href="#plans" data-ni-file="crown"><span class="nv-label" data-i18n="nav.plans">Plans</span></a>
         </nav>
 
         <div class="auth auth-guest" id="auth-guest">
@@ -81,16 +80,15 @@
     </header>
 
     <div class="mobile-menu" id="mobile-menu">
+      <a href="#search" data-i18n="nav.search">Search</a>
       <a href="#features" data-i18n="nav.features">Features</a>
-      <a href="./index.html#search" data-i18n="nav.find">Find</a>
-      <a href="./search.html" data-i18n="nav.search">Search</a>
-      <a href="./movies.html" data-i18n="nav.movies">Movies</a>
-      <a href="./series.html" data-i18n="nav.series">Series</a>
-      <a href="./Content.html" data-i18n="nav.videos" data-videos-nav="1">Videos</a>
-      <a href="./IPTV.html" data-i18n="nav.iptv">IPTV</a>
-      <a href="./Prize.html" data-i18n="nav.prizes">Prizes</a>
-      <a href="./Market.html" data-i18n="nav.market">Market</a>
-      <a href="#plans" data-i18n="nav.plans">Plans & Pricing</a>
+      <a href="#movies" data-i18n="nav.movies">Movies</a>
+      <a href="#series" data-i18n="nav.series">Series</a>
+      <a href="#iptv" data-i18n="nav.iptv">IPTV</a>
+      <a href="#videos" data-i18n="nav.videos">Videos</a>
+      <a href="#prizes" data-i18n="nav.prizes">Prizes</a>
+      <a href="#home-market" data-i18n="nav.market">Market</a>
+      <a href="#plans" data-i18n="nav.plans">Plans</a>
       <a href="#support" data-i18n="nav.supportFull">Support & Contact</a>
       <div class="mobile-auth-guest">
         <a href="./login.html" data-i18n="nav.signin">Sign In</a>
@@ -103,6 +101,7 @@
     </div>
 
     <main class="page-main">
+
       <section class="hero" id="hero" aria-label="Trending slideshow">
         <!-- The bar of the team (Panel > Announcements, sql/panel_admin.sql): js/home-hub.js -->
         <div class="site-banner-slot" id="site-banner" hidden></div>
@@ -119,14 +118,23 @@
         </div>
       </section>
 
-      <div class="trust" aria-hidden="true">
-        <div><strong>1080p</strong><span data-i18n="home.trust.q">Cinematic quality</span></div>
-        <div><strong data-i18n="home.trust.live">Live IPTV</strong><span data-i18n="home.trust.liveSub">Free & premium channels</span></div>
-        <div><strong data-i18n="home.trust.cat">TMDB catalog</strong><span data-i18n="home.trust.catSub">Movies & series worldwide</span></div>
-        <div><strong data-i18n="home.trust.plans">Flexible plans</strong><span data-i18n="home.trust.plansSub">From $0 to Diamond</span></div>
-      </div>
-
       <!-- LIVE UPDATES — unified feed of every novelty on CineAura -->
+
+      <section class="section search-section" id="search">
+        <div class="container">
+          <div class="glass search-box">
+            <div class="kicker"><span class="kicker-num">01</span><span class="eyebrow" data-i18n="home.search.kicker">Catalog search</span></div>
+            <h2 data-i18n="home.search.h2">Find any movie or series</h2>
+            <p class="lead" data-i18n="home.search.lead">Type what you’re looking for — movies, series, members’ videos and IPTV channels — and the search page answers with sorting and filters.</p>
+            <form class="hs-form" action="./search.html" method="get" role="search">
+              <span class="hs-ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 5 5"/></svg></span>
+              <input type="search" name="q" dir="auto" autocomplete="off" data-i18n-ph="home.search.ph" placeholder="Movie, series, actor…" />
+              <button class="btn btn-lg btn-primary" type="submit" data-i18n="home.search.btn">Search</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <section class="section" id="live-updates" aria-labelledby="live-updates-h">
         <div class="container">
           <div class="live-head">
@@ -140,80 +148,19 @@
           <div class="live-grid" id="live-grid" aria-live="polite" aria-busy="true">
             <div class="live-loading"><div class="spinner" style="margin:10px auto"></div><div data-i18n="home.live.loading">جاري تحميل التحديثات…</div></div>
           </div>
-          <p class="live-more" style="text-align:center;margin-top:14px"><a class="btn btn-sm btn-ghost" href="./Market.html" data-i18n="home.live.openMarket">Open the Market</a> <a class="btn btn-sm btn-ghost" href="./Content.html" data-i18n="home.live.openVideos">Browse videos</a> <a class="btn btn-sm btn-ghost" href="./IPTV.html" data-i18n="home.live.openIptv">IPTV lists</a></p>
+          <p class="live-more" style="text-align:center;margin-top:14px"><a class="btn btn-sm btn-ghost" href="./market.html" data-i18n="home.live.openMarket">Open the Market</a> <a class="btn btn-sm btn-ghost" href="./video.html" data-i18n="home.live.openVideos">Browse videos</a> <a class="btn btn-sm btn-ghost" href="./iptv.html" data-i18n="home.live.openIptv">IPTV lists</a></p>
         </div>
       </section>
 
+      <div class="trust" aria-hidden="true">
+        <div><strong>1080p</strong><span data-i18n="home.trust.q">Cinematic quality</span></div>
+        <div><strong data-i18n="home.trust.live">Live IPTV</strong><span data-i18n="home.trust.liveSub">Free & premium channels</span></div>
+        <div><strong data-i18n="home.trust.cat">TMDB catalog</strong><span data-i18n="home.trust.catSub">Movies & series worldwide</span></div>
+        <div><strong data-i18n="home.trust.plans">Flexible plans</strong><span data-i18n="home.trust.plansSub">From $0 to Diamond</span></div>
+      </div>
+
+
       <!-- What's new on CineAura: one card per feature of the last updates (js/home-hub.js adds the numbers) -->
-      <section class="section hh-new" id="whats-new">
-        <div class="container">
-          <div class="section-head">
-            <div>
-              <div class="kicker"><span class="kicker-num">01</span><span class="eyebrow" data-i18n="hh.new.kicker">What’s new</span></div>
-              <h2 data-i18n="hh.new.h2">New on CineAura</h2>
-            </div>
-            <p data-i18n="hh.new.p">The Market, members’ videos and IPTV lists, points and levels: everything we added lately, in one place.</p>
-          </div>
-          <div class="hh-new-grid">
-            <a class="glass hh-new-card" href="./Market.html">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 8.5h15l-1.2 11a1.6 1.6 0 0 1-1.6 1.5H7.3a1.6 1.6 0 0 1-1.6-1.5z"/><path d="M8.8 8.5V7a3.2 3.2 0 0 1 6.4 0v1.5"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.market.t">The Market</h3>
-              <p data-i18n="hh.new.market.p">Open your own store and buy or sell products for points. Stores grow through the N, K, M and B tiers.</p>
-              <span class="hh-new-stat" data-hh-stat="market" hidden></span>
-              <span class="hh-new-go"><span data-i18n="hh.new.market.go">Open the Market</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-            <a class="glass hh-new-card" href="./Market.html">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11l4-8a2.5 2.5 0 0 1 3 2.5V9h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18.3 20H7zM3 11h4v9H3z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.rec.t">Recommendations & purchase lists</h3>
-              <p data-i18n="hh.new.rec.p">Recommend products, gather purchase lists and earn the share commission of the sales you bring.</p>
-              <span class="hh-new-stat" data-hh-stat="recs" hidden></span>
-              <span class="hh-new-go"><span data-i18n="hh.new.rec.go">Recommend a product</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-            <a class="glass hh-new-card" href="./Content.html">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.5 9.3v5.4l4.5-2.7z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.videos.t">Members’ videos</h3>
-              <p data-i18n="hh.new.videos.p">Publish your videos and playlists; your followers see them in their Updates.</p>
-              <span class="hh-new-stat" data-hh-stat="videos" hidden></span>
-              <span class="hh-new-go"><span data-i18n="hh.new.videos.go">Watch the videos</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-            <a class="glass hh-new-card" href="./IPTV.html">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="18" height="12.5" rx="2"/><path d="M8.5 3l3.5 3.5L15.5 3M9 22h6"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.iptv.t">Members’ IPTV lists</h3>
-              <p data-i18n="hh.new.iptv.p">Share your M3U playlists — public, exclusive or private — and search the channels of every list.</p>
-              <span class="hh-new-stat" data-hh-stat="lists" hidden></span>
-              <span class="hh-new-go"><span data-i18n="hh.new.iptv.go">Browse the lists</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-            <a class="glass hh-new-card" href="./dashboard.html#points">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.points.t">Points & levels</h3>
-              <p data-i18n="hh.new.points.p">Minutes watched, videos, sales and codes earn points, and every level multiplies what you earn.</p>
-              <span class="hh-new-stat" data-hh-stat="points" hidden></span>
-              <span class="hh-new-go"><span data-i18n="hh.new.points.go">See your points</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-            <a class="glass hh-new-card" href="./Prize.html">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="4.5" rx="1"/><path d="M5 12.5V20.5h14v-8M12 8v12.5"/><path d="M12 8C10.5 4.5 6.5 4 6.5 6.3S9.5 8 12 8zM12 8c1.5-3.5 5.5-4 5.5-1.7S14.5 8 12 8z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.prizes.t">Prizes</h3>
-              <p data-i18n="hh.new.prizes.p">Spend your points on the prizes of the team and follow your claims from your dashboard.</p>
-              <span class="hh-new-stat" data-hh-stat="prizes" hidden></span>
-              <span class="hh-new-go"><span data-i18n="hh.new.prizes.go">See the prizes</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-            <a class="glass hh-new-card" href="./Search.html">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.search.t">Search everything</h3>
-              <p data-i18n="hh.new.search.p">One search for members’ videos and IPTV channels, with sorting and filters.</p>
-              
-              <span class="hh-new-go"><span data-i18n="hh.new.search.go">Search now</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-            <a class="glass hh-new-card" href="./Profile.html">
-              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M18 14.3a6.5 6.5 0 0 1 3.5 5.7"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
-              <h3 data-i18n="hh.new.updates.t">Updates</h3>
-              <p data-i18n="hh.new.updates.p">Follow members to see their new videos, recommendations, purchase lists and reviews in one feed.</p>
-              
-              <span class="hh-new-go"><span data-i18n="hh.new.updates.go">Open my profile</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
-            </a>
-          </div>
-        </div>
-      </section>
 
       <section class="section features-section" id="features">
         <div class="container">
@@ -286,34 +233,70 @@
               <p data-i18n="home.feat.rev.p">Write reviews on movies and series and read what the community thinks.</p>
             </article>
           </div>
-        </div>
-      </section>
-
-      <section class="section" id="prizes">
-        <div class="container">
-          <div class="section-head">
-            <div>
-              <div class="kicker"><span class="kicker-num">03</span><span class="eyebrow" data-i18n="prize.eyebrow">Rewards</span></div>
-              <h2 data-i18n="prize.h1">Prizes</h2>
-            </div>
-            <p data-i18n="prize.topLead">The 20 most popular prizes, ranked by number of subscribers.</p>
+          <div class="hh-new-sub">
+            <h3 data-i18n="hh.new.h2">New on CineAura</h3>
+            <p class="muted" data-i18n="hh.new.p">The Market, members’ videos and IPTV lists, points and levels: everything we added lately, in one place.</p>
           </div>
-          <div id="home-top-prizes"><div class="loader" style="display:grid"><div class="spinner"></div></div></div>
-          <p style="margin-top:20px"><a class="btn btn-lg btn-ghost" href="./Prize.html" data-i18n="prize.viewAll">View all prizes</a></p>
-        </div>
-      </section>
-
-      <section class="section search-section" id="search">
-        <div class="container">
-          <div class="glass search-box">
-            <div class="kicker"><span class="kicker-num">04</span><span class="eyebrow" data-i18n="home.search.kicker">Catalog search</span></div>
-            <h2 data-i18n="home.search.h2">Find any movie or series</h2>
-            <p class="lead" data-i18n="home.search.lead">Google search, tuned to The Movie Database. Pick a title and CineAura opens the watch page; a TMDB person link opens that person’s Cast page. YouTube results stay closed.</p>
-            <div class="cse-wrap">
-              <script async src="https://cse.google.com/cse.js?cx=83edb34d7a98c45b2"></script>
-              <div class="gcse-search"></div>
-            </div>
+<div class="hh-new-grid">
+            <a class="glass hh-new-card" href="./market.html">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 8.5h15l-1.2 11a1.6 1.6 0 0 1-1.6 1.5H7.3a1.6 1.6 0 0 1-1.6-1.5z"/><path d="M8.8 8.5V7a3.2 3.2 0 0 1 6.4 0v1.5"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.market.t">The Market</h3>
+              <p data-i18n="hh.new.market.p">Open your own store and buy or sell products for points. Stores grow through the N, K, M and B tiers.</p>
+              <span class="hh-new-stat" data-hh-stat="market" hidden></span>
+              <span class="hh-new-go"><span data-i18n="hh.new.market.go">Open the Market</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
+            <a class="glass hh-new-card" href="./market.html">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11l4-8a2.5 2.5 0 0 1 3 2.5V9h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18.3 20H7zM3 11h4v9H3z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.rec.t">Recommendations & purchase lists</h3>
+              <p data-i18n="hh.new.rec.p">Recommend products, gather purchase lists and earn the share commission of the sales you bring.</p>
+              <span class="hh-new-stat" data-hh-stat="recs" hidden></span>
+              <span class="hh-new-go"><span data-i18n="hh.new.rec.go">Recommend a product</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
+            <a class="glass hh-new-card" href="./video.html">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.5 9.3v5.4l4.5-2.7z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.videos.t">Members’ videos</h3>
+              <p data-i18n="hh.new.videos.p">Publish your videos and playlists; your followers see them in their Updates.</p>
+              <span class="hh-new-stat" data-hh-stat="videos" hidden></span>
+              <span class="hh-new-go"><span data-i18n="hh.new.videos.go">Watch the videos</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
+            <a class="glass hh-new-card" href="./iptv.html">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="18" height="12.5" rx="2"/><path d="M8.5 3l3.5 3.5L15.5 3M9 22h6"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.iptv.t">Members’ IPTV lists</h3>
+              <p data-i18n="hh.new.iptv.p">Share your M3U playlists — public, exclusive or private — and search the channels of every list.</p>
+              <span class="hh-new-stat" data-hh-stat="lists" hidden></span>
+              <span class="hh-new-go"><span data-i18n="hh.new.iptv.go">Browse the lists</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
+            <a class="glass hh-new-card" href="./dashboard.html#points">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.points.t">Points & levels</h3>
+              <p data-i18n="hh.new.points.p">Minutes watched, videos, sales and codes earn points, and every level multiplies what you earn.</p>
+              <span class="hh-new-stat" data-hh-stat="points" hidden></span>
+              <span class="hh-new-go"><span data-i18n="hh.new.points.go">See your points</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
+            <a class="glass hh-new-card" href="./prize.html">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="4.5" rx="1"/><path d="M5 12.5V20.5h14v-8M12 8v12.5"/><path d="M12 8C10.5 4.5 6.5 4 6.5 6.3S9.5 8 12 8zM12 8c1.5-3.5 5.5-4 5.5-1.7S14.5 8 12 8z"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.prizes.t">Prizes</h3>
+              <p data-i18n="hh.new.prizes.p">Spend your points on the prizes of the team and follow your claims from your dashboard.</p>
+              <span class="hh-new-stat" data-hh-stat="prizes" hidden></span>
+              <span class="hh-new-go"><span data-i18n="hh.new.prizes.go">See the prizes</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
+            <a class="glass hh-new-card" href="./search.html">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.search.t">Search everything</h3>
+              <p data-i18n="hh.new.search.p">One search for members’ videos and IPTV channels, with sorting and filters.</p>
+              
+              <span class="hh-new-go"><span data-i18n="hh.new.search.go">Search now</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
+            <a class="glass hh-new-card" href="./profile.html">
+              <span class="hh-new-top"><span class="feat-ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M18 14.3a6.5 6.5 0 0 1 3.5 5.7"/></svg></span><span class="hh-new-badge" data-i18n="hh.new.badge">New</span></span>
+              <h3 data-i18n="hh.new.updates.t">Updates</h3>
+              <p data-i18n="hh.new.updates.p">Follow members to see their new videos, recommendations, purchase lists and reviews in one feed.</p>
+              
+              <span class="hh-new-go"><span data-i18n="hh.new.updates.go">Open my profile</span> <span aria-hidden="true" class="hh-arrow">→</span></span>
+            </a>
           </div>
+        
+
         </div>
       </section>
 
@@ -321,7 +304,7 @@
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="kicker"><span class="kicker-num">05</span><span class="eyebrow" data-i18n="home.movies.kicker">Now trending</span></div>
+              <div class="kicker"><span class="kicker-num">03</span><span class="eyebrow" data-i18n="home.movies.kicker">Now trending</span></div>
               <div class="br-title-row">
                 <h2 data-i18n="home.movies.h2">Featured Movies</h2>
                 <a class="btn btn-sm btn-ghost" href="./movies.html" data-i18n="browse.viewAll">View all</a>
@@ -339,7 +322,7 @@
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="kicker"><span class="kicker-num">06</span><span class="eyebrow" data-i18n="home.series.kicker">Binge-worthy</span></div>
+              <div class="kicker"><span class="kicker-num">04</span><span class="eyebrow" data-i18n="home.series.kicker">Binge-worthy</span></div>
               <div class="br-title-row">
                 <h2 data-i18n="home.series.h2">Featured Series</h2>
                 <a class="btn btn-sm btn-ghost" href="./series.html" data-i18n="browse.viewAll">View all</a>
@@ -354,65 +337,14 @@
       </section>
 
       <!-- Members' videos (sql/content.sql): the most watched ones, filled by
-           js/home-videos.js; Explore opens Content.html (the search box and the 50
+           js/home-videos.js; Explore opens video.html (the search box and the 50
            most watched / liked / shared videos). -->
-      <section class="section" id="videos">
-        <div class="container">
-          <div class="section-head">
-            <div>
-              <div class="kicker"><span class="kicker-num">07</span><span class="eyebrow" data-i18n="home.vids.kicker">From the community</span></div>
-              <h2 data-i18n="home.vids.h2">Members’ videos</h2>
-            </div>
-            <p data-i18n="home.vids.p">Videos shared by CineAura members. Explore them: search, or browse the 50 most watched, most liked and most shared.</p>
-          </div>
-        </div>
-        <div class="marquee-wrap hv-wrap" id="videos-row" hidden>
-          <div class="marquee hv-track" id="videos-track" aria-busy="true"></div>
-        </div>
-        <div class="container">
-          <div class="hv-cta">
-            <a class="btn btn-lg btn-primary hv-explore" href="./Content.html" data-i18n="home.vids.explore">Explore</a>
-            <nav class="hv-chips" aria-label="The 50 most popular videos" data-i18n-aria="home.vids.listsLabel">
-              <a class="hv-chip" href="./Content.html" data-i18n="vid.hub.tab.minutes">Most watched</a>
-              <a class="hv-chip" href="./Content.html?top=likes" data-i18n="vid.hub.tab.likes">Most liked</a>
-              <a class="hv-chip" href="./Content.html?top=shares" data-i18n="vid.hub.tab.shares">Most shared</a>
-            </nav>
-          </div>
-        </div>
-      </section>
-
-      <!-- The members' market (sql/market.sql): trending products, the top stores (their tier) and
-           the popular categories, filled by js/home-hub.js (left hidden without market.sql) -->
-      <section class="section hh-market" id="home-market" hidden>
-        <div class="container">
-          <div class="section-head">
-            <div>
-              <div class="kicker"><span class="kicker-num">08</span><span class="eyebrow" data-i18n="hh.mkt.kicker">Members’ market</span></div>
-              <h2 data-i18n="hh.mkt.h2">Buy and sell for points</h2>
-            </div>
-            <p data-i18n="hh.mkt.p">Products sold by CineAura members, paid with the points you earn. The points stay safe until you receive your order.</p>
-          </div>
-          <nav class="hh-cats" id="hh-cats" aria-label="Popular categories" data-i18n-aria="hh.mkt.cats" hidden></nav>
-          <h3 class="hh-sub" data-i18n="hh.mkt.trending">Trending products</h3>
-        </div>
-        <div class="container">
-          <div class="hh-row" id="hh-products" aria-busy="true"></div>
-          <div id="hh-stores-wrap" hidden>
-            <h3 class="hh-sub" data-i18n="hh.mkt.stores">Top stores</h3>
-            <div class="hh-stores" id="hh-stores"></div>
-          </div>
-          <div class="hv-cta">
-            <a class="btn btn-lg btn-primary" href="./Market.html" data-i18n="hh.mkt.open">Open the Market</a>
-            <a class="btn btn-lg btn-ghost" href="./Market.html#settings" data-i18n="hh.mkt.sell">Open your store</a>
-          </div>
-        </div>
-      </section>
 
       <section class="section" id="iptv">
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="kicker"><span class="kicker-num">09</span><span class="eyebrow" data-i18n="home.iptv.kicker">Live television</span></div>
+              <div class="kicker"><span class="kicker-num">05</span><span class="eyebrow" data-i18n="home.iptv.kicker">Live television</span></div>
               <h2 data-i18n="home.iptv.h2">IPTV Channels</h2>
             </div>
             <p data-i18n="home.iptv.p">Jump into free public streams or unlock the premium live lineup.</p>
@@ -436,7 +368,7 @@
           </div>
           <div class="container">
             <div class="hh-list-grid" id="hh-list-grid"></div>
-            <p class="hh-more"><a class="btn btn-sm btn-ghost" href="./IPTV.html" data-i18n="hh.lists.all">All IPTV lists</a> <a class="btn btn-sm btn-ghost" href="./dashboard.html#iptv-lists" data-i18n="hh.lists.share">Share your list</a></p>
+            <p class="hh-more"><a class="btn btn-sm btn-ghost" href="./iptv.html" data-i18n="hh.lists.all">All IPTV lists</a> <a class="btn btn-sm btn-ghost" href="./dashboard.html#iptv-lists" data-i18n="hh.lists.share">Share your list</a></p>
           </div>
         </div>
         <div class="container">
@@ -448,7 +380,7 @@
                 <p data-i18n="home.iptv.freeP">News, sports highlights, and lifestyle streams available to every registered CineAura member.</p>
               </div>
               <ul class="iptv-feats"><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.iptv.freeF1">News, sports and lifestyle streams</span></li><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.iptv.freeF2">Included with every account</span></li><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.iptv.freeF3">Plays right in your browser</span></li></ul>
-              <a class="btn btn-lg btn-primary" href="./Listchannels.html?free=1" data-i18n="home.iptv.explore">Explore</a>
+              <a class="btn btn-lg btn-primary" href="./listchannels.html?free=1" data-i18n="home.iptv.explore">Explore</a>
             </article>
             <article class="glass iptv-card iptv-premium">
               <div>
@@ -457,7 +389,7 @@
                 <p data-i18n="home.iptv.premiumP">Exclusive live channels reserved for paid plans — cinema, sports, and international packages.</p>
               </div>
               <ul class="iptv-feats"><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.iptv.premF1">Cinema, sports and international packs</span></li><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.iptv.premF2">M3U and Xtream playlists</span></li><li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.iptv.premF3">Unlocked by paid plans</span></li></ul>
-              <a class="btn btn-lg btn-ghost" href="./Listchannels.html?premium=1" data-i18n="home.iptv.explore">Explore</a>
+              <a class="btn btn-lg btn-ghost" href="./listchannels.html?premium=1" data-i18n="home.iptv.explore">Explore</a>
             </article>
           </div>
           <p class="iptv-hint guest-only" data-i18n="home.iptv.hint2">Free channels play once you sign in; premium channels open with your IPTV account or a watch code.</p>
@@ -466,11 +398,12 @@
 
       <!-- Points & levels: the member's own level (js/home-hub.js, CineAura.memberPoints), the ways to
            earn and the levels, LV0 to LV Max -->
+
       <section class="section hh-points" id="points-levels">
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="kicker"><span class="kicker-num">10</span><span class="eyebrow" data-i18n="hh.pts.kicker">Points & levels</span></div>
+              <div class="kicker"><span class="kicker-num">06</span><span class="eyebrow" data-i18n="hh.pts.kicker">Points & levels</span></div>
               <h2 data-i18n="hh.pts.h2">Earn points, level up</h2>
             </div>
             <p data-i18n="hh.pts.p">Everything you do on CineAura earns points. They count toward your level, and each level multiplies the points you earn.</p>
@@ -503,17 +436,73 @@
         </div>
       </section>
 
-      <section class="section" id="prizes-strip">
+      <section class="section" id="prizes">
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="kicker"><span class="kicker-num">11</span><span class="eyebrow" data-i18n="prize.homeKicker">Win something</span></div>
-              <h2 data-i18n="prize.available">Available prizes</h2>
+              <div class="kicker"><span class="kicker-num">07</span><span class="eyebrow" data-i18n="prize.eyebrow">Rewards</span></div>
+              <h2 data-i18n="prize.h1">Prizes</h2>
             </div>
-            <p data-i18n="prize.homeP">Open prizes you can subscribe to right now.</p>
+            <p data-i18n="prize.topLead">The 20 most popular prizes, ranked by number of subscribers.</p>
           </div>
+          <div id="home-top-prizes"><div class="loader" style="display:grid"><div class="spinner"></div></div></div>
+          <h3 class="hh-sub" style="margin-top:28px" data-i18n="prize.available">Available prizes</h3>
+          <p class="muted" data-i18n="prize.homeP">Open prizes you can subscribe to right now.</p>
           <div id="home-prizes"><div class="loader" style="display:grid"><div class="spinner"></div></div></div>
-          <p style="margin-top:20px"><a class="btn btn-lg btn-ghost" href="./Prize.html" data-i18n="prize.viewAll">View all prizes</a></p>
+          <p style="margin-top:20px"><a class="btn btn-lg btn-ghost" href="./prize.html" data-i18n="prize.viewAll">View all prizes</a></p>
+        </div>
+      </section>
+
+      <section class="section" id="videos">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <div class="kicker"><span class="kicker-num">08</span><span class="eyebrow" data-i18n="home.vids.kicker">From the community</span></div>
+              <h2 data-i18n="home.vids.h2">Members’ videos</h2>
+            </div>
+            <p data-i18n="home.vids.p">Videos shared by CineAura members. Explore them: search, or browse the 50 most watched, most liked and most shared.</p>
+          </div>
+        </div>
+        <div class="marquee-wrap hv-wrap" id="videos-row" hidden>
+          <div class="marquee hv-track" id="videos-track" aria-busy="true"></div>
+        </div>
+        <div class="container">
+          <div class="hv-cta">
+            <a class="btn btn-lg btn-primary hv-explore" href="./video.html" data-i18n="home.vids.explore">Explore</a>
+            <nav class="hv-chips" aria-label="The 50 most popular videos" data-i18n-aria="home.vids.listsLabel">
+              <a class="hv-chip" href="./video.html" data-i18n="vid.hub.tab.minutes">Most watched</a>
+              <a class="hv-chip" href="./video.html?top=likes" data-i18n="vid.hub.tab.likes">Most liked</a>
+              <a class="hv-chip" href="./video.html?top=shares" data-i18n="vid.hub.tab.shares">Most shared</a>
+            </nav>
+          </div>
+        </div>
+      </section>
+
+      <!-- The members' market (sql/market.sql): trending products, the top stores (their tier) and
+           the popular categories, filled by js/home-hub.js (left hidden without market.sql) -->
+
+      <section class="section hh-market" id="home-market" hidden>
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <div class="kicker"><span class="kicker-num">09</span><span class="eyebrow" data-i18n="hh.mkt.kicker">Members’ market</span></div>
+              <h2 data-i18n="hh.mkt.h2">Buy and sell for points</h2>
+            </div>
+            <p data-i18n="hh.mkt.p">Products sold by CineAura members, paid with the points you earn. The points stay safe until you receive your order.</p>
+          </div>
+          <nav class="hh-cats" id="hh-cats" aria-label="Popular categories" data-i18n-aria="hh.mkt.cats" hidden></nav>
+          <h3 class="hh-sub" data-i18n="hh.mkt.trending">Trending products</h3>
+        </div>
+        <div class="container">
+          <div class="hh-row" id="hh-products" aria-busy="true"></div>
+          <div id="hh-stores-wrap" hidden>
+            <h3 class="hh-sub" data-i18n="hh.mkt.stores">Top stores</h3>
+            <div class="hh-stores" id="hh-stores"></div>
+          </div>
+          <div class="hv-cta">
+            <a class="btn btn-lg btn-primary" href="./market.html" data-i18n="hh.mkt.open">Open the Market</a>
+            <a class="btn btn-lg btn-ghost" href="./market.html#settings" data-i18n="hh.mkt.sell">Open your store</a>
+          </div>
         </div>
       </section>
 
@@ -521,7 +510,7 @@
         <div class="container">
           <div class="glass app-card">
             <div class="app-copy">
-              <div class="kicker"><span class="kicker-num">12</span><span class="eyebrow" data-i18n="home.app.kicker">Get the app</span></div>
+              <div class="kicker"><span class="kicker-num">10</span><span class="eyebrow" data-i18n="home.app.kicker">Get the app</span></div>
               <h2 data-i18n="home.apps.h2">CineAura on all your screens</h2>
               <p class="app-lead" data-i18n="home.apps.p">Movies, series and live TV on your computer, phone and TV. Download the app for your device.</p>
               <ul class="iptv-feats app-feats">
@@ -551,7 +540,7 @@
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="kicker"><span class="kicker-num">13</span><span class="eyebrow" data-i18n="home.plans.kicker">Membership</span></div>
+              <div class="kicker"><span class="kicker-num">11</span><span class="eyebrow" data-i18n="home.plans.kicker">Membership</span></div>
               <h2 data-i18n="home.plans.h2">Plans & Pricing</h2>
             </div>
             <p data-i18n="home.plans.p">Every plan needs an account. Choose how long your access code stays active.</p>
@@ -577,8 +566,8 @@
 
             <article class="glass plan silver">
               <div class="plan-name">Silver</div>
-              <div class="plan-price"><strong>$5</strong><span data-i18n="home.plan.3m">/ 3 months</span></div>
-              <p class="plan-term" data-i18n="home.plan.valid3">Access code valid for 3 months</p>
+              <div class="plan-price"><strong>$5</strong><span data-i18n="home.plan.3m">/ month</span></div>
+              <p class="plan-term" data-i18n="home.plan.valid3">Renews every month</p>
               <ul>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.reg">Registration required</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.watch">Watch all movies & series</span></li>
@@ -596,8 +585,8 @@
             <article class="glass plan gold">
               <div class="plan-ribbon" data-i18n="home.plan.popular">Most Popular</div>
               <div class="plan-name">Gold</div>
-              <div class="plan-price"><strong>$10</strong><span data-i18n="home.plan.6m">/ 6 months</span></div>
-              <p class="plan-term" data-i18n="home.plan.valid6">Access code valid for 6 months</p>
+              <div class="plan-price"><strong>$10</strong><span data-i18n="home.plan.6m">/ month</span></div>
+              <p class="plan-term" data-i18n="home.plan.valid6">Renews every month</p>
               <ul>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.reg">Registration required</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.watch">Watch all movies & series</span></li>
@@ -614,14 +603,14 @@
 
             <article class="glass plan diamond">
               <div class="plan-name">Diamond</div>
-              <div class="plan-price"><strong>$20</strong><span data-i18n="home.plan.12m">/ 12 months</span></div>
-              <p class="plan-term" data-i18n="home.plan.valid12">Access code valid for 12 months</p>
+              <div class="plan-price"><strong>$20</strong><span data-i18n="home.plan.12m">/ month</span></div>
+              <p class="plan-term" data-i18n="home.plan.valid12">Renews every month</p>
               <ul>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.reg">Registration required</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.watch">Watch all movies & series</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.bothIptv">Free + premium IPTV</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.q">Quality up to 1080p</span></li>
-                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.noadsYear">Ad-free year of access</span></li>
+                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.noadsYear">Ad-free viewing</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.links">Publish watch links</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.prizes">Win prizes</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L19 7" stroke="#90cea1" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="home.plan.recs">Share recommendations & reviews</span></li>
@@ -638,7 +627,7 @@
         <div class="container">
           <div class="section-head">
             <div>
-              <div class="kicker"><span class="kicker-num">14</span><span class="eyebrow" data-i18n="home.support.kicker">We’re here</span></div>
+              <div class="kicker"><span class="kicker-num">12</span><span class="eyebrow" data-i18n="home.support.kicker">We’re here</span></div>
               <h2 data-i18n="home.support.h2">Support & Contact</h2>
             </div>
             <p data-i18n="home.support.p">Send a message or reach the team on WhatsApp and Telegram.</p>
@@ -690,7 +679,23 @@
           </div>
         </div>
       </section>
-    </main>
+    
+
+      <section class="section hpl" id="platforms">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <div class="kicker"><span class="kicker-num">13</span><span class="eyebrow" data-i18n="home.plat.kicker">Platforms</span></div>
+              <h2 data-i18n="home.plat.h2">Follow CineAura everywhere</h2>
+            </div>
+            <p data-i18n="home.plat.p">Every channel we publish on — scroll sideways and pick yours.</p>
+          </div>
+          <div class="hpl-track" id="home-platforms-track" dir="ltr"></div>
+            <p class="muted center" style="margin:2px 0 0"><a href="./platform.html" data-i18n="home.plat.all">All our platforms</a></p>
+        </div>
+      </section>
+
+</main>
 
     <footer class="footer">
       <div class="container">
@@ -711,12 +716,12 @@
             <a href="#movies" data-i18n="nav.movies">Movies</a>
             <a href="#series" data-i18n="nav.series">Series</a>
             <a href="#iptv" data-i18n="nav.iptv">IPTV</a>
-            <a href="./Prize.html" data-i18n="nav.prizes">Prizes</a>
-            <a href="./Market.html" data-i18n="nav.market">Market</a>
-            <a href="./Content.html" data-i18n="hh.foot.videos">Members’ videos</a>
-            <a href="./IPTV.html" data-i18n="hh.foot.lists">IPTV lists</a>
-            <a href="./Listchannels.html" data-i18n="hh.foot.channels">Live channels</a>
-            <a href="./Search.html" data-i18n="nav.search">Search</a>
+            <a href="./prize.html" data-i18n="nav.prizes">Prizes</a>
+            <a href="./market.html" data-i18n="nav.market">Market</a>
+            <a href="./video.html" data-i18n="hh.foot.videos">Members’ videos</a>
+            <a href="./iptv.html" data-i18n="hh.foot.lists">IPTV lists</a>
+            <a href="./listchannels.html" data-i18n="hh.foot.channels">Live channels</a>
+            <a href="./search.html" data-i18n="nav.search">Search</a>
           </div>
           <div>
             <h4 data-i18n="home.footer.account">Account</h4>
@@ -737,6 +742,9 @@
             <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">The Movie Database</a>
           </div>
         </div>
+        <!-- the site's social accounts (js/home-platforms.js fills it; sql/platforms.sql
+             is their source, edited in Panel > Settings > Social platforms API) -->
+        <div id="social-strip" style="margin:16px 0 6px"></div>
         <div class="footer-bottom">
           <span data-i18n="home.footer.copy">© 2026 CineAura. All rights reserved.</span>
           <span data-i18n="home.footer.tmdb">This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -750,10 +758,13 @@
   <script src="js/lang.js"></script>
   <script src="js/common.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/plans.js"></script>
   <script src="js/home-channels.js"></script>
   <script src="js/videos.js"></script>
   <script src="js/home-videos.js"></script>
   <script src="js/home-hub.js"></script>
+  <script src="js/social-icons.js"></script>
+  <script src="js/home-platforms.js"></script>
   <script src="js/home-updates.js"></script>
   <script src="js/prize-rules.js"></script>
   <script src="js/prize.js"></script>

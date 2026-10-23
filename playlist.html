@@ -89,7 +89,7 @@
         <p class="eyebrow">${escapeHtml(pl.owner_username)} · ${escapeHtml({public:t("common.public"),private:t("common.private"),exclusive:t("common.exclusive")}[vis] || pl.visibility)}</p>
         <h1>${escapeHtml(pl.name)}</h1>
         <p class="muted">${escapeHtml(pl.description||"")} · ${t("common.nViewers", { n: Number(pl.viewers||0) })}</p>
-        <div class="pl-share">${shareRowHtml(`./Playlist.html?ID=${encodeURIComponent(id)}`, `${pl.name} — @${pl.owner_username} · CineAura`)}</div>
+        <div class="pl-share">${shareRowHtml(`./playlist.html?ID=${encodeURIComponent(id)}`, `${pl.name} — @${pl.owner_username} · CineAura`)}</div>
         ${pl.rules && vis === "exclusive" ? `<p class="muted">${t("common.conditions")}: ${escapeHtml(pl.rules)}</p>` : ""}
         ${list.map((it)=>`<div class="item-row">
           <img src="${it.poster_path?imgUrl(it.poster_path,"w92"):initialsAvatar(it.title)}" alt="" />

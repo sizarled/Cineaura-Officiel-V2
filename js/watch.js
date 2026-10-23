@@ -31,11 +31,18 @@
     getLang,
     validWatchUrl,
     linkQualityOptions,
+    LINK_QUALITIES,
     linkLanguageOptions,
     langPickerHtml,
     selectedLangs,
     bindLangPicker,
     publishWatchLink,
+    publishLinkRows,
+    parseLinkDump,
+    resolveLinkDumpTitles,
+    publishQuota,
+    membership,
+    membershipBatchCap,
     getLocale,
     linkHostName,
     hostIconUrl,
@@ -188,8 +195,11 @@
   function setFrame(url) {
     const frame = $("#player-frame");
     const yt = youTubeEmbed(url);
+    // The site's own uploads live on Streamtape: their page url (/v/) becomes
+    // the frameable player (/e/) here, the same id.
+    const st = yt || (window.Streamtape ? window.Streamtape.toEmbedUrl(url) : url);
     frame.setAttribute("referrerpolicy", yt ? "strict-origin-when-cross-origin" : "no-referrer");
-    frame.src = yt || url;
+    frame.src = st || url;
   }
   function youTubeEmbed(raw) {
     let u;
@@ -792,6 +802,7 @@
       return;
     }
     state.playLink = row;
+    state.playLinkAuto = false; // a link the member chose beats the auto pick
     stopTimer(); // the preview pauses: its time left waits for the press on play
     stopEmbed();
     state.playingLink = null;
@@ -1073,7 +1084,7 @@
         .map((p) => {
           const c = votes[p.post_id] || { up: 0, down: 0 };
           const dest = p.playlist_id
-            ? `./Playlist.html?ID=${encodeURIComponent(p.playlist_id)}`
+            ? `./playlist.html?ID=${encodeURIComponent(p.playlist_id)}`
             : memberProfileHref(p.owner_username);
           return `<article class="review-wall-card" data-post="${escapeHtml(p.post_id)}">
             <div class="review-wall-head">
@@ -1144,7 +1155,7 @@
         .map(
           (pl) => `<article class="watch-playlist-row">
             <div>
-              <strong><a href="./Playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${escapeHtml(pl.name || pl.playlist_id)}</a></strong>
+              <strong><a href="./playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${escapeHtml(pl.name || pl.playlist_id)}</a></strong>
               <div class="muted">${escapeHtml(t("watch.by", { name: pl.owner_username || "member" }))} · ${escapeHtml(
                 Number(counts[pl.playlist_id] || 0) === 1
                   ? t("watch.itemsCountOne")
@@ -1154,7 +1165,7 @@
             </div>
             <div class="watch-playlist-side">
               ${visibilityChip(pl.visibility)}
-              <a class="btn btn-sm btn-ghost" href="./Playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${t("watch.openPlaylist")}</a>
+              <a class="btn btn-sm btn-ghost" href="./playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${t("watch.openPlaylist")}</a>
             </div>
           </article>`
         )
@@ -1735,6 +1746,50 @@
         <p class="addlink-sub">${addLinkContext()}</p>
         <p class="addlink-lead">${t("watch.al.lead")}</p>
         <div class="addlink-form">
+          <!-- A form adds its link to one spot, to a run of episodes (bulk,
+               series), or imports a whole text of pairs — imported pairs may
+               name any film or series, by TMDB id or by title. The season and
+               the episode are typed; a number the catalog does not know yet
+               is allowed and shows in the episode picker with the link. -->
+          <div class="addlink-kinds" role="radiogroup" aria-label="${escapeHtml(t("watch.al.mode"))}">
+            <label class="kind-pick">
+              <input type="radio" name="al-mode" value="single" checked />
+              <span>${t("watch.al.modeSingle")}</span>
+            </label>
+            ${
+              mediaType === "tv"
+                ? `<label class="kind-pick">
+              <input type="radio" name="al-mode" value="bulk" />
+              <span>${t("watch.al.modeBulk")}</span>
+            </label>`
+                : ""
+            }
+            <label class="kind-pick">
+              <input type="radio" name="al-mode" value="import" />
+              <span>${t("watch.al.modeImport")}</span>
+            </label>
+            <label class="kind-pick">
+              <input type="radio" name="al-mode" value="upload" />
+              <span>${t("watch.al.modeUpload")}</span>
+            </label>
+          </div>
+          ${
+            mediaType === "tv"
+              ? `
+          <div class="addlink-row" id="al-se-row">
+            <label class="addlink-field">
+              <span>${t("common.season")}</span>
+              <input id="al-season" type="number" min="1" max="99" step="1" inputmode="numeric" value="${Number(state.season) || 1}" />
+            </label>
+            <label class="addlink-field">
+              <span id="al-ep-label">${t("common.episode")}</span>
+              <input id="al-episode" type="number" min="1" max="999" step="1" inputmode="numeric" value="${Number(state.episode) || 1}" />
+            </label>
+          </div>
+          <p class="muted addlink-hint" id="al-se-hint">${t("watch.al.seHint")}</p>`
+              : ""
+          }
+          <p class="muted addlink-hint" id="al-quota" hidden></p>
           <!-- One form publishes both kinds: a source to watch in the player, or
                a file to download. The kind is what puts the row in its rail. -->
           <div class="addlink-kinds" role="radiogroup" aria-label="${escapeHtml(t("watch.al.kind"))}">
@@ -1752,10 +1807,41 @@
             </label>
           </div>
           <p class="addlink-note" id="al-kind-note" hidden>${t("watch.al.dlNote")}</p>
-          <label class="addlink-field">
-            <span id="al-url-label">${t("watch.al.url")}</span>
-            <input id="al-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/watch/12345" />
-          </label>
+          <div id="al-url-box">
+            <label class="addlink-field">
+              <span id="al-url-label">${t("watch.al.url")}</span>
+              <input id="al-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/watch/12345" />
+            </label>
+          </div>
+          <div id="al-bulk-box" hidden>
+            <p class="muted addlink-hint">${t("watch.al.bulkHint", { n: 10 })}</p>
+            <label class="addlink-field">
+              <span>${t("watch.al.urls")}</span>
+              <textarea id="al-bulk" rows="8" dir="ltr" spellcheck="false" placeholder="https://example.com/ep-1&#10;https://example.com/ep-2"></textarea>
+            </label>
+          </div>
+          <div id="al-import-box" hidden>
+            <p class="muted addlink-hint">${t("watch.al.importHint")}</p>
+            <label class="addlink-field">
+              <span>${t("watch.al.importText")}</span>
+              <textarea id="al-import" class="mono" rows="10" dir="ltr" spellcheck="false" placeholder="&lt;!--  ${escapeHtml((state.detail && (state.detail.name || state.detail.title)) || "Name")} -  S1 -  Ep1 [HD] --&gt;&#10;https://example.com/ep-1"></textarea>
+            </label>
+          </div>
+          <!-- The site's own copy of the film / the episode goes from here:
+               the file uploads to the member's Streamtape folder and shows up
+               as an ordinary watch link — playable everywhere on the site. One
+               quality of one title uploads once for the whole site. -->
+          <div id="al-upload-box" hidden>
+            <p class="muted addlink-hint">${t("watch.al.uploadHint")}</p>
+            <label class="addlink-field">
+              <span>${t("watch.al.uploadFile")}</span>
+              <input id="al-file" type="file" accept="video/*" />
+            </label>
+            <div class="up-prog" id="al-up-prog" hidden>
+              <div class="up-prog-bar" id="al-up-bar"></div>
+              <span class="up-prog-n" id="al-up-n">0%</span>
+            </div>
+          </div>
           <div class="addlink-field">
             <span>${t("watch.al.quality")}</span>
             <p class="muted addlink-hint">${t("watch.qualityHint")}</p>
@@ -1826,8 +1912,117 @@
       };
     });
     bindLangPicker("al-sub");
-    $("#al-save").onclick = submitNewLink;
+    /* The mode pick swaps the URL input for the bulk or the import box; the
+       episode field labels itself "first episode" when a run is published. */
+    const syncAddMode = () => {
+      const m = $('input[name="al-mode"]:checked')?.value || "single";
+      const urlBox = $("#al-url-box");
+      if (urlBox) urlBox.hidden = m !== "single";
+      const bulkBox = $("#al-bulk-box");
+      if (bulkBox) bulkBox.hidden = m !== "bulk";
+      const importBox = $("#al-import-box");
+      if (importBox) importBox.hidden = m !== "import";
+      const uploadBox = $("#al-upload-box");
+      if (uploadBox) uploadBox.hidden = m !== "upload";
+      const seRow = $("#al-se-row");
+      if (seRow) seRow.hidden = m === "import";
+      const seHint = $("#al-se-hint");
+      if (seHint) seHint.hidden = m === "import";
+      const epLabel = $("#al-ep-label");
+      if (epLabel) epLabel.textContent = m === "bulk" ? t("watch.al.epStart") : t("common.episode");
+    };
+    $$('input[name="al-mode"]').forEach((el) => {
+      el.onchange = syncAddMode;
+    });
+    syncAddMode();
+    $("#al-save").onclick = () => {
+      const m = $('input[name="al-mode"]:checked')?.value || "single";
+      if (m === "bulk") return submitBulkLinks();
+      if (m === "import") return submitImportLinks();
+      if (m === "upload") return submitUploadLink();
+      return submitNewLink();
+    };
     $("#al-url").focus();
+    fillAddQuotaHint();
+  }
+
+  /* Today's share and one paste's size, in the publish dialog: level × 10
+     links a day; the membership packs one paste (Free 5 · Silver 10 ·
+     Gold 15 · Diamond 20). */
+  async function fillAddQuotaHint() {
+    const el = $("#al-quota");
+    if (!el) return;
+    const session = getSession();
+    if (!session?.member_id) return;
+    const [q, plan] = await Promise.all([publishQuota(session.member_id, "links"), membership()]);
+    if (q.cap == null || !$("#al-quota")) return;
+    const batch = membershipBatchCap(plan);
+    el.textContent =
+      t("watch.al.quota", { left: q.left, cap: q.cap, lv: q.level }) +
+      " · " +
+      t("watch.al.batchCap", { n: batch, plan: plan.premium ? plan.type || "Free" : "Free" });
+    el.hidden = false;
+  }
+
+  /* Everything a published row carries except the URL and the S/E — shared by
+     the single, the bulk and the import submits. */
+  function linkMetaFromForm() {
+    const meta = {
+      quality: selectedQualities("al-q"),
+      urlHidden: $("#al-urlvis")?.value === "hide",
+      originalLanguage: $("#al-lang")?.value || "",
+      hasSubtitles: $("#al-subs")?.value === "yes",
+      hasAds: $("#al-ads")?.value === "yes",
+      kind: $('input[name="al-kind"]:checked')?.value || "watch",
+      subtitleLanguages: "",
+    };
+    if (meta.hasSubtitles) meta.subtitleLanguages = selectedLangs("al-sub");
+    return meta;
+  }
+
+  function linkMetaToast(meta, skipQuality) {
+    if (!skipQuality && !meta.quality) return t("dash.needQuality");
+    if (!meta.originalLanguage) return t("dash.needLang");
+    if (meta.hasSubtitles && !meta.subtitleLanguages) return t("dash.needSubs");
+    return "";
+  }
+
+  function linkBaseRow(meta) {
+    const session = getSession();
+    const d = state.detail || {};
+    return {
+      tmdb_id: Number(mediaId),
+      member_id: session.member_id,
+      username: session.username || "",
+      title: d.title || d.name || "",
+      quality: meta.quality,
+      original_language: meta.originalLanguage,
+      has_subtitles: meta.hasSubtitles,
+      subtitle_languages: meta.subtitleLanguages,
+      has_ads: meta.hasAds,
+      url_hidden: meta.urlHidden,
+      link_kind: meta.kind,
+    };
+  }
+
+  // The season and episode typed in the form (they may go past what TMDB knows).
+  function addLinkSeasonEpisode() {
+    const sn = Number($("#al-season")?.value);
+    const en = Number($("#al-episode")?.value);
+    if (!Number.isInteger(sn) || sn < 1 || sn > 99 || !Number.isInteger(en) || en < 1 || en > 999) return null;
+    return { season: sn, episode: en };
+  }
+
+  /* The fresh rows are loaded, and the episode pickers learn the seasons and
+     episodes that were just published so they can be opened right away. */
+  function afterLinksSaved(touched) {
+    if (mediaType === "tv") {
+      loadSeriesExtras().then(() => {
+        mergeExtraEpisodes();
+        drawPickers();
+      });
+    }
+    renderSources();
   }
 
   async function submitNewLink() {
@@ -1838,49 +2033,28 @@
       return;
     }
     const watchUrl = $("#al-url").value.trim();
-    const quality = selectedQualities("al-q");
-    const urlHidden = $("#al-urlvis")?.value === "hide";
-    const originalLanguage = $("#al-lang").value;
-    const hasSubtitles = $("#al-subs").value === "yes";
-    const hasAds = $("#al-ads").value === "yes";
-    const kind = $('input[name="al-kind"]:checked')?.value || "watch";
+    const meta = linkMetaFromForm();
     if (!validWatchUrl(watchUrl)) return toast(t("dash.needUrl"));
-    if (!quality) return toast(t("dash.needQuality"));
-    if (!originalLanguage) return toast(t("dash.needLang"));
-    let subtitleLanguages = "";
-    if (hasSubtitles) {
-      subtitleLanguages = selectedLangs("al-sub");
-      if (!subtitleLanguages) return toast(t("dash.needSubs"));
-    }
+    const metaToast = linkMetaToast(meta);
+    if (metaToast) return toast(metaToast);
 
-    const d = state.detail || {};
     const table = mediaType === "tv" ? "tvlink" : "movielink";
-    const row = {
-      tmdb_id: Number(mediaId),
-      member_id: session.member_id,
-      username: session.username || "",
-      watch_url: watchUrl,
-      title: d.title || d.name || "",
-      quality,
-      original_language: originalLanguage,
-      has_subtitles: hasSubtitles,
-      subtitle_languages: subtitleLanguages,
-      has_ads: hasAds,
-      url_hidden: urlHidden,
-      link_kind: kind,
-    };
+    const row = { ...linkBaseRow(meta), watch_url: watchUrl };
     if (mediaType === "tv") {
-      row.season = Number(state.season);
-      row.episode = Number(state.episode);
+      const se = addLinkSeasonEpisode();
+      if (!se) return toast(t("watch.al.seBad"));
+      row.season = se.season;
+      row.episode = se.episode;
     }
 
     const button = $("#al-save");
     if (!(await C.guardFeature("links"))) { button.disabled = false; return; }
     if (!(await C.guardLevel("publish_links"))) { button.disabled = false; return; }
+    if (!(await linkQuotaLeft(session))) { button.disabled = false; return; }
     button.disabled = true;
     // One row per chosen kind: watch (opens in the player), download (opens on
     // its own site) or both at once. A kind this URL already has is skipped.
-    const result = await publishWatchLink(table, row, [kind]);
+    const result = await publishWatchLink(table, row, [meta.kind]);
     button.disabled = false;
     if (!result.ok) {
       if (!result.error) return toast(t("dash.dupUrl"));
@@ -1894,7 +2068,265 @@
     if (result.added.length > 1) toast(t("dash.linkSavedBoth"));
     else if (result.skipped.length) toast(t("dash.linkSavedDupKind"));
     else toast(t("dash.linkSaved"));
-    renderSources();
+    afterLinksSaved([{ season: row.season, episode: row.episode }]);
+  }
+
+  /* The membership decides the batch of one paste: Free 5 · Silver 10 ·
+     Gold 15 · Diamond 20. The level decides the whole day: LV × 10 links. */
+  async function linkBatchCap() {
+    return membershipBatchCap(await membership());
+  }
+
+  /* Upload mode: the site's OWN copy of this film / this episode. The file
+     goes to the member's Streamtape folder (Movies, or TV with its season
+     and episode), then appears like any member watch link — its platform
+     badge simply says StreamTape. A title at one quality uploads once for
+     the whole site: the registry turns it away before the file moves. */
+  async function submitUploadLink() {
+    const session = getSession();
+    if (!session?.member_id) {
+      toast(t("watch.al.sign"));
+      return;
+    }
+    const ST = window.Streamtape;
+    if (!ST) return toast(t("up.fail"));
+    const file = $("#al-file")?.files?.[0];
+    if (!file) return toast(t("up.needFile"));
+    if (!/^(video\/|application\/(mp4|x-matroska|x-msvideo))/i.test(String(file.type || "")) && !/\.(mp4|mkv|avi|mov|webm|m4v|mpg|mpeg)$/i.test(String(file.name || ""))) {
+      return toast(t("up.needVideo"));
+    }
+    const meta = linkMetaFromForm();
+    const metaToast = linkMetaToast(meta);
+    if (metaToast) return toast(metaToast);
+    if (!meta.quality) return toast(t("dash.needQuality"));
+    if (!(await linkQuotaLeft(session))) return;
+    const se = mediaType === "tv" ? addLinkSeasonEpisode() : { season: 0, episode: 0 };
+    if (mediaType === "tv" && !se) return toast(t("watch.al.seBad"));
+    if (!(await C.guardFeature("links"))) return;
+    if (!(await C.guardLevel("publish_links"))) return;
+    const quota = await linkQuotaLeft(session);
+    if (!quota) return;
+
+    // The site-wide guard: this film / this episode at this quality exists?
+    const taken =
+      mediaType === "tv"
+        ? await ST.tvQualityTaken(Number(mediaId), se.season, se.episode, meta.quality)
+        : await ST.movieQualityTaken(meta.quality, Number(mediaId));
+    if (taken.length) return toast(t("up.dupTitle"));
+
+    const button = $("#al-save");
+    button.disabled = true;
+    const prog = $("#al-up-prog");
+    const bar = $("#al-up-bar");
+    const nEl = $("#al-up-n");
+    if (prog) prog.hidden = false;
+    const paint = (n) => {
+      if (bar) bar.style.width = `${n}%`;
+      if (nEl) nEl.textContent = `${n}%`;
+    };
+    paint(0);
+    const base =
+      mediaType === "tv"
+        ? ST.names.tv(Number(mediaId), se.season, se.episode, meta.quality)
+        : ST.names.movie(meta.quality, Number(mediaId));
+    const up = await ST.uploadNamed(session.member_id, mediaType, file, base, paint);
+    if (!up.ok) {
+      button.disabled = false;
+      if (prog) prog.hidden = true;
+      return toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+    }
+
+    // Registered before anything else: the registry owns the duplicate rule;
+    // a collision here means somebody else uploaded it in the meantime.
+    const row = {
+      owner_id: session.member_id,
+      owner_username: session.username || "",
+      folder: mediaType,
+      name: up.name,
+      file_id: up.fileId,
+      page_url: up.pageUrl,
+      embed_url: up.embedUrl,
+      quality: meta.quality,
+      tmdb_id: Number(mediaId),
+      season: mediaType === "tv" ? se.season : null,
+      episode: mediaType === "tv" ? se.episode : null,
+      size_bytes: file.size || 0,
+    };
+    const reg = await ST.registerUpload(row);
+    if (!reg.ok) {
+      try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
+      button.disabled = false;
+      if (prog) prog.hidden = true;
+      return toast(t(reg.reason === "sql" ? "up.needSql" : reg.reason === "dup" ? "up.dupTitle" : "up.fail"));
+    }
+
+    // The upload becomes ordinary links of this title — same perks, same
+    // lists, same counters; its platform badge reads StreamTape. The site's
+    // rule is that an uploaded video is READ THROUGH THE EMBED ADDRESS
+    // (https://streamtape.com/e/{id}) for watching, and through the page
+    // address (https://streamtape.com/v/{id}) for downloading, so both rows
+    // are published: one "watch" row on the /e/ URL and one "download" row
+    // on the /v/ URL. The title column always carries the real TMDB name,
+    // never the raw storage name of the file — when the page title was still
+    // loading we re-ask TMDB before publishing.
+    let title = linkBaseRow(meta).title;
+    if (!title) {
+      try {
+        const info = await tmdb(`/${mediaType}/${Number(mediaId)}`, "");
+        title = info?.title || info?.name || "";
+      } catch { /* TMDB unreachable: the id says enough */ }
+      if (!title) title = mediaType === "tv" ? `#${mediaId} S${se.season}E${se.episode}` : `#${mediaId}`;
+    }
+    const linkBase = { ...linkBaseRow(meta), title };
+    const table = mediaType === "tv" ? "tvlink" : "movielink";
+    const watchRow = { ...linkBase, watch_url: up.embedUrl };
+    if (mediaType === "tv") {
+      watchRow.season = se.season;
+      watchRow.episode = se.episode;
+    }
+    const result = await publishWatchLink(table, watchRow, ["watch"]);
+    try {
+      await publishWatchLink(table, { ...watchRow, watch_url: up.pageUrl, link_kind: "download" }, ["download"]);
+    } catch { /* the download row is a bonus: its failure never fails the upload */ }
+    button.disabled = false;
+    if (!result.ok) {
+      await ST.dropFileUpload(session.member_id, up.fileId);
+      if (prog) prog.hidden = true;
+      return toast(t("dash.linkFail"));
+    }
+    closeAddLinkModal();
+    toast(t(result.added.length ? "up.done" : "dash.linkDup"));
+    afterLinksSaved([{ season: se.season, episode: se.episode }]);
+  }
+
+  async function linkQuotaLeft(session) {
+    const q = await publishQuota(session.member_id, "links");
+    if (q.cap != null && q.left <= 0) {
+      toast(t("watch.al.dayFull", { cap: q.cap, lv: q.level }));
+      return null;
+    }
+    return q;
+  }
+
+  /* Bulk: one URL per line. The first line is the episode typed in the form
+     and every next line fills the episode right after it — same season, same
+     details. Inside the paste and against the catalog, no link goes twice. */
+  async function submitBulkLinks() {
+    const session = getSession();
+    if (!session?.member_id || mediaType !== "tv") {
+      toast(t("watch.al.sign"));
+      return;
+    }
+    const meta = linkMetaFromForm();
+    const metaToast = linkMetaToast(meta);
+    if (metaToast) return toast(metaToast);
+    const se = addLinkSeasonEpisode();
+    if (!se) return toast(t("watch.al.seBad"));
+    const lines = ($("#al-bulk")?.value || "")
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (!lines.length) return toast(t("watch.al.urlsEmpty"));
+    /* Too many for one paste is not a refusal: the membership's share is
+       published and the extra lines are reported, like the daily ceiling. */
+    const batchCap = await linkBatchCap();
+    if (!(await C.guardFeature("links"))) return;
+    if (!(await C.guardLevel("publish_links"))) return;
+    const quota = await linkQuotaLeft(session);
+    if (!quota) return;
+    const seen = new Set();
+    const entries = [];
+    let bad = 0;
+    let dup = 0;
+    lines.forEach((url) => {
+      const key = url.toLowerCase();
+      if (!validWatchUrl(url)) { bad += 1; return; }
+      if (seen.has(key)) { dup += 1; return; }
+      seen.add(key);
+      entries.push({
+        table: "tvlink",
+        row: { ...linkBaseRow(meta), watch_url: url, season: se.season, episode: se.episode + entries.length },
+      });
+    });
+    if (!entries.length) return toast(t("watch.al.urlsEmpty"));
+    const left = Math.min(batchCap, quota.left ?? batchCap);
+    const toSave = entries.slice(0, left);
+    const over = entries.length - toSave.length;
+    if (se.episode + toSave.length - 1 > 999) return toast(t("watch.al.seBad"));
+    if (!toSave.length) return toast(t("watch.al.dayFull", { cap: quota.cap, lv: quota.level }));
+    const button = $("#al-save");
+    button.disabled = true;
+    const res = await publishLinkRows(toSave);
+    button.disabled = false;
+    if (res.bad && !res.added && !res.dup) return toast(t("dash.linkFail"));
+    closeAddLinkModal();
+    toast(t("watch.al.result", { added: res.added, dup: res.dup + dup, bad: res.bad + bad, over }));
+    afterLinksSaved(toSave.map((e) => ({ season: e.row.season, episode: e.row.episode })));
+  }
+
+  /* The import accepts films and series, by TMDB id or by title, from any
+     page — every comment line names its own target:
+
+       <!--  1396 - S1 - Ep353 [SD] -->   series episode by id
+       <!--  One Piece - S1 - Ep356 -->   series episode by title
+       <!--  872585 [HD] -->              film by id
+
+     The URL goes on the next line; the pairs land on their own titles. */
+  async function submitImportLinks() {
+    const session = getSession();
+    if (!session?.member_id) {
+      toast(t("watch.al.sign"));
+      return;
+    }
+    const parsed = parseLinkDump($("#al-import")?.value || "");
+    if (!parsed.pairs.length) return toast(t("watch.al.importEmpty"));
+    const batchCap = await linkBatchCap();
+    const meta = linkMetaFromForm();
+    const metaToast = linkMetaToast(meta, true);
+    if (metaToast) return toast(metaToast);
+    if (!(await C.guardFeature("links"))) return;
+    if (!(await C.guardLevel("publish_links"))) return;
+    const quota = await linkQuotaLeft(session);
+    if (!quota) return;
+    const button = $("#al-save");
+    button.disabled = true;
+    toast(t("watch.al.resolving"));
+    const resolved = await resolveLinkDumpTitles(parsed.pairs, tmdb);
+    const seen = new Set();
+    const entries = [];
+    let dup = 0;
+    let bad = parsed.bad;
+    resolved.forEach((p) => {
+      if (p.error || !p.tmdb || !p.parsed) { bad += 1; return; }
+      const key = p.url.toLowerCase();
+      if (seen.has(key)) { dup += 1; return; }
+      seen.add(key);
+      const quality = p.parsed.quality || meta.quality;
+      if (!quality) { bad += 1; return; }
+      const row = {
+        ...linkBaseRow(meta),
+        watch_url: p.url,
+        title: p.title || `TMDB ${p.tmdb}`,
+        tmdb_id: p.tmdb,
+        quality,
+      };
+      if (p.parsed.kind === "tv") {
+        row.season = p.parsed.season;
+        row.episode = p.parsed.episode;
+      }
+      entries.push({ table: p.parsed.kind === "tv" ? "tvlink" : "movielink", row });
+    });
+    if (!entries.length && !bad) bad = 1;
+    const left = Math.min(batchCap, quota.left ?? batchCap);
+    const toSave = entries.slice(0, left);
+    const over = entries.length - toSave.length;
+    if (!toSave.length && over) return toast(t("watch.al.dayFull", { cap: quota.cap, lv: quota.level }));
+    const res = entries.length ? await publishLinkRows(toSave) : { added: 0, dup: 0, bad: 0 };
+    button.disabled = false;
+    if (res.bad && !res.added && !res.dup && !bad) return toast(t("dash.linkFail"));
+    closeAddLinkModal();
+    toast(t("watch.al.result", { added: res.added, dup: res.dup + dup, bad: res.bad + bad, over }));
+    afterLinksSaved(toSave.map((e) => ({ season: e.row.season, episode: e.row.episode })));
   }
 
   /* --- Where to watch: the platforms TMDB lists for this title -------------
@@ -2911,7 +3343,7 @@
 
   function memberProfileHref(username) {
     const name = String(username || "").replace(/^@/, "").trim();
-    return name ? `./Profile.html?@${encodeURIComponent(name)}` : "./Profile.html";
+    return name ? `./profile.html?@${encodeURIComponent(name)}` : "./profile.html";
   }
 
   async function renderSources() {
@@ -3029,6 +3461,24 @@
       return !ownerBlocks("links", row.member_id, row.username);
     });
     state.linkRows = rows;
+    /* The official player leaves only where the panel hid it — publishing or
+       importing member links never hides it by itself. Where it is hidden,
+       the play button arms the most-viewed member watch link instead. */
+    if (officialHidden(Number(state.season) || 0, Number(state.episode) || 0)) {
+      state.mainRow = null;
+      const memberWatches = rows.filter((row) => linkKindOf(row) === "watch");
+      if (memberWatches.length) {
+        const topWatch = [...memberWatches].sort(
+          (a, b) =>
+            (Number(b.clicks) || 0) - (Number(a.clicks) || 0) ||
+            (Date.parse(b.added_at || "") || 0) - (Date.parse(a.added_at || "") || 0)
+        )[0];
+        if (!state.playLink || state.playLinkAuto) {
+          state.playLink = topWatch;
+          state.playLinkAuto = true;
+        }
+      }
+    }
     mountSourceFilters();
     drawSourceRails();
   }
@@ -3510,18 +3960,123 @@
     el.innerHTML = shareRowHtml(`${location.pathname}${canonicalUrl().search}`, text);
   }
 
+  /* Panel rule: the site's official player can be hidden on a scope of this
+     title. A rule is (season?, episode?): both empty hides the whole title,
+     season only hides that season, episode only hides that episode number in
+     every season, and both hides exactly that one. */
+  async function loadOfficialHides() {
+    state.officialHides = [];
+    const res = await supabaseRequest(
+      `/rest/v1/official_link_hides?tmdb_id=eq.${Number(mediaId)}&media_type=eq.${mediaType}&select=season,episode&limit=100`
+    );
+    // PGRST205 (the table is not there yet) keeps the list empty: official stays.
+    if (res.ok && Array.isArray(res.data)) {
+      state.officialHides = res.data.map((r) => ({
+        season: r.season == null ? null : Number(r.season),
+        episode: r.episode == null ? null : Number(r.episode),
+      }));
+    }
+  }
+
+  function officialHidden(season, episode) {
+    const rules = state.officialHides || [];
+    if (mediaType === "movie") return rules.length > 0;
+    if (!rules.length) return false;
+    return rules.some((r) => {
+      if (r.season == null && r.episode == null) return true;
+      if (r.season != null && r.episode == null) return r.season === season;
+      if (r.season == null && r.episode != null) return r.episode === episode;
+      return r.season === season && r.episode === episode;
+    });
+  }
+
+  /* Seasons and episodes the members published a link for, beyond what TMDB
+     lists: the page shows them in the pickers like the catalog's own. */
+  async function loadSeriesExtras() {
+    if (mediaType !== "tv") return;
+    state.extraEpisodes = new Map();
+    const res = await supabaseRequest(
+      `/rest/v1/tvlink?tmdb_id=eq.${Number(mediaId)}&select=season,episode&order=season.asc,episode.asc&limit=1000`
+    );
+    if (!(res.ok && Array.isArray(res.data))) return;
+    res.data.forEach((row) => {
+      const s = Number(row.season);
+      const e = Number(row.episode);
+      if (!(s >= 1) || !(e >= 1)) return;
+      if (!state.extraEpisodes.has(s)) state.extraEpisodes.set(s, new Set());
+      state.extraEpisodes.get(s).add(e);
+    });
+    state.extraEpisodes.forEach((_, s) => {
+      if (!state.seasons.some((x) => Number(x.season_number) === s)) {
+        state.seasons.push({ season_number: s, name: t("watch.seasonN", { n: s }), memberOnly: true });
+      }
+    });
+    state.seasons.sort((a, b) => Number(a.season_number) - Number(b.season_number));
+  }
+
+  // The episodes TMDB does not know about (only member links exist for them).
+  function mergeExtraEpisodes() {
+    if (mediaType !== "tv") return;
+    const extras = [...(state.extraEpisodes?.get(Number(state.season)) || [])];
+    const have = new Set(state.episodes.map((e) => Number(e.episode_number)));
+    extras
+      .filter((e) => !have.has(e))
+      .forEach((e) =>
+        state.episodes.push({
+          episode_number: e,
+          name: t("watch.episodeN", { n: e }),
+          overview: "",
+          still_path: null,
+          air_date: null,
+          runtime: null,
+          memberOnly: true,
+        })
+      );
+    state.episodes.sort((a, b) => Number(a.episode_number) - Number(b.episode_number));
+  }
+
+  function drawPickers() {
+    const seasonSelect = $("#season-select");
+    const episodeSelect = $("#episode-select");
+    if (seasonSelect) {
+      seasonSelect.innerHTML = state.seasons
+        .map(
+          (s) =>
+            `<option value="${s.season_number}" ${Number(s.season_number) === Number(state.season) ? "selected" : ""}>${escapeHtml(s.name || t("watch.seasonN", { n: s.season_number }))}</option>`
+        )
+        .join("");
+    }
+    if (episodeSelect) {
+      episodeSelect.innerHTML = state.episodes
+        .map(
+          (e) =>
+            `<option value="${e.episode_number}" ${Number(e.episode_number) === Number(state.episode) ? "selected" : ""}>E${e.episode_number} · ${escapeHtml(e.name || t("watch.episodeN", { n: e.episode_number }))}</option>`
+        )
+        .join("");
+    }
+  }
+
   async function loadSeason(seasonNumber, preferredEpisode) {
     // Another episode: what played stops, the play button starts its main link
     // and its preview time starts again.
     stopTimer();
     stopEmbed();
     state.playLink = null;
+    state.playLinkAuto = false;
     state.playingLink = null;
     state.previewLeft = PREVIEW_MS;
-    const data = await tmdb(`/tv/${mediaId}/season/${seasonNumber}`);
+    let data = null;
+    try {
+      data = await tmdb(`/tv/${mediaId}/season/${seasonNumber}`);
+    } catch {
+      // A season TMDB does not know yet (published by a member first): its
+      // episodes come from the members' links alone.
+      data = { episodes: [] };
+    }
     state.season = seasonNumber;
     state.episodes = data.episodes || [];
-    const exists = state.episodes.some((e) => e.episode_number === preferredEpisode);
+    mergeExtraEpisodes();
+    const exists = state.episodes.some((e) => Number(e.episode_number) === Number(preferredEpisode));
     if (exists) {
       state.episode = preferredEpisode;
     } else if (preferredEpisode >= 9999) {
@@ -3529,20 +4084,7 @@
     } else {
       state.episode = state.episodes[0]?.episode_number || 1;
     }
-    const seasonSelect = $("#season-select");
-    const episodeSelect = $("#episode-select");
-    seasonSelect.innerHTML = state.seasons
-      .map(
-        (s) =>
-          `<option value="${s.season_number}" ${s.season_number === state.season ? "selected" : ""}>${escapeHtml(s.name || `Season ${s.season_number}`)}</option>`
-      )
-      .join("");
-    episodeSelect.innerHTML = state.episodes
-      .map(
-        (e) =>
-          `<option value="${e.episode_number}" ${e.episode_number === state.episode ? "selected" : ""}>E${e.episode_number} · ${escapeHtml(e.name || "Episode")}</option>`
-      )
-      .join("");
+    drawPickers();
     syncUrl();
     setIdleArt();
     await loadWatchMinutes();
@@ -3648,12 +4190,16 @@
       if (mediaType === "tv") {
         state.seasons = (state.detail.seasons || []).filter((s) => s.season_number > 0);
         if (!state.seasons.length) state.seasons = [{ season_number: 1, name: "Season 1" }];
-        const hasSeason = state.seasons.some((s) => s.season_number === state.season);
+        // Seasons a member published a link for join the TMDB list.
+        await loadSeriesExtras();
+        await loadOfficialHides();
+        const hasSeason = state.seasons.some((s) => Number(s.season_number) === Number(state.season));
         if (!hasSeason) state.season = state.seasons[0].season_number;
         $("#episode-bar").classList.add("show");
         await loadSeason(state.season, state.episode);
       } else {
         setIdleArt();
+        await loadOfficialHides();
         await loadWatchMinutes();
         renderInfo();
         await renderWatchExtras();

@@ -91,16 +91,18 @@ select {
     max-height: calc(100dvh - 80px);
   }
 
-  /* Burger menu panel */
+  /* Burger menu panel: attached to the top of the screen, behind the header */
   .mobile-menu {
-    top: 62px;
+    top: 0;
     inset-inline: 10px;
     bottom: auto;
-    max-height: calc(100vh - 78px);
-    max-height: calc(100dvh - 78px);
+    padding-top: calc(var(--header-offset, 18px) + 60px);
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
     overflow-y: auto;
     overscroll-behavior: contain;
-    z-index: 55;
+    /* under the header pill (50): it stays visible and the burger keeps working while open */
+    z-index: 49;
   }
 
   .mobile-menu a,
@@ -191,6 +193,11 @@ select {
     padding-bottom: 4px;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* the group headings only make sense in the stacked sidebar, not this strip */
+  .dash-side .side-nav .side-grp {
+    display: none;
   }
 
   .dash-side .side-nav::-webkit-scrollbar,
@@ -517,18 +524,6 @@ select {
 }
 
 /* ── RTL (Arabic) on small screens ────────────────────────────── */
-@media (max-width: 900px) {
-  html[dir="rtl"] .auth {
-    margin-inline-start: auto;
-    margin-left: 0;
-  }
-
-  html[dir="rtl"] .mobile-menu a,
-  html[dir="rtl"] .mobile-menu button {
-    text-align: right;
-  }
-}
-
 /* Landscape phones: the hero must not eat the whole viewport */
 @media (max-height: 520px) and (orientation: landscape) {
   .hero {

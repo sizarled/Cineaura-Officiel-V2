@@ -316,7 +316,7 @@
     if (kind === "vote_down") return "down";
     if (kind.startsWith("prize")) return "prize";
     if (kind === "iptv_list") return "iptv_list"; // a member shared a private IPTV list
-    if (kind.startsWith("market")) return "market"; // Market.html: orders, payments, reviews, requests
+    if (kind.startsWith("market")) return "market"; // market.html: orders, payments, reviews, requests
     if (kind.startsWith("iptv")) return "iptv"; // a premium IPTV account given or renewed
     return ICON[kind] ? kind : "info";
   }

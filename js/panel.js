@@ -23,26 +23,29 @@
   // overview: every staff member (the numbers of their own sections); content, market, packages and
   // announce: js/panel-admin.js (sql/content.sql, iptv_lists.sql, market.sql, packages.sql, point_codes.sql,
   // panel_admin.sql); withdrawals: js/panel-withdraw.js (sql/withdrawals.sql)
-  const ALL_SECTIONS = ["overview", "accounts", "links", "iptv", "apps", "reports", "prizes", "messages", "content", "market", "packages", "withdrawals", "announce", "help", "staff", "settings"];
+  const ALL_SECTIONS = ["overview", "accounts", "plans", "links", "iptv", "apps", "reports", "prizes", "messages", "content", "market", "packages", "withdrawals", "patreon", "announce", "help", "staff", "platforms", "settings"];
   // the side menu, in groups (a group without a section the staff member may open is left out)
   const NAV_GROUPS = [
     ["", ["overview"]],
-    ["panel.grp.members", ["accounts", "packages", "withdrawals", "messages", "staff"]],
+    ["panel.grp.members", ["accounts", "packages", "withdrawals", "patreon", "messages", "staff"]],
     ["panel.grp.watch", ["links", "iptv", "apps"]],
     ["panel.grp.community", ["content", "market", "prizes"]],
-    ["panel.grp.site", ["reports", "announce", "help", "settings"]],
+    ["panel.grp.site", ["reports", "announce", "help", "plans", "platforms", "settings"]],
   ];
   // the sections a staff member can be given (overview: everybody; staff: the Super Admin)
   const GIVEN_SECTIONS = ALL_SECTIONS.filter((s) => s !== "staff" && s !== "overview");
   const PA = () => window.CineAuraPanelAdmin;
   const FEATURES = ["links", "messages", "comments", "posts", "reports"];
   const requestedSection = new URLSearchParams(location.search).get("section");
+  // legacy deep link: categories live as a tab inside Help Center now, no longer a section of their own
+  const helpInitialTab = requestedSection === "helpcats" ? "cats" : null;
+  const normalizedSection = helpInitialTab ? "help" : requestedSection;
 
   const state = {
     staff: null,
     settings: { show_admin: true, show_moderator: true, show_member: false },
     staffRows: [],
-    section: ALL_SECTIONS.includes(requestedSection) ? requestedSection : "overview",
+    section: ALL_SECTIONS.includes(normalizedSection) ? normalizedSection : "overview",
     members: [],
     extraMembers: [], // looked up one by one (Panel > IPTV): not among the newest 400
     profiles: {},
@@ -372,13 +375,20 @@
       reports: viewReports,
       prizes: viewPrizes,
       messages: viewMessages,
-      help: (m)=> window.CineAuraHelpPanel ? window.CineAuraHelpPanel.viewHelp(m) : (m.innerHTML='<p>Help panel not loaded</p>'),
+      help: (m)=> window.CineAuraHelpPanel ? window.CineAuraHelpPanel.viewHelp(m, helpInitialTab) : (m.innerHTML='<p>Help panel not loaded</p>'),
       staff: viewStaff,
       settings: viewSettings,
     };
     // the views of js/panel-admin.js
     if (PA()?.has(state.section)) {
       await PA().view(state.section, main, adminCtx());
+      hydrateAvatars(main);
+      hydrateMedals(main);
+      return;
+    }
+    // Social platforms (js/panel-platforms.js, sql/platforms.sql): the publishing queue.
+    if (window.CineAuraPlatformsPanel?.has(state.section)) {
+      await window.CineAuraPlatformsPanel.view(state.section, main, adminCtx());
       hydrateAvatars(main);
       hydrateMedals(main);
       return;
@@ -668,8 +678,105 @@
         <input id="lk-tmdb" placeholder="${t("panel.tmdbId")}" />
       </div>
       <button class="btn btn-sm btn-primary" id="lk-load" type="button">${t("panel.loadLinks")}</button>
-      <div id="lk-out" style="margin-top:16px"></div>`;
+      <div id="lk-out" style="margin-top:16px"></div>
+      <h2 style="margin:30px 0 6px">${t("panel.hide.title")}</h2>
+      <p class="muted">${t("panel.hide.lead")}</p>
+      <div class="form-row">
+        <select id="hm-type" aria-label="${escapeHtml(t("common.type"))}">
+          <option value="movie">${t("common.movie")}</option>
+          <option value="tv">${t("common.series")}</option>
+        </select>
+        <input id="hm-tmdb" type="number" min="1" placeholder="${t("panel.tmdbId")}" />
+      </div>
+      <div class="form-row">
+        <input id="hm-season" type="number" min="1" placeholder="${t("panel.hide.seasonPh")}" />
+        <input id="hm-episode" type="number" min="1" placeholder="${t("panel.hide.episodePh")}" />
+      </div>
+      <button class="btn btn-sm btn-primary" id="hm-add" type="button">${t("panel.hide.add")}</button>
+      <div id="hm-list" style="margin-top:14px"></div>`;
     $("#lk-load").onclick = () => loadTitleLinks();
+    $("#hm-add").onclick = () => addHide();
+    loadHides();
+  }
+
+  /* One hide rule is (type, TMDB id, season?, episode?). Type and id are
+     required; season and episode are optional and widen the scope: both empty
+     hides the whole title, season only hides that season, episode only hides
+     that episode number in every season, both hides exactly that episode. */
+  function hideScopeText(r) {
+    if (r.media_type === "movie") return t("panel.hide.scopeAll", { type: t("common.movie") });
+    if (r.season == null && r.episode == null) return t("panel.hide.scopeAll", { type: t("common.series") });
+    if (r.season != null && r.episode == null) return t("panel.hide.scopeSeason", { s: r.season });
+    if (r.season == null) return t("panel.hide.scopeEpisode", { e: r.episode });
+    return t("panel.hide.scopeExact", { s: r.season, e: r.episode });
+  }
+
+  async function loadHides() {
+    const list = $("#hm-list");
+    if (!list) return;
+    const res = await supabaseRequest(`/rest/v1/official_link_hides?select=*&order=created_at.desc&limit=100`);
+    if (res?.data?.code === "PGRST205") {
+      list.innerHTML = `<p class="empty">${t("panel.hide.needSql")}</p>`;
+      return;
+    }
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    list.innerHTML = rows
+      .map(
+        (r) => `
+      <div class="link-admin">
+        <strong>TMDB ${r.tmdb_id} · ${r.media_type === "tv" ? t("common.series") : t("common.movie")}</strong>
+        <div class="muted">${hideScopeText(r)} · ${t("panel.tmdbId")} ${r.tmdb_id} · @${escapeHtml(r.added_by || "—")}</div>
+        <div class="acc-actions">
+          <button class="btn btn-sm btn-danger" data-hm-del="${r.id}" type="button">${t("common.remove")}</button>
+        </div>
+      </div>`
+      )
+      .join("") || `<p class="empty">${t("panel.hide.empty")}</p>`;
+    list.onclick = async (e) => {
+      const del = e.target.closest("[data-hm-del]");
+      if (!del) return;
+      await supabaseRequest(`/rest/v1/official_link_hides?id=eq.${del.dataset.hmDel}`, { method: "DELETE" });
+      toast(t("panel.hide.removed"));
+      loadHides();
+    };
+  }
+
+  async function addHide() {
+    const type = $("#hm-type").value;
+    const id = Number($("#hm-tmdb").value);
+    if (!id) return toast(t("panel.needTmdb"));
+    let season = Number($("#hm-season").value) || null;
+    let episode = Number($("#hm-episode").value) || null;
+    if (type === "movie") { season = null; episode = null; }
+    if (season != null && (season < 1 || season > 99)) return toast(t("watch.al.seBad"));
+    if (episode != null && (episode < 1 || episode > 999)) return toast(t("watch.al.seBad"));
+    const existing = await supabaseRequest(
+      `/rest/v1/official_link_hides?media_type=eq.${type}&tmdb_id=eq.${id}&select=id,season,episode`
+    );
+    const rows = existing.ok && Array.isArray(existing.data) ? existing.data : [];
+    if (rows.some((r) => (r.season ?? null) === season && (r.episode ?? null) === episode)) {
+      return toast(t("panel.hide.dup"));
+    }
+    const res = await supabaseRequest(`/rest/v1/official_link_hides`, {
+      method: "POST",
+      body: JSON.stringify({
+        media_type: type,
+        tmdb_id: id,
+        season,
+        episode,
+        added_by: getSession()?.username || "",
+      }),
+    });
+    if (!res.ok) {
+      if (res?.data?.code === "PGRST205" || /official_link_hides/i.test(JSON.stringify(res.data || {}))) {
+        return toast(t("panel.hide.needSql"));
+      }
+      return toast(t("panel.hide.fail"));
+    }
+    toast(t("panel.hide.added"));
+    $("#hm-season").value = "";
+    $("#hm-episode").value = "";
+    loadHides();
   }
 
   async function loadTitleLinks() {
@@ -866,7 +973,7 @@
       const gone = isStore ? !g.store : !g.product || pr.status === "deleted";
       const suspended = isStore ? Boolean(st.suspended) : pr.status === "suspended";
       const why = isStore ? st.suspended_reason : pr.suspended_reason;
-      const href = isStore ? `./Market.html?Store=${encodeURIComponent(g.id)}` : `./Market.html?Product=${encodeURIComponent(g.id)}`;
+      const href = isStore ? `./market.html?Store=${encodeURIComponent(g.id)}` : `./market.html?Product=${encodeURIComponent(g.id)}`;
       const counts = {};
       g.items.forEach((x) => { counts[x.reason] = (counts[x.reason] || 0) + 1; });
       const reasons = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -1659,7 +1766,7 @@
               kind: "message",
               title: t("prof.newMsg"),
               body: `${myStaffName()}: ${body.slice(0, 80)}`,
-              href: "./Profile.html?@" + encodeURIComponent(myStaffName()),
+              href: "./profile.html?@" + encodeURIComponent(myStaffName()),
               from_id: myId,
               from_username: myStaffName(),
             }),
@@ -2369,6 +2476,8 @@
         <p class="muted">${t("panel.superAlways")}</p>
         ${state.staff.role === "super" ? `<button class="btn btn-sm btn-primary" id="sh-save" type="button">${t("common.save")}</button>` : ""}
         <hr />
+        <div id="pf-settings-slot"></div>
+        <hr />
         <p class="muted"><b>${t("panel.patreonTitle")}</b><br />${t("panel.patreonHint")}</p>
         <label class="field-label" for="pl-points">${t("panel.patreonPoints")}</label>
         <input id="pl-points" type="url" inputmode="url" maxlength="1000" placeholder="${escapeHtml(window.CineAura.PATREON_DEFAULT)}" dir="ltr" />
@@ -2407,6 +2516,9 @@
       $("#np1").value = "";
       $("#np2").value = "";
     };
+    // Social platforms API (js/panel-platforms.js + sql/platforms.sql): its own
+    // staff gate ("settings"), one card per network.
+    window.CineAuraPlatformsPanel?.renderSettings?.($("#pf-settings-slot"), adminCtx());
     // Saved by panel_settings_save() (sql/panel_admin.sql: the Super Admin, whatever the table's
     // policies and grants); without that file, straight into the table as before.
     $("#sh-save")?.addEventListener("click", async () => {

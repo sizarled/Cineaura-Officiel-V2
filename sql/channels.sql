@@ -2,7 +2,7 @@
 -- Run this in the Supabase SQL editor. It is safe to run again.
 --
 -- 1) public.listchannels keeps the stream link of every channel (the URL line
---    under #EXTINF in the M3U), so the channel player on Listchannels.html can
+--    under #EXTINF in the M3U), so the channel player on listchannels.html can
 --    open it. Packages imported before this column existed have an empty link:
 --    the player then looks the channel up in the package playlist, and an import
 --    from Panel > IPTV fills the column for good.

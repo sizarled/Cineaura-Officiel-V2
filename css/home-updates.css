@@ -33,7 +33,9 @@
 .live-actions a.primary{ background:var(--cyan); border-color:var(--cyan); color:#032541; }
 .live-empty, .live-loading{ padding:24px; text-align:center; border-radius:16px; background:var(--surface); border:1px dashed var(--line); color:var(--muted); }
 .live-more{ display:flex; justify-content:center; margin-top:16px; }
-.live-more button{ padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--text); font-weight:700; cursor:pointer; }
+.live-more button,
+.live-more a.live-more-link{ display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--text); font-weight:700; cursor:pointer; text-decoration:none; transition:.2s; }
+.live-more a.live-more-link:hover{ background:rgba(1,180,228,.12); border-color:var(--accent); color:var(--accent); }
 
 /* Compact in themes where cards are smaller */
 html[data-style="facebook"] .live-card,

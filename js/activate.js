@@ -19,11 +19,12 @@
   window.CineAura.siteLink?.("patreon_plans").then((url) => {
     PATREON_URL = url;
   });
+  // 2026-10-20: plans are MONTHLY (every premium plan buys one month, renewed each month)
   const PLANS = {
     Free: { months: 1, duration: "1 month", price: "$0" },
-    Silver: { months: 3, duration: "3 months", price: "$5" },
-    Gold: { months: 6, duration: "6 months", price: "$10" },
-    Diamond: { months: 12, duration: "12 months", price: "$20" },
+    Silver: { months: 1, duration: "1 month", price: "$5" },
+    Gold: { months: 1, duration: "1 month", price: "$10" },
+    Diamond: { months: 1, duration: "1 month", price: "$20" },
   };
 
   const state = {
@@ -34,7 +35,18 @@
     bio: "",
     avatar: "",
     ip: "",
+    mpcat: null,      // the points shop's price list (sql/membership_points.sql); null until deployed
+    catalogTried: false,
   };
+
+  const PREMIUM = ["Silver", "Gold", "Diamond"];
+  // The memberships' fixed ladder — "change the upgrade" only ever climbs it.
+  const PLAN_ORDER = { Free: 0, Silver: 1, Gold: 2, Diamond: 3 };
+  const LOCKERS = [
+    { key: "CPAGRIP", run: () => (typeof window.call_locker === "function" ? (window.call_locker(), true) : false) },
+    { key: "ADBEUMEDIA", run: () => (typeof window._ET === "function" ? (window._ET(), true) : false) },
+    { key: "Mylead", run: () => (typeof window.showLocker === "function" ? (window.showLocker(LOCKER_ID), true) : false) },
+  ];
 
   const dots = (n, on) =>
     `<div class="step-dots">${Array.from({ length: n }, (_, i) => `<span class="${i < on ? "on" : ""}"></span>`).join("")}</div>`;
@@ -87,12 +99,69 @@
     }
   }
 
-  async function alreadyActivated(type) {
-    const res = await supabaseRequest(
-      `/rest/v1/activation?member_id=eq.${restValue(state.member.member_id)}&membership_type=eq.${restValue(type)}&used=eq.true&select=id`
-    );
-    if (!res.ok || tableMissing(res)) return false;
-    return Array.isArray(res.data) && res.data.length > 0;
+  // The points shop behind the upgrade buttons (sql/membership_points.sql).
+  // Missing RPC → the page simply falls back to its historic code-only flow.
+  async function loadCatalog() {
+    if (state.catalogTried) return state.mpcat;
+    state.catalogTried = true;
+    try {
+      const res = await window.CineAura.rpc("membership_points_catalog", { p_member: state.member.member_id });
+      if (res.ok && res.data?.ok) state.mpcat = res.data;
+    } catch {
+      /* membership-points shop not deployed yet on this site */
+    }
+    return state.mpcat;
+  }
+
+  function pointsPrice(plan) {
+    const p = state.mpcat?.plans?.find((x) => x.plan === plan);
+    return p && Number(p.price_points) > 0 ? Number(p.price_points) : null;
+  }
+
+  // The money price the Panel set (Panel > Plans → sql/plans.sql); the hard
+  // price in PLANS only lasts until the catalog answers.
+  function moneyPrice(plan, fallback) {
+    const p = state.mpcat?.plans?.find((x) => x.plan === plan);
+    return p && p.price_usd_cents != null ? `$${Number(p.price_usd_cents) / 100}` : fallback;
+  }
+
+  // One tap: the same atomic spend + plan hand-over the dashboard shop uses.
+  async function buyWithPoints(plan, alertBox) {
+    const price = pointsPrice(plan);
+    let out = null;
+    try {
+      const res = await window.CineAura.rpc("membership_buy_with_points", {
+        p_member: state.member.member_id,
+        p_plan: plan,
+      });
+      if (res.ok) out = res.data;
+    } catch {
+      out = null;
+    }
+    if (!out?.ok) {
+      const msg = out?.reason === "no_points"
+        ? t("act.needPoints", { p: Number(out.price || price || 0), a: Number(out.available || 0) })
+        : t("act.buyFail");
+      if (alertBox) {
+        alertBox.className = "form-alert show error";
+        alertBox.textContent = msg;
+      } else {
+        toast(msg);
+      }
+      return false;
+    }
+    state.plan = plan;
+    const months = Number(out.months) || 0;
+    Object.assign(state.member, {
+      status: "active",
+      membership_type: plan,
+      membership_expires_at: out.expires_at,
+      membership_duration: months ? `${months} ${months === 1 ? "month" : "months"}` : state.member.membership_duration,
+    });
+    state.mpcat = null;
+    state.catalogTried = false;
+    stepSuccess({ ok: true, end: new Date(out.expires_at), extended: Boolean(out.extended), months });
+    return true;
   }
 
   async function saveProfile() {
@@ -146,6 +215,7 @@
     expired: "act.codeExpired", locked: "points.err.locked", banned: "act.banned", member: "act.notFound",
   };
   function codeError(r) {
+    if (r.reason === "first_free") return t("act.err.firstFree");
     if (r.reason === "mode") return t(r.for === "activate" ? "act.err.forActivate" : "act.err.forReactivate");
     if (r.reason === "audience") return t(`pack.no.${["membership", "country", "language", "level", "age"].includes(r.why) ? r.why : "fit"}`);
     let text = t(CODE_ERRORS[r.reason] || "act.consumeFail");
@@ -235,16 +305,50 @@
     return applyMembership({ months: plan.months, duration: plan.duration });
   }
 
-  function openGetCode() {
-    if (state.plan !== "Free") {
-      window.open(PATREON_URL, "_blank", "noopener");
-      return;
-    }
-    if (typeof window.showLocker === "function") {
-      window.showLocker(LOCKER_ID);
-      return;
-    }
-    toast(t("act.locker"));
+  // "Get the code": the member picks one of the three locker providers —
+  // CPAGRIP (call_locker), AdBlueMedia (_ET) and MyLead (showLocker, the
+  // iframe loader loaded in <head>). An ad blocker that ate a provider's
+  // script gets an honest line instead of a silent no-op.
+  function openGetOptions() {
+    $(".getcode-overlay")?.remove();
+    const wrap = document.createElement("div");
+    wrap.className = "getcode-overlay";
+    wrap.innerHTML = `
+      <div class="glass getcode-card" role="dialog" aria-modal="true" aria-label="${escapeHtml(t("act.get.title"))}">
+        <h2>${t("act.get.title")}</h2>
+        <p class="muted">${t("act.get.lead")}</p>
+        <div class="getcode-grid">
+          ${LOCKERS.map((l) => `
+            <button class="choice getcode-pick" data-locker="${l.key}" type="button">
+              <strong>${l.key}</strong>
+            </button>`).join("")}
+        </div>
+        <button class="btn btn-sm btn-ghost getcode-close" type="button">${t("act.get.close")}</button>
+      </div>`;
+    document.body.appendChild(wrap);
+    let escOff = null;
+    const close = () => {
+      if (escOff) document.removeEventListener("keydown", escOff);
+      wrap.remove();
+    };
+    escOff = (e) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("keydown", escOff);
+    wrap.addEventListener("click", (e) => {
+      if (e.target === wrap) close();
+    });
+    wrap.querySelector(".getcode-close").onclick = close;
+    wrap.querySelectorAll("[data-locker]").forEach((btn) => {
+      btn.onclick = () => {
+        const locker = LOCKERS.find((l) => l.key === btn.dataset.locker);
+        if (!locker || locker.run() === false) {
+          toast(t("act.get.notLoaded"));
+          return;
+        }
+        close();
+      };
+    });
   }
 
   function render(html) {
@@ -257,9 +361,21 @@
     return text ? `<p class="acct-gate-due" role="status">${text}</p>` : "";
   }
 
+  // Never activated of its own? The SQL counts it the same way
+  // (account_code_redeem: activated_at empty and not active → the first activation).
+  function isFirstEver(status) {
+    return !state.member.activated_at && status !== "active";
+  }
+
   function stepChoice() {
     const current = state.member.membership_type || "Free";
     const status = normalizeAccountStatus(state.member.status);
+    const firstEver = isFirstEver(status);
+    /* The ladder of the choice screen:
+       · first visit — one option only: "Activate the account" (Free membership);
+       · afterwards — "Reactivate" (renews the CURRENT plan only) always, and
+         "Change the upgrade" while a higher plan exists — never on Diamond. */
+    const canChange = !firstEver && PLAN_ORDER[current] < PLAN_ORDER.Diamond;
     render(`
       <section class="glass wizard">
         ${dots(4, 1)}
@@ -273,55 +389,120 @@
         </div>
         ${dueHtml()}
         <div class="choice-grid">
+          ${firstEver ? `
           <button class="choice" id="pick-activate" type="button">
             <strong>${t("act.activate")}</strong>
             <p class="muted">${t("act.activateLead")}</p>
-          </button>
+          </button>` : ""}
+          ${!firstEver ? `
           <button class="choice" id="pick-reactivate" type="button">
             <strong>${t("act.reactivate")}</strong>
             <p class="muted">${t("act.reactivateLead")}</p>
-          </button>
+          </button>` : ""}
+          ${canChange ? `
+          <button class="choice" id="pick-change" type="button">
+            <strong>${t("act.changePlan")}</strong>
+            <p class="muted">${t("act.changePlanLead")}</p>
+          </button>` : ""}
         </div>
       </section>`);
-    $("#pick-activate").onclick = () => {
-      state.mode = "activate";
-      stepPlan();
-    };
-    $("#pick-reactivate").onclick = () => {
-      state.mode = "reactivate";
-      stepReactivateSummary();
-    };
+    const actBtn = $("#pick-activate");
+    if (actBtn) {
+      actBtn.onclick = async () => {
+        state.mode = "activate";
+        await loadCatalog();
+        stepPlanFirstFree();
+      };
+    }
+    const reActBtn = $("#pick-reactivate");
+    if (reActBtn) {
+      reActBtn.onclick = async () => {
+        state.mode = "reactivate";
+        await loadCatalog();
+        stepReactivateSummary();
+      };
+    }
+    const changeBtn = $("#pick-change");
+    if (changeBtn) {
+      changeBtn.onclick = async () => {
+        // premium codes are reactivation codes on the server
+        state.mode = "reactivate";
+        await loadCatalog();
+        stepUpgrade();
+      };
+    }
   }
 
-  function stepPlan() {
+  // The FIRST activation is Free only — premium plans open afterwards,
+  // as upgrades (stepUpgrade). Same rule the server applies
+  // (account_code_redeem: activate-mode codes must be Free).
+  function stepPlanFirstFree() {
     render(`
       <section class="glass wizard">
         ${dots(4, 2)}
         <span class="eyebrow">${t("common.membership")}</span>
         <h1>${t("act.choosePlan")}</h1>
-        <p class="muted">${t("act.chooseLead")}</p>
+        <p class="muted">${t("act.firstFreeNote")}</p>
         <div class="plan-pick">
-          ${Object.entries(PLANS).map(([name, p]) => `
-            <button class="plan-card" data-plan="${name}" type="button">
-              <strong>${name}</strong>
-              <p class="muted">${p.price} · ${p.duration}</p>
-              <small>${name === "Free" ? t("act.noCodeFirst") : t("act.patreonCode")}</small>
-            </button>`).join("")}
+          <button class="plan-card on" data-plan="Free" type="button">
+            <strong>Free</strong>
+            <p class="muted">${PLANS.Free.price} · ${PLANS.Free.duration}</p>
+            <small>${t("act.noCodeFirst")}</small>
+          </button>
         </div>
         <button class="btn btn-sm btn-ghost" id="back" type="button">${t("act.back")}</button>
       </section>`);
     $("#back").onclick = stepChoice;
     $$(".plan-card").forEach((btn) => {
-      btn.onclick = async () => {
-        const plan = btn.dataset.plan;
-        btn.disabled = true;
-        if (await alreadyActivated(plan)) {
-          btn.disabled = false;
-          toast(t("act.already"));
-          return;
-        }
-        state.plan = plan;
+      btn.onclick = () => {
+        state.plan = "Free";
         stepProfile();
+      };
+    });
+  }
+
+  // "Change the upgrade": strictly the plans ABOVE the current one — lower
+  // memberships never show, and the Diamond member never sees this tile at
+  // all (nothing above it). Each plan is buyable in one tap with the points
+  // shop — or with a code, exactly as memberships always were.
+  function stepUpgrade() {
+    const current = state.member.membership_type || "Free";
+    const pool = PREMIUM.filter((name) => PLAN_ORDER[name] > PLAN_ORDER[current]);
+    render(`
+      <section class="glass wizard">
+        ${dots(3, 2)}
+        <span class="eyebrow">${t("act.changePlan")}</span>
+        <h1>${t("act.changePlan")}</h1>
+        <p class="muted">${t("act.changePlanLead")}</p>
+        <div class="form-alert" id="up-alert"></div>
+        <div class="plan-pick">
+          ${pool.map((name) => {
+            const p = PLANS[name];
+            const pts = pointsPrice(name);
+            return `
+            <div class="plan-card up-card">
+              <strong>${name}</strong>
+              <p class="muted">${moneyPrice(name, p.price)} · ${p.duration}</p>
+              ${pts ? `<p class="up-pts">${t("ptsShop.price", { n: pts })}</p>` : ""}
+              ${pts ? `<button class="btn btn-sm btn-primary up-buy" data-plan="${name}" type="button">${t("act.payPoints", { n: pts })}</button>` : ""}
+              <button class="btn btn-sm btn-ghost up-code" data-plan="${name}" type="button">${t("act.useCode")}</button>
+            </div>`;
+          }).join("")}
+        </div>
+        <button class="btn btn-sm btn-ghost" id="back" type="button">${t("act.back")}</button>
+      </section>`);
+    $("#back").onclick = stepChoice;
+    $$(".up-buy").forEach((btn) => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        await buyWithPoints(btn.dataset.plan, $("#up-alert"));
+        btn.disabled = false;
+      };
+    });
+    $$(".up-code").forEach((btn) => {
+      btn.onclick = () => {
+        state.plan = btn.dataset.plan;
+        stepCode(true, true);
       };
     });
   }
@@ -349,10 +530,10 @@
         state.avatar = url;
       },
     });
-    $("#back").onclick = stepPlan;
+    // the primary action is wired first, so no other assignment can ever kill it
     $("#next").onclick = async () => {
-      state.bio = $("#bio").value.trim();
-      state.avatar = $("#avatar").value.trim();
+      state.bio = $("#bio")?.value.trim() || "";
+      state.avatar = $("#avatar")?.value.trim() || state.avatar || "";
       const btn = $("#next");
       btn.disabled = true;
       btn.textContent = t("act.saving");
@@ -363,6 +544,7 @@
       }
       stepActivate();
     };
+    $("#back").onclick = stepPlanFirstFree;
   }
 
   function stepReactivateSummary() {
@@ -382,25 +564,20 @@
           <div>${t("act.expired")} <strong>${escapeHtml(dateLabel(m.membership_expires_at))}</strong></div>
         </div>
         ${dueHtml()}
+        <!-- Reactivation renews the CURRENT membership only — changing plans is
+             the other tile ("Change the upgrade"), never this screen. -->
         <div class="plan-pick">
-          ${Object.entries(PLANS).map(([name, p]) => `
-            <button class="plan-card ${name === current ? "on" : ""}" data-plan="${name}" type="button">
-              <strong>${name}</strong>
-              <p class="muted">${p.price} · ${p.duration}</p>
-            </button>`).join("")}
+          <button class="plan-card on" data-plan="${current}" type="button" disabled>
+            <strong>${current}</strong>
+            <p class="muted">${moneyPrice(current, PLANS[current].price)} · ${PLANS[current].duration}</p>
+          </button>
         </div>
+        <p class="muted">${t("act.renewOnly")}</p>
         <div class="stack">
           <button class="btn btn-lg btn-primary" id="go" type="button">${t("act.reactivate")}</button>
           <button class="btn btn-sm btn-ghost" id="back" type="button">${t("act.back")}</button>
         </div>
       </section>`);
-    $$(".plan-card").forEach((btn) => {
-      btn.onclick = () => {
-        $$(".plan-card").forEach((b) => b.classList.remove("on"));
-        btn.classList.add("on");
-        state.plan = btn.dataset.plan;
-      };
-    });
     $("#back").onclick = stepChoice;
     $("#go").onclick = () => stepCode(true);
   }
@@ -435,8 +612,10 @@
     }, 80);
   }
 
-  function stepCode(isReactivate) {
+  function stepCode(isReactivate, fromUpgrade) {
     const premium = state.plan !== "Free";
+    const pts = premium ? pointsPrice(state.plan) : null;
+    const backFn = fromUpgrade ? stepUpgrade : isReactivate ? stepReactivateSummary : stepProfile;
     render(`
       <section class="glass wizard">
         ${dots(isReactivate ? 3 : 4, isReactivate ? 3 : 4)}
@@ -447,12 +626,23 @@
         <div class="stack">
           <label class="muted">${t("act.actCode")}<input id="act-code" placeholder="${t("act.paste")}" autocomplete="off" /></label>
           <button class="btn btn-lg btn-primary" id="use-code" type="button">${t("act.activateAcc")}</button>
-          <button class="btn btn-lg btn-ghost" id="get-code" type="button">${premium ? t("act.patreon") : t("act.get")}</button>
+          ${pts ? `<button class="btn btn-lg btn-ghost" id="pay-points" type="button">${t("act.payPoints", { n: pts })}</button>` : ""}
+          <button class="btn btn-lg btn-ghost" id="get-code" type="button">${fromUpgrade && premium ? t("act.patreon") : t("act.get")}</button>
           <button class="btn btn-sm btn-ghost" id="back" type="button">${t("act.back")}</button>
         </div>
       </section>`);
-    $("#back").onclick = isReactivate ? stepReactivateSummary : stepProfile;
-    $("#get-code").onclick = openGetCode;
+    $("#back").onclick = backFn;
+    // Reactivation: the code comes from a locker of the member's choosing
+    // (CPAGRIP / AdBlueMedia / MyLead). The upgrade keeps the Patreon door.
+    $("#get-code").onclick = fromUpgrade ? () => window.open(PATREON_URL, "_blank", "noopener") : openGetOptions;
+    const payBtn = $("#pay-points");
+    if (payBtn) {
+      payBtn.onclick = async () => {
+        payBtn.disabled = true;
+        await buyWithPoints(state.plan, $("#code-alert"));
+        payBtn.disabled = false;
+      };
+    }
     $("#use-code").onclick = async () => {
       const btn = $("#use-code");
       btn.disabled = true;

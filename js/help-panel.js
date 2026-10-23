@@ -16,19 +16,12 @@
     return res.ok && Array.isArray(res.data) ? res.data : [];
   }
 
-  function viewHelp(main){
-    main.dataset.view='help';
-    main.innerHTML = `<div class="pa-help-head">
-      <div>
-        <p class="eyebrow">${t('panel.nav.help')||'Help'}</p>
-        <h1>${t('help.panelTitle')||'Help Center — Articles'}</h1>
-        <p class="muted">${t('help.panelLead')||'Manage help articles: language, views, votes and publish status.'}</p>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input id="help-q" placeholder="${t('help.searchPh')||'Search articles…'}" style="min-width:220px" />
-        <select id="help-filter-status"><option value="">${t('common.all')||'All'}</option><option value="published">${t('help.published')||'Published'}</option><option value="draft">${t('help.draft')||'Draft'}</option></select>
-        <a class="btn btn-primary" href="./Article.html" id="help-add-btn">+ ${t('help.addArticle')||'Add Article'}</a>
-      </div>
+  // ---- Articles tab (the classic Help Center manager) ----------------------
+  function renderArticlesTab(host){
+    host.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap">
+      <input id="help-q" placeholder="${t('help.searchPh')||'Search articles…'}" style="min-width:220px" />
+      <select id="help-filter-status"><option value="">${t('common.all')||'All'}</option><option value="published">${t('help.published')||'Published'}</option><option value="draft">${t('help.draft')||'Draft'}</option></select>
+      <a class="btn btn-primary" href="./Article.html" id="help-add-btn">+ ${t('help.addArticle')||'Add Article'}</a>
     </div>
     <div id="help-panel-list" class="glass" style="margin-top:14px;overflow:auto"><p style="padding:18px">${t('common.loading')}</p></div>`;
     const render = async () => {
@@ -108,10 +101,42 @@
     render();
     $p('#help-q')?.addEventListener('input', ()=> { clearTimeout($p('#help-q')._t); $p('#help-q')._t=setTimeout(render,300); });
     $p('#help-filter-status')?.addEventListener('change', render);
-    // add button handling: generate temp id placeholder already goes to editor without id (new)
-    $p('#help-add-btn')?.addEventListener('click', (e)=>{
-      // let default go to Article.html (new)
+  }
+
+  // ---- Help Center view: tabs (Articles · Categories & sections) -----------
+  function viewHelp(main, initialTab){
+    main.dataset.view='help';
+    const TAB_CSS = 'background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;cursor:pointer;font:inherit;font-size:15px;color:var(--muted)';
+    const ACTIVE_CSS = 'border-bottom-color:var(--cyan-2);color:var(--cyan-2);font-weight:700';
+    main.innerHTML = `<div class="pa-help-head">
+      <div>
+        <p class="eyebrow">${t('panel.nav.help')||'Help'}</p>
+        <h1>${t('help.panelTitle')||'Help Center'}</h1>
+        <p class="muted">${t('help.panelLead')||'Manage help articles and the categories they live in.'}</p>
+      </div>
+    </div>
+    <div class="help-tabs" role="tablist" style="display:flex;gap:4px;margin-top:12px;border-bottom:1px solid var(--line)">
+      <button type="button" role="tab" data-htab="articles" style="${TAB_CSS}">${t('help.tabArticles')||'Articles'}</button>
+      <button type="button" role="tab" data-htab="cats" style="${TAB_CSS}">${t('panel.nav.helpcats')||'Categories & sections'}</button>
+    </div>
+    <div id="help-tab-body"></div>`;
+    const body = $p('#help-tab-body', main);
+    const paintActive = (name)=> main.querySelectorAll('[data-htab]').forEach(btn=>{
+      btn.style.cssText = TAB_CSS + (btn.dataset.htab===name ? ';'+ACTIVE_CSS : '');
+      btn.setAttribute('aria-selected', btn.dataset.htab===name ? 'true' : 'false');
     });
+    const openTab = (name)=>{
+      paintActive(name);
+      body.innerHTML = '';
+      if(name === 'cats'){
+        if(window.CineAuraHelpCats && window.CineAuraHelpCats.viewHelpCats) window.CineAuraHelpCats.viewHelpCats(body);
+        else body.innerHTML = `<p style="padding:18px;color:var(--muted)">${t('helpcats.loadFail')||'Categories panel not loaded'}.</p>`;
+        return;
+      }
+      renderArticlesTab(body);
+    };
+    main.querySelectorAll('[data-htab]').forEach(btn=> btn.addEventListener('click', ()=> openTab(btn.dataset.htab)));
+    openTab(initialTab === 'cats' ? 'cats' : 'articles');
   }
 
   // expose for panel.js

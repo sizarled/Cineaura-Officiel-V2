@@ -9,9 +9,9 @@
 --   prizes (Panel > Prizes)          source/Prizes/Previews/<prize id>.jpg
 --                                    more than one picture: <prize id>-1.jpg, <prize id>-2.jpg …
 --   prize groups (Panel > Prizes)    source/Prizes/Grpoups/<group id>.jpg
---   products (Market.html)           source/Market/Product/<product id>.jpg, <product id>-1.jpg …
---   store logos (Market.html)        source/Market/Logo/<store id>.jpg
---   store covers (Market.html)       source/Market/Cover/<store id>.jpg
+--   products (market.html)           source/Market/Product/<product id>.jpg, <product id>-1.jpg …
+--   store logos (market.html)        source/Market/Logo/<store id>.jpg
+--   store covers (market.html)       source/Market/Cover/<store id>.jpg
 --
 -- (profile pictures keep their own policies: sql/avatar_storage.sql.)
 --

@@ -31,6 +31,8 @@
     translateDom,
     getLocale,
     memberPoints,
+    balanceTier,
+    balanceTierHtml,
   } = window.CineAura;
 
   // Reads always go through; writes need a live session. A member who signed out
@@ -59,7 +61,7 @@
     host: null,
     hostMember: null,
     isOwner: false,
-    section: "home",
+    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","market","community","create","content","posts","messages","search","following","blocked","settings"].includes(s || "") ? s : "home"; })(),
     homeTab: "activity",
     followRow: null,
     followTab: "sent",
@@ -153,16 +155,17 @@
           <b class="prof-age">${escapeHtml(accountAgeText(age))}</b>
           <span>${escapeHtml(t("prof.accountAge"))}</span>
         </div>
-        <div class="stat ov-level" data-own-level hidden>
+        <a class="stat prof-stat-link ov-level" data-own-level href="./dashboard.html#level" title="${escapeHtml(t("dash.nav.level"))}" hidden>
           <b><bdi dir="ltr" data-lv-name></bdi></b>
           <span data-lv-mult></span>
-        </div>
+        </a>
       </div>`;
   }
 
   // The points of the member whose profile this is, counted once per page load:
-  // their level (LV0 … LV Max, sql/point_levels.sql) for every visitor, and for
-  // the owner also the points they can spend (earned minus spent).
+  // their level (LV0 … LV Max, sql/point_levels.sql) and the balance tier of their
+  // available points (the same N1 … B3 classification the stores show, visible to
+  // every visitor), and for the owner also the points they can spend (earned minus spent).
   function hostPoints() {
     const id = state.hostMember?.member_id;
     if (!id) return Promise.resolve(null);
@@ -181,6 +184,13 @@
       badge.title = `${t("points.colLevel")} · ${mult}`;
       badge.setAttribute("aria-label", `${t("points.colLevel")} ${mp.level.name} · ${mult}`);
       badge.hidden = false;
+    });
+    // the unified balance tier (N1 … B3) of the points they can spend: public, like a
+    // store's badge — the total stays in the level
+    const bt = mp.balanceTier || balanceTier(mp.available);
+    document.querySelectorAll("[data-prof-tier]").forEach((slot) => {
+      slot.innerHTML = balanceTierHtml(bt);
+      slot.hidden = false;
     });
     const stat = document.querySelector("[data-own-level]");
     if (stat) {
@@ -217,15 +227,15 @@
 
   function profileHref(username) {
     if (typeof sharedProfileHref === "function") return sharedProfileHref(username);
-    return `./Profile.html?@${encodeURIComponent(username)}`;
+    return `./profile.html?@${encodeURIComponent(username)}`;
   }
 
   // Every post gets its own link, so it can be shared and opened on its own:
-  // ./Profile.html?post=P123456789
+  // ./profile.html?post=P123456789
   function postHref(post) {
     const id = typeof post === "string" ? post : post?.post_id || "";
     if (typeof sharedPostHref === "function") return sharedPostHref(id);
-    return `./Profile.html?post=${encodeURIComponent(id)}`;
+    return `./profile.html?post=${encodeURIComponent(id)}`;
   }
 
   // The caption the networks receive when a post is shared.
@@ -254,7 +264,7 @@
     return getSession()?.username || "";
   }
 
-  // The post a shared link points at ("./Profile.html?post=P123456789").
+  // The post a shared link points at ("./profile.html?post=P123456789").
   function sharedPostId() {
     return new URLSearchParams(location.search).get("post") || "";
   }
@@ -332,11 +342,12 @@
   // Where a post lives: its playlist page, otherwise the author's profile.
   function postDest(p, fallbackUsername) {
     if (!p) return profileHref(fallbackUsername);
-    if (p.playlist_id) return `./Playlist.html?ID=${encodeURIComponent(p.playlist_id)}`;
+    if (p.playlist_id) return `./playlist.html?ID=${encodeURIComponent(p.playlist_id)}`;
     return profileHref(p.owner_username || fallbackUsername);
   }
 
   function postNoun(kind) {
+    if (kind === "post") return t("prof.updNounPost");
     if (kind === "playlist") return t("prof.updNounPlaylist");
     if (kind === "review") return t("prof.updNounReview");
     if (kind === "reclist") return t("prof.updNounRecList");
@@ -348,7 +359,7 @@
   function updateLine(r, p, opts = {}) {
     const links = opts.links !== false;
     const actorName = String(r.actor_username || "").replace(/^@/, "");
-    const title = escapeHtml(p?.title || p?.post_id || r.post_id || "");
+    const title = escapeHtml(p?.title || String(p?.body || "").split("\n")[0].slice(0, 60) || p?.post_id || r.post_id || "");
     const ownerName = String(p?.owner_username || r.target_username || "").replace(/^@/, "");
     const actor = links
       ? `<a href="${profileHref(actorName)}"><strong>@${escapeHtml(actorName)}</strong></a>`
@@ -502,14 +513,19 @@
   // Sidebar entries. Every one of them reads or writes the signed-in member's
   // own rows, so a signed-out visitor gets no sidebar at all — only the public
   // home of the profile being visited.
-  // Points live in Dashboard > Points; "Your content" (js/content-studio.js) holds the
-  // member's videos: Create, Manage, Statistics.
-  const NAV_SECTIONS = ["home", "create", "posts", "content", "messages", "search", "following", "blocked", "settings"];
+  // Points live in Dashboard > Points; "Your content" is the unified hub (videos
+  // from js/content-studio.js + articles/questions/answers from js/community.js);
+  // "market" opens the own store (viewMarket, sql/market.sql).
+  // Order: Profile → Market → Create → Your content → Manage posts → Messages →
+  // Search → Following → Blocked → Settings.
+  const NAV_SECTIONS = ["home", "market", "community", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"];
 
   function signedIn() {
     return Boolean(state.me?.member?.member_id);
   }
 
+  // The sidebar sections (one order for every member; only signed-in members
+  // get a sidebar at all).
   function navSections() {
     return signedIn() ? NAV_SECTIONS : [];
   }
@@ -519,15 +535,24 @@
     return label !== `prof.${s}` ? label : s[0].toUpperCase() + s.slice(1);
   }
 
-  function renderShell() {
+  // The sidebar nav: the section buttons (own profile), or Home + the
+  // own-sections caption when visiting somebody else.
+  function profNavHtml() {
     const sections = navSections();
+    if (!sections.length) return "";
     const navBtn = (s) =>
       `<button type="button" data-sec="${s}" class="${state.section===s?"active":""}">${window.CineAura.navIcon(s)}<span>${secLabel(s)}</span></button>`;
+    if (state.isOwner) return sections.map(navBtn).join("\n            ");
     // On somebody else's profile only Home is about that member; the rest of
     // the list is the signed-in member's own account, so it gets a caption.
-    const cap = sections.length && !state.isOwner
-      ? `<p class="prof-side-cap">${t("prof.sideMine")}</p>`
-      : "";
+    return `
+            ${navBtn("home")}
+            <p class="prof-side-cap">${t("prof.sideMine")}</p>
+            ${sections.filter((s) => s !== "home").map(navBtn).join("\n            ")}`;
+  }
+
+  function renderShell() {
+    const sections = navSections();
     const aside = sections.length
       ? `
         <aside class="glass prof-side">
@@ -538,10 +563,8 @@
               <span class="muted">${state.isOwner ? t("prof.you") : t("prof.visiting")}</span>
             </span>
           </a>
-          <nav>
-            ${navBtn("home")}
-            ${cap}
-            ${sections.filter((s) => s !== "home").map(navBtn).join("\n            ")}
+          <a class="prof-side-dash" href="./dashboard.html">${window.CineAura.navIcon("overview")}<span>${t("nav.dashboard")}</span></a>
+          <nav>${profNavHtml()}
           </nav>
         </aside>`
       : "";
@@ -610,11 +633,20 @@
   async function renderSection() {
     const main = $("#prof-main");
     if (!main) return;
+    if (!main.dataset.mgBound) {
+      main.dataset.mgBound = "1";
+      main.addEventListener("click", (e) => {
+        const del = e.target.closest("[data-del]");
+        if (del) manageDelete(del);
+      });
+    }
     const map = {
       home: viewHome,
       create: viewCreate,
       posts: viewManagePosts,
       content: viewContent,
+      market: viewMarket,
+      community: viewMemberGroups,
       messages: viewMessages,
       search: viewSearch,
       following: viewFollowing,
@@ -724,7 +756,7 @@
       <div class="prof-head">
         ${avatarTag(p, m.username)}
         <div>
-          <h1>${escapeHtml(p.display_name || m.full_name || m.username)} <span class="prof-lv" data-prof-level hidden></span></h1>
+          <h1>${escapeHtml(p.display_name || m.full_name || m.username)} <span class="prof-lv" data-prof-level hidden></span><span class="prof-tier" data-prof-tier hidden></span></h1>
           <p class="muted">@${escapeHtml(m.username || "")} · ${escapeHtml(m.member_id || "")}</p>
           <div class="status-row">${statusBadges().map((b) => `<button class="status-badge ${b.kind}" data-status="${b.kind}" title="${t("prof.st.click")}" type="button">${b.label}</button>`).join("")}</div>
           <p>${escapeHtml(p.bio || t("prof.noBio"))}</p>
@@ -1062,7 +1094,7 @@
   // A tab of every profile, for every visitor: the videos of the member the visitor
   // may find (content_search with p_owner, newest / most watched / most liked / most
   // shared) and the member's playlists (content_playlists_of), each one opening its
-  // videos (content_playlist_get). Profile.html?@name#videos, #playlists and
+  // videos (content_playlist_get). profile.html?@name#videos, #playlists and
   // #playlist/CPL123456789 open it straight away; the address bar follows the tab.
   const PC_PAGE = 24;
   const PC_SORTS = [
@@ -1217,7 +1249,7 @@
           ${state.isOwner
             ? `<div class="pc-own">
                 <a class="btn btn-sm btn-ghost" href="#content/manage">${escapeHtml(t("prof.pc.manage"))}</a>
-                <a class="btn btn-sm btn-primary" href="#content">${escapeHtml(t("vid.hub.create"))}</a>
+                <a class="btn btn-sm btn-primary" href="?section=create">${escapeHtml(t("vid.hub.create"))}</a>
               </div>`
             : ""}
         </div>
@@ -1321,7 +1353,7 @@
     if (!pc.videos.length) {
       const name = `<bdi>@${escapeHtml(state.hostMember?.username || "")}</bdi>`;
       grid.innerHTML = state.isOwner
-        ? `<li class="glass vs-none pc-none"><p><b>${escapeHtml(t("prof.pc.noneMine"))}</b></p><a class="btn btn-sm btn-primary" href="#content">${escapeHtml(t("vid.hub.create"))}</a></li>`
+        ? `<li class="glass vs-none pc-none"><p><b>${escapeHtml(t("prof.pc.noneMine"))}</b></p><a class="btn btn-sm btn-primary" href="?section=create">${escapeHtml(t("vid.hub.create"))}</a></li>`
         : `<li class="glass vs-none pc-none"><p>${t("prof.pc.none", { name })}</p></li>`;
       more.hidden = true;
       return;
@@ -1417,6 +1449,7 @@
   const RICH_KINDS = ["recommendation", "reclist", "review"];
 
   function kindLabel(kind) {
+    if (kind === "post") return t("prof.plainPost");
     if (kind === "playlist") return t("dash.nav.playlists");
     if (kind === "reclist") return t("prof.recList");
     if (kind === "review") return t("rev.review");
@@ -1438,9 +1471,21 @@
     );
   }
 
+  /* A post may carry one uploaded video (Posts folder on Streamtape): its
+     embed player sits right under the heading of the card. */
+  function postVideoHtml(p) {
+    if (!p.video_url) return "";
+    const V = window.CineAuraVideos;
+    const info = V?.parseVideo?.(p.video_url);
+    const src = info ? V.embedSrc(info, { autoplay: false }) : null;
+    if (!src) return "";
+    return `<div class="post-video"><iframe src="${escapeHtml(src)}" loading="lazy" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe></div>`;
+  }
+
   // Body of a post card: playlists keep the poster grid, recommendations /
   // lists / reviews get poster + title + year + genre + story + cast + trailer.
   function postContentHtml(p, items) {
+    const video = postVideoHtml(p);
     if (!RICH_KINDS.includes(p.kind)) {
       const media = items
         .map((it) => {
@@ -1450,19 +1495,19 @@
           return `<a href="${href}">${score ? `<span class="score">★ ${score}</span>` : ""}<img src="${img}" alt=""/><div class="muted">${escapeHtml(it.title)}</div></a>`;
         })
         .join("");
-      return `<p>${escapeHtml(p.body || "")}</p>
-        ${p.playlist_id ? `<p><a class="btn btn-sm btn-ghost" href="./Playlist.html?ID=${encodeURIComponent(p.playlist_id)}">${t("prof.openPl")}</a></p>` : ""}
+      return `${video}<p>${escapeHtml(p.body || "")}</p>
+        ${p.playlist_id ? `<p><a class="btn btn-sm btn-ghost" href="./playlist.html?ID=${encodeURIComponent(p.playlist_id)}">${t("prof.openPl")}</a></p>` : ""}
         ${media ? `<div class="post-media">${media}</div>` : ""}`;
     }
     const display = Rich.parseDisplay(p.display);
     const compact = p.kind === "reclist" && items.length > 1;
     const blocks = items.map((it) => Rich.itemHtml(it, display, p.post_id, { compact })).join("");
     if (p.kind === "review") {
-      return `<div class="rich-list">${blocks}</div>
+      return `${video}<div class="rich-list">${blocks}</div>
         <div class="review-text">${escapeHtml(p.body || "")}</div>
         ${Rich.reviewListsHtml(p.pros, p.cons)}`;
     }
-    return `<p>${escapeHtml(p.body || "")}</p><div class="rich-list">${blocks}</div>`;
+    return `${video}<p>${escapeHtml(p.body || "")}</p><div class="rich-list">${blocks}</div>`;
   }
 
   function ownerToolsHtml(p) {
@@ -1473,6 +1518,37 @@
       <button class="btn btn-sm btn-ghost" data-pm-edit="${escapeHtml(p.post_id)}" type="button">${t("pm.edit")}</button>
       <button class="btn btn-sm btn-danger" data-pm-del="${escapeHtml(p.post_id)}" type="button">${t("pm.delete")}</button>
     </div>`;
+  }
+
+  // Comments + threaded replies (parent_id, sql/post_reach.sql). Replies to a
+  // reply attach to the thread root — one nesting level, like the big networks.
+  function commentListHtml(comments, postId) {
+    const list = comments || [];
+    const byId = new Map(list.map((c) => [c.id, c]));
+    const rootOf = (c) => {
+      let x = c, guard = 0;
+      while (x.parent_id && byId.has(x.parent_id) && guard++ < 10) x = byId.get(x.parent_id);
+      return x.id;
+    };
+    const replies = new Map();
+    const roots = [];
+    list.forEach((c) => {
+      const k = c.parent_id ? rootOf(c) : c.id;
+      if (k === c.id) roots.push(c);
+      else {
+        if (!replies.has(k)) replies.set(k, []);
+        replies.get(k).push(c);
+      }
+    });
+    const canReply = state.me && !blockedFeature("updates");
+    const item = (c, depth) => `
+      <div class="cmt${depth ? " cmt-reply" : ""}">
+        <p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}
+          ${canReply ? ` <button class="cmt-reply-btn" type="button" data-reply-to="${c.parent_id ? rootOf(c) : c.id}" data-reply-post="${escapeHtml(postId)}" data-reply-user="${escapeHtml(c.username)}">↩ ${t("prof.reply")}</button>` : ""}
+        </p>
+        ${(replies.get(c.id) || []).map((r) => item(r, depth + 1)).join("")}
+      </div>`;
+    return roots.map((c) => item(c, 0)).join("");
   }
 
   function myVoteIn(votes) {
@@ -1491,19 +1567,28 @@
     const up = votes.filter((v) => v.vote === "up").length;
     const down = votes.filter((v) => v.vote === "down").length;
     const mine = myVoteIn(votes);
+    const minePost = Boolean(state.me) && p.owner_id === state.me.member?.member_id;
     const hideVote = blockedFeature("updates") && !state.isOwner;
+    // Comment shortcut + report button: anyone signed in may comment (unless the
+    // owner blocked the updates feature for me); a post is reported by everyone
+    // except its own author.
+    const commentBtn = () => `<button class="btn btn-sm btn-ghost" data-focus-cmt="${escapeHtml(p.post_id)}" type="button" title="${t("prof.writeCmt")}">💬 ${t("prof.comment")}</button>`;
+    const reportBtn = () => `<button class="btn btn-sm btn-ghost" data-report-post="${escapeHtml(p.post_id)}" type="button" title="${t("prof.reportPost")}">⚑ ${t("prof.reportPost")}</button>`;
     return `<div class="post-top">
         <span class="eyebrow">${kindLabel(p.kind)} · ${visLabel(p.visibility)} · ${String(p.created_at || "").slice(0, 10)}</span>
         ${ownerToolsHtml(p)}
       </div>
-      <h3>${escapeHtml(p.title)}</h3>
+      ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
       ${postContentHtml(p, items)}
       ${hideVote ? "" : `<div class="prof-actions">
         <button class="btn btn-sm ${mine === "up" ? "btn-vote-on" : "btn-ghost"}" data-vote="up" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.recommendBtn", { n: up })}</button>
         <button class="btn btn-sm ${mine === "down" ? "btn-vote-on" : "btn-ghost"}" data-vote="down" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.dont", { n: down })}</button>
+        ${state.me ? commentBtn() : ""}
+        ${state.me && !minePost ? reportBtn() : ""}
       </div>`}
+      ${hideVote && state.me && !minePost ? `<div class="prof-actions">${reportBtn()}</div>` : ""}
       <div class="stack" style="margin-top:10px">
-        ${(comments || []).map((c) => `<p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}</p>`).join("")}
+        ${commentListHtml(comments, p.post_id)}
         ${state.me && !blockedFeature("updates") ? `<div class="form-row"><input data-cmt="${escapeHtml(p.post_id)}" placeholder="${t("prof.writeCmt")}" /><button class="btn btn-sm btn-primary" data-send-cmt="${escapeHtml(p.post_id)}" type="button">${t("prof.comment")}</button></div>` : ""}
       </div>
       <div class="post-share">${shareRowHtml(postHref(p), postShareText(p), { compact: true, track: p.post_id })}</div>`;
@@ -1522,6 +1607,50 @@
     }
     const vote = e.target.closest("[data-vote]");
     const send = e.target.closest("[data-send-cmt]");
+    // Comment icon: scroll straight to the comment box of this post.
+    const focusCmt = e.target.closest("[data-focus-cmt]");
+    if (focusCmt) {
+      if (!state.me) {
+        toast(t("prof.signFirst"));
+        return;
+      }
+      const inp = document.querySelector(`[data-cmt="${focusCmt.dataset.focusCmt}"]`);
+      if (inp) {
+        delete inp.dataset.parent;
+        inp.placeholder = t("prof.writeCmt");
+        inp.scrollIntoView({ behavior: "smooth", block: "center" });
+        inp.focus();
+      }
+      return;
+    }
+    // Reply icon: the comment box becomes "reply to @user" (saved as parent_id).
+    const replyBtn = e.target.closest("[data-reply-to]");
+    if (replyBtn) {
+      if (!state.me) {
+        toast(t("prof.signFirst"));
+        return;
+      }
+      if (!(await window.CineAura.guardFeature("comments"))) return;
+      const rInp = document.querySelector(`[data-cmt="${replyBtn.dataset.replyPost}"]`);
+      if (rInp) {
+        rInp.dataset.parent = replyBtn.dataset.replyTo;
+        rInp.placeholder = t("prof.replyTo", { user: "@" + (replyBtn.dataset.replyUser || "") });
+        rInp.scrollIntoView({ behavior: "smooth", block: "center" });
+        rInp.focus();
+      }
+      return;
+    }
+    // Report icon: opens the report dialog (one report per post per member).
+    const repBtn = e.target.closest("[data-report-post]");
+    if (repBtn) {
+      if (!state.me) {
+        toast(t("prof.signFirst"));
+        return;
+      }
+      const post = state.postCache.get(repBtn.dataset.reportPost);
+      if (post) postReportDlg(post);
+      return;
+    }
     if (!state.me) {
       if (vote || send) toast(t("prof.signFirst"));
       return;
@@ -1552,17 +1681,27 @@
         ? { member_id: voted.owner_id, username: voted.owner_username }
         : state.hostMember;
       const kind = choice === "up" ? "vote_up" : "vote_down";
-      await supabaseRequest("/rest/v1/updates", {
-        method: "POST",
-        body: JSON.stringify({
-          actor_id: state.me.member.member_id,
-          actor_username: state.me.member.username,
-          target_id: owner.member_id,
-          target_username: owner.username,
-          kind,
-          post_id: postId,
-        }),
-      });
+      // A recommendation ("up") is republished in my followers' updates feed —
+      // and it raises the post's search points (+30 each). A "don't recommend"
+      // is never republished: it removes every vote line I left for this post
+      // instead, and it costs the post search points (−30 each).
+      await supabaseRequest(
+        `/rest/v1/updates?actor_id=eq.${restValue(state.me.member.member_id)}&post_id=eq.${restValue(postId)}&kind=in.(vote_up,vote_down)`,
+        { method: "DELETE" }
+      );
+      if (choice === "up") {
+        await supabaseRequest("/rest/v1/updates", {
+          method: "POST",
+          body: JSON.stringify({
+            actor_id: state.me.member.member_id,
+            actor_username: state.me.member.username,
+            target_id: owner.member_id,
+            target_username: owner.username,
+            kind,
+            post_id: postId,
+          }),
+        });
+      }
       // Tell the author, in the header bell, with the same one-line wording.
       if (voted && voted.owner_id && voted.owner_id !== state.me.member.member_id) {
         await notifyOnce(voted.owner_id, {
@@ -1586,6 +1725,7 @@
       const input = document.querySelector(`[data-cmt="${postId}"]`);
       const text = input?.value.trim();
       if (!text) return;
+      const parent = Number(input?.dataset.parent || 0) || null;
       await supabaseRequest("/rest/v1/post_comments", {
         method: "POST",
         body: JSON.stringify({
@@ -1593,8 +1733,15 @@
           member_id: state.me.member.member_id,
           username: state.me.member.username,
           comment: text,
+          ...(parent ? { parent_id: parent } : {}),
         }),
       });
+      // Note: comments already count toward reach via the post_comments table
+      // itself (post_reach), so no extra post_event row is needed here.
+      if (input) {
+        delete input.dataset.parent;
+        input.placeholder = t("prof.writeCmt");
+      }
       redraw();
     }
   }
@@ -1639,7 +1786,7 @@
         <div class="follow-tabs pm-tabs" role="tablist" aria-label="${escapeHtml(t("prof.mk.tabsLabel"))}">
           ${MK_TABS.map((k) => `<button type="button" role="tab" class="follow-tab${mk.tab === k ? " active" : ""}" data-mk-tab="${k}" aria-selected="${mk.tab === k}">${escapeHtml(t(`prof.mk.${k}`))}<span class="follow-count" data-mk-count="${k}" hidden></span></button>`).join("")}
         </div>
-        ${state.isOwner ? `<p class="muted pm-hint">${escapeHtml(t("prof.mk.hintMine"))} <a href="./Market.html">${escapeHtml(t("prof.mk.goMarket"))}</a></p>` : ""}
+        ${state.isOwner ? `<p class="muted pm-hint">${escapeHtml(t("prof.mk.hintMine"))} <a href="./market.html">${escapeHtml(t("prof.mk.goMarket"))}</a></p>` : ""}
         <div class="pm-list" id="pm-list" aria-live="polite"></div>
         <div class="pm-more"><button class="btn btn-sm btn-ghost" type="button" data-mk-more hidden>${escapeHtml(t("vid.showMore"))}</button></div>
       </section>`;
@@ -1704,6 +1851,7 @@
       el.hidden = n == null;
       el.textContent = n == null ? "" : String(n);
     });
+    await M.enrichReviewVotes?.(mk.items);
     list.innerHTML = mk.items.length ? mk.items.map(M.itemHtml).join("") : mkEmptyHtml();
     if (btn) btn.hidden = mk.items.length >= mk.total;
     hydrateAvatars(list);
@@ -1737,12 +1885,12 @@
     if (state.isOwner) {
       box.innerHTML = `
         <div class="pm-store-body"><b>${escapeHtml(t("prof.mk.noStoreMine"))}</b><small class="muted">${escapeHtml(t("prof.mk.noStoreMineHint"))}</small></div>
-        <a class="btn btn-sm btn-primary pm-visit" href="./Market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>`;
+        <a class="btn btn-sm btn-primary pm-visit" href="./market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>`;
       return;
     }
     const name = `<bdi>@${escapeHtml(state.hostMember?.username || "")}</bdi>`;
     box.innerHTML = `<div class="pm-store-body"><b>${t("prof.mk.noStore", { name })}</b></div>
-      <a class="btn btn-sm btn-ghost pm-visit" href="./Market.html">${M.ICON.bag}<span>${escapeHtml(t("prof.mk.goMarket"))}</span></a>`;
+      <a class="btn btn-sm btn-ghost pm-visit" href="./market.html">${M.ICON.bag}<span>${escapeHtml(t("prof.mk.goMarket"))}</span></a>`;
   }
 
   async function drawUpdates() {
@@ -1770,6 +1918,12 @@
         .map((b) => b.blocker_id)
     );
     const ids = (fol.data || []).map((f) => f.following_id).filter((id) => !hidden.has(id));
+    // Posts I marked "don't recommend" leave my own update suggestions, whoever
+    // recommended or published them.
+    const dv = await supabaseRequest(
+      `/rest/v1/post_votes?member_id=eq.${restValue(state.me.member.member_id)}&vote=eq.down&select=post_id`
+    ).catch(() => ({ data: [] }));
+    const downIds = new Set((dv.data || []).map((r) => r.post_id));
     body.innerHTML = `
       <div class="filter-bar">
         <div class="filter-group">
@@ -1783,6 +1937,15 @@
         </div>
       </div>
       <div class="ad-spot" data-ad="banner"></div>
+      <section class="person-updates suggest-zone">
+        <div class="section-head">
+          <div>
+            <div class="kicker"><span class="eyebrow">${t("prof.suggestSub")}</span></div>
+            <h2>${t("prof.suggestions")}</h2>
+          </div>
+        </div>
+        <div id="suggest-list"><p class="muted">${t("common.loading")}</p></div>
+      </section>
       <div id="upd-list"></div>
       <section class="person-updates">
         <div class="section-head">
@@ -1795,6 +1958,11 @@
       </section>`;
     if (!ids.length) {
       $("#upd-list").innerHTML = `<p class="empty">${t("prof.followToSee")}</p>`;
+      // Nobody followed yet: the suggestions block still has content to offer.
+      drawSuggestions();
+      $("#suggest-list").onclick = (e) => {
+        onPostClick(e, () => drawSuggestions());
+      };
       await drawPersonUpdates();
       return;
     }
@@ -1846,7 +2014,24 @@
     const upd = await supabaseRequest(
       `/rest/v1/updates?actor_id=in.(${ids.join(",")})&select=*&order=created_at.desc&limit=120`
     );
-    const rows = (upd.data || []).filter((r) => r.post_id && !hidden.has(r.actor_id));
+    let rows = (upd.data || []).filter(
+      (r) => r.post_id && !hidden.has(r.actor_id) && !downIds.has(r.post_id)
+    );
+    // A silenced post (net-negative day points, sql/post_reach.sql) drops out of
+    // the updates feed too — only its owner and the owner's followers keep it.
+    const candIds = [...new Set(rows.map((r) => r.post_id))];
+    if (candIds.length) {
+      try {
+        const gate = await supabaseRequest(`/rest/v1/rpc/posts_gate`, {
+          method: "POST",
+          body: JSON.stringify({ p_member: state.me.member.member_id, p_ids: candIds }),
+        });
+        if (gate.ok && Array.isArray(gate.data)) {
+          const okIds = new Set(gate.data.filter((g) => g.allowed).map((g) => g.post_id));
+          rows = rows.filter((r) => okIds.has(r.post_id));
+        }
+      } catch (e) { /* RPC missing: fail open, nothing changes */ }
+    }
     const postIds = [...new Set(rows.map((r) => r.post_id))];
     const posts = postIds.length
       ? await supabaseRequest(`/rest/v1/posts?post_id=in.(${postIds.join(",")})&select=*`)
@@ -1909,6 +2094,7 @@
     openPosts.forEach((p) => state.postCache.set(p.post_id, p));
     await videosReady;
     await marketReady;
+    await MK?.enrichReviewVotes?.(mfeed.items);
     await primeAvatars(
       [...rows.map((r) => r.actor_id), ...feed.items.map((v) => v.owner_id), ...mfeed.items.map((x) => x.author?.id)],
       [...rows.map((r) => r.actor_username), ...feed.items.map((v) => v.owner), ...mfeed.items.map((x) => x.author?.username)]
@@ -1942,7 +2128,7 @@
       </div>`;
     };
     // A new video of somebody I follow: the same lead line as the other entries, then
-    // its card (Content.html?idcontent=…).
+    // its card (video.html?id=…).
     const videoHtml = (v) => {
       const owner = String(v.owner || "").replace(/^@/, "");
       const actor = `<a href="${profileHref(owner)}"><strong><bdi>@${escapeHtml(owner)}</bdi></strong></a>`;
@@ -2025,6 +2211,59 @@
       el.onchange = draw;
     });
     draw();
+
+    // ---- Suggestions: posts whose items match what I already watch ----
+    // Server side (post_suggestions, sql/post_reach.sql): my watched tmdb ids
+    // (views + hestory) intersected with post_items; every post serves at most
+    // its daily reach budget (post_reach points) of NEW members per day and is
+    // never resurfaced to the same member twice in a day.
+    async function drawSuggestions() {
+      const box = $("#suggest-list");
+      if (!box) return;
+      try {
+        const res = await supabaseRequest(`/rest/v1/rpc/post_suggestions`, {
+          method: "POST",
+          body: JSON.stringify({ p_member: state.me.member.member_id, p_limit: 12 }),
+        });
+        const posts = (res.ok && Array.isArray(res.data) ? res.data : []).filter((p) => !downIds.has(p.post_id));
+        if (!posts.length) {
+          box.innerHTML = `<p class="muted">${t("prof.suggestEmpty")}</p>`;
+          return;
+        }
+        const sIds = posts.map((p) => p.post_id).join(",");
+        posts.forEach((p) => state.postCache.set(p.post_id, p));
+        const [its, vts, cms] = await Promise.all([
+          supabaseRequest(`/rest/v1/post_items?post_id=in.(${sIds})&select=*`),
+          supabaseRequest(`/rest/v1/post_votes?post_id=in.(${sIds})&select=*`),
+          supabaseRequest(`/rest/v1/post_comments?post_id=in.(${sIds})&select=*&order=created_at.asc`),
+        ]);
+        const iMap = {}, vMap = {}, cMap = {};
+        (its.data || []).forEach((i) => (iMap[i.post_id] = iMap[i.post_id] || []).push(i));
+        (vts.data || []).forEach((v) => (vMap[v.post_id] = vMap[v.post_id] || []).push(v));
+        (cms.data || []).forEach((c) => (cMap[c.post_id] = cMap[c.post_id] || []).push(c));
+        await primeAvatars(posts.map((p) => p.owner_id), posts.map((p) => p.owner_username));
+        await enrichItemMap(posts, iMap);
+        box.innerHTML = posts.map((p) => {
+          const owner = String(p.owner_username || "").replace(/^@/, "");
+          const actor = `<a href="${profileHref(owner)}"><strong><bdi>@${escapeHtml(owner)}</bdi></strong></a>`;
+          return `<article class="post-card upd-card suggest-card kind-${escapeHtml(p.kind)}" data-post="${escapeHtml(p.post_id)}" data-owner="${escapeHtml(p.owner_id || "")}">
+            <div class="upd-lead">
+              ${avatarImg(p.owner_id, owner)}
+              <div class="upd-lead-body">
+                <p class="upd-lead-line">${t("prof.suggestLead", { actor })}</p>
+                <div class="upd-lead-time muted">${escapeHtml(String(p.created_at || "").slice(0, 16).replace("T", " "))}${p.hits ? ` · ${t("prof.suggestHits", { n: p.hits })}` : ""}</div>
+              </div>
+            </div>
+            ${postCardInnerHtml(p, iMap[p.post_id] || [], vMap[p.post_id] || [], cMap[p.post_id] || [])}
+          </article>`;
+        }).join("");
+        hydrateAvatars(box);
+      } catch (err) {
+        console.warn("post_suggestions failed", err);
+        box.innerHTML = `<p class="muted">${t("prof.suggestEmpty")}</p>`;
+      }
+    };
+    drawSuggestions();
     // The activity wall binds its click handler on #home-body: drop it here so a
     // stale copy cannot react to votes / comments inside the updates feed.
     body.onclick = null;
@@ -2042,6 +2281,9 @@
       }
       if (e.target.closest("[data-mi]")) return; // the market cards (js/market-forms.js)
       onPostClick(e, () => drawUpdates());
+    };
+    $("#suggest-list").onclick = (e) => {
+      onPostClick(e, () => drawSuggestions());
     };
     MK?.wireItems($("#upd-list"), { items: () => mfeed.items, changed: () => drawUpdates() });
     await drawPersonUpdates();
@@ -2192,7 +2434,7 @@
           ? rows
               .map(({ post, people: hits }) => {
                 const dest = post.playlist_id
-                  ? `./Playlist.html?ID=${encodeURIComponent(post.playlist_id)}`
+                  ? `./playlist.html?ID=${encodeURIComponent(post.playlist_id)}`
                   : profileHref(post.owner_username);
                 const names = hits
                   .map((w) => `<a class="chip" href="${personHref(w.id)}">${escapeHtml(w.name || `#${w.id}`)}</a>`)
@@ -2311,56 +2553,338 @@
     });
   }
 
+  // ─────────────────────────── Create → Studio ───────────────────────────
+  // The old video studio, widened to every content type and split by job:
+  //   create  – make a video / post / article / question / playlist / …
+  //   manage  – govern the member's own rows of every type
+  //   stats   – views, interactions, comments, recommendations, points
+  // "Your content" stays the visitor-facing shelf; publishing and governing
+  // happen here (never two copies of the same editor).
+  const STUDIO_TABS = ["create", "manage", "stats"];
+  const STUDIO_KINDS = ["video", "post", "document", "article", "question", "playlist", "recommendation", "reclist", "review"];
+  const MANAGE_TABS = ["videos", "documents", "articles", "qa", "posts", "recs"];
+
+  function studioKindLabel(k) {
+    if (k === "video") return t("prof.cr.video");
+    if (k === "post") return t("prof.plainPost");
+    if (k === "document") return t("doc.tab");
+    if (k === "article") return t("com.newArticle");
+    if (k === "question") return t("com.ask");
+    if (k === "playlist") return t("dash.nav.playlists");
+    if (k === "recommendation") return t("prof.recs");
+    if (k === "reclist") return t("prof.recList");
+    return t("rev.review");
+  }
+
   async function viewCreate(main) {
+    const tab = STUDIO_TABS.includes(state.studioTab) ? state.studioTab : "create";
+    main.innerHTML = `
+      <p class="eyebrow">${t("prof.studio.eyebrow")}</p>
+      <h1>${t("prof.studio.title")}</h1>
+      <p class="muted">${t("prof.studio.lead")}</p>
+      <div class="tabs follow-tabs" role="tablist" style="flex-wrap:wrap">
+        ${STUDIO_TABS.map((k) => `<button type="button" role="tab" class="follow-tab${k === tab ? " active" : ""}" data-st="${k}">${t("prof.studio.tab." + k)}</button>`).join("")}
+      </div>
+      <div id="studio-body" style="margin-top:14px"></div>`;
+    main.querySelectorAll("[data-st]").forEach((b) => (b.onclick = () => ((state.studioTab = b.dataset.st), viewCreate(main))));
+    const body = main.querySelector("#studio-body");
+    if (tab === "manage") return studioManage(body);
+    if (tab === "stats") return studioStats(body);
+    return studioCreate(body);
+  }
+
+  // ── Studio › Create content ──────────────────────────────────────────────
+  async function studioCreate(box) {
+    const kind = STUDIO_KINDS.includes(state.studioKind) ? state.studioKind : "post";
+    box.innerHTML = `
+      <div class="tabs" style="flex-wrap:wrap">
+        ${STUDIO_KINDS.map((k) => `<button type="button" class="btn btn-sm ${k === kind ? "btn-primary" : "btn-ghost"}" data-sk="${k}">${studioKindLabel(k)}</button>`).join("")}
+      </div>
+      <p class="muted" style="margin:6px 0 12px">${t("prof.cr.note")}</p>
+      <div id="studio-form"></div>`;
+    box.querySelectorAll("[data-sk]").forEach((b) => (b.onclick = () => ((state.studioKind = b.dataset.sk), studioCreate(box))));
+    const host = box.querySelector("#studio-form");
+    if (kind === "video") {
+      if (!window.CineAuraStudio) return (host.innerHTML = `<p class="empty">${escapeHtml(t("vid.setup"))}</p>`);
+      window.CineAuraStudio.render(host, { member: state.me.member, solo: true, tab: "create" });
+      return;
+    }
+    if (kind === "document") {
+      if (!window.CineAuraDocs) return (host.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("doc.loadFail"))}</p>`);
+      window.CineAuraDocs.renderUpload(host, { member: state.me.member });
+      return;
+    }
+    if (kind === "article") {
+      // the one rich editor (article-Editor.html); questions stay inline
+      host.innerHTML = `<div class="glass" style="padding:18px;text-align:center">
+        <p>${escapeHtml(t("ae.redirect"))}</p>
+        <a class="btn btn-primary" href="./article-Editor.html">${escapeHtml(t("ae.openEditor"))}</a></div>`;
+      return;
+    }
+    if (kind === "question") {
+      if (!window.CineAuraCommunity?.openComposer) return (host.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("com.loadFail"))}</p>`);
+      window.CineAuraCommunity.openComposer(host, kind);
+      return;
+    }
+    if (kind === "playlist") return studioPlaylistForm(host);
+    drawRichComposer(host, kind);
+  }
+
+  async function studioPlaylistForm(box) {
     const lists = await supabaseRequest(
       `/rest/v1/playlists?owner_id=eq.${restValue(state.me.member.member_id)}&select=playlist_id,name,media_type`
     );
-    const playlists = lists.data || [];
-    main.innerHTML = `
-      <p class="eyebrow">Create</p>
-      <h1>${t("prof.newPost")}</h1>
-      <div class="tabs">
-        <button class="btn btn-sm btn-primary" data-ck="playlist" type="button">${t("dash.nav.playlists")}</button>
-        <button class="btn btn-sm btn-ghost" data-ck="recommendation" type="button">${t("prof.recs")}</button>
-        <button class="btn btn-sm btn-ghost" data-ck="reclist" type="button">${t("prof.recList")}</button>
-        <button class="btn btn-sm btn-ghost" data-ck="review" type="button">${t("rev.review")}</button>
+    const playlists = lists.ok && Array.isArray(lists.data) ? lists.data : [];
+    box.innerHTML = `
+      <div class="stack">
+        <input id="c-title" placeholder="${t("prof.postTitle")}" />
+        <textarea id="c-body" placeholder="${t("home.form.message")}"></textarea>
+        <select id="c-pl">
+          <option value="">${t("prof.createNew")}</option>
+          ${playlists.map((p) => `<option value="${escapeHtml(p.playlist_id)}">${escapeHtml(p.name)}</option>`).join("")}
+        </select>
+        <div class="form-row" id="c-newpl">
+          <input id="c-plname" placeholder="${t("prof.newList")}" />
+          <select id="c-pltype"><option value="movie">Movies</option><option value="tv">Series</option></select>
+        </div>
+        <select id="cr-vis"><option value="public">${t("pm.vis.public")}</option><option value="exclusive">${t("pm.vis.exclusive")}</option><option value="private">${t("pm.vis.private")}</option></select>
+        ${exclusiveFields("cr")}
+        <button class="btn btn-sm btn-primary" id="c-save" type="button">${t("prof.publishPl")}</button>
+      </div>`;
+    bindVis("cr");
+    $("#c-pl").onchange = () => ($("#c-newpl").hidden = Boolean($("#c-pl").value));
+    $("#c-save").onclick = () => savePlaylistPost();
+  }
+
+  // ── Studio › Manage content ──────────────────────────────────────────────
+  // One index over every type. Editors are never re-implemented: videos upload
+  // in Dashboard › Upload, community pieces open on their canonical deep links.
+  function manageRow(title, meta, openHref, delAttr) {
+    return `<article class="glass" style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;margin-bottom:10px">
+      <div style="flex:1;min-width:0">
+        <strong>${title}</strong>
+        <div class="muted" style="margin-top:2px">${meta}</div>
       </div>
-      <div id="create-box"></div>`;
-    const draw = (kind) => {
-      main.querySelectorAll("[data-ck]").forEach((b) => {
-        b.className = `btn btn-sm ${b.dataset.ck === kind ? "btn-primary" : "btn-ghost"}`;
-      });
-      const box = $("#create-box");
-      if (kind === "playlist") {
-        box.innerHTML = `
-          <div class="stack">
-            <input id="c-title" placeholder="${t("prof.postTitle")}" />
-            <textarea id="c-body" placeholder="${t("home.form.message")}"></textarea>
-            <select id="c-pl">
-              <option value="">${t("prof.createNew")}</option>
-              ${playlists.map((p) => `<option value="${escapeHtml(p.playlist_id)}">${escapeHtml(p.name)}</option>`).join("")}
-            </select>
-            <div class="form-row" id="c-newpl">
-              <input id="c-plname" placeholder="${t("prof.newList")}" />
-              <select id="c-pltype"><option value="movie">Movies</option><option value="tv">Series</option></select>
-            </div>
-            <select id="cr-vis"><option value="public">${t("pm.vis.public")}</option><option value="exclusive">${t("pm.vis.exclusive")}</option><option value="private">${t("pm.vis.private")}</option></select>
-            ${exclusiveFields("cr")}
-            <button class="btn btn-sm btn-primary" id="c-save" type="button">${t("prof.publishPl")}</button>
-          </div>`;
-        bindVis("cr");
-        $("#c-pl").onchange = () => {
-          $("#c-newpl").hidden = Boolean($("#c-pl").value);
-        };
-        $("#c-save").onclick = () => savePlaylistPost();
-      } else {
-        drawRichComposer(box, kind);
-      }
-    };
-    main.querySelectorAll("[data-ck]").forEach((b) => {
-      b.onclick = () => draw(b.dataset.ck);
-    });
-    draw("playlist");
+      ${openHref ? `<a class="btn btn-sm btn-ghost" href="${openHref}">${t("manage.open")}</a>` : ""}
+      ${delAttr ? `<button class="btn btn-sm btn-danger" type="button" ${delAttr}>${t("manage.del")}</button>` : ""}
+    </article>`;
+  }
+
+  async function studioManage(box) {
+    const tab = MANAGE_TABS.includes(state.manageTab) ? state.manageTab : "videos";
+    box.innerHTML = `<div class="tabs follow-tabs" role="tablist" style="flex-wrap:wrap">
+        ${MANAGE_TABS.map((k) => `<button type="button" role="tab" class="follow-tab${k === tab ? " active" : ""}" data-mt="${k}">${t("manage.tab." + k)}</button>`).join("")}
+      </div>
+      <div id="mg-body" style="margin-top:14px"><p class="muted">${t("common.loading")}</p></div>`;
+    box.querySelectorAll("[data-mt]").forEach((b) => (b.onclick = () => ((state.manageTab = b.dataset.mt), studioManage(box))));
+    const list = box.querySelector("#mg-body");
+    // Social posts have their own deeper tool (filters + analytics); the studio
+    // keeps the index and hands off instead of re-implementing it.
+    if (tab === "posts")
+      box.insertAdjacentHTML(
+        "afterbegin",
+        `<p class="muted" style="margin-bottom:10px">${t("manage.postsDeep")} <a class="btn btn-sm btn-ghost" href="?section=posts">${t("prof.posts")}</a></p>`
+      );
+    const me = state.me.member.member_id;
+    if (tab === "videos") return manageVideos(list, me);
+    if (tab === "documents") {
+      if (!window.CineAuraDocs) return (list.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("doc.loadFail"))}</p>`);
+      return window.CineAuraDocs.renderManage(list, me);
+    }
+    if (tab === "articles") return manageArticles(list, me);
+    if (tab === "qa") return manageQA(list, me);
+    return manageSocial(list, me, tab === "posts" ? ["post"] : ["review", "recommendation", "reclist"]);
+  }
+
+  async function manageVideos(box, me) {
+    const res = await supabaseRequest(
+      `/rest/v1/content?owner_id=eq.${restValue(me)}&select=content_id,title,visibility,publish_at,views,created_at&order=created_at.desc&limit=100`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${t("manage.delFail")}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    const now = Date.now();
+    box.innerHTML =
+      `<p class="muted">${t("manage.videosHint")} <a class="btn btn-sm btn-primary" href="./dashboard.html#upload">${t("dash.nav.upload")}</a></p>` +
+      (rows.length
+        ? rows
+            .map((r) => {
+              const scheduled = r.publish_at && new Date(r.publish_at).getTime() > now;
+              return manageRow(
+                escapeHtml(r.title || r.content_id),
+                `${t(scheduled ? "manage.status.scheduled" : "manage.status.published")} · ${escapeHtml(t("pm.vis." + (r.visibility || "public")))} · ${escapeHtml(String(r.created_at || "").slice(0, 10))} · 👁 ${r.views || 0}`,
+                `./video.html?id=${encodeURIComponent(r.content_id)}`,
+                ""
+              );
+            })
+            .join("")
+        : `<p class="empty">${t("manage.none")}</p>`);
+  }
+
+  async function manageArticles(box, me) {
+    const res = await supabaseRequest(
+      `/rest/v1/community_articles?member_id=eq.${restValue(me)}&select=id,title,views,created_at&order=created_at.desc&limit=100`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${t("com.loadFail")}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    box.innerHTML = rows.length
+      ? rows
+          .map((r) =>
+            manageRow(
+              escapeHtml(r.title || ""),
+              `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))} · 👁 ${r.views || 0}`,
+              `./articles.html?id=${encodeURIComponent(r.id)}`,
+              `data-del="community_articles" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
+            )
+          )
+          .join("")
+      : `<p class="empty">${t("manage.none")}</p>`;
+  }
+
+  async function manageQA(box, me) {
+    const [q, a] = await Promise.all([
+      supabaseRequest(`/rest/v1/community_questions?member_id=eq.${restValue(me)}&select=id,title,created_at&order=created_at.desc&limit=60`),
+      supabaseRequest(`/rest/v1/community_answers?member_id=eq.${restValue(me)}&select=id,question_id,body,created_at&order=created_at.desc&limit=60`),
+    ]);
+    const qs = q.ok && Array.isArray(q.data) ? q.data : [];
+    const as = a.ok && Array.isArray(a.data) ? a.data : [];
+    if (!qs.length && !as.length) return (box.innerHTML = `<p class="empty">${t("manage.none")}</p>`);
+    box.innerHTML =
+      (qs.length
+        ? `<h3>${t("prof.ct.questions")}</h3>` +
+          qs
+            .map((r) =>
+              manageRow(
+                escapeHtml(r.title || ""),
+                `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))}`,
+                `./answers.html?id=${encodeURIComponent(r.id)}`,
+                `data-del="community_questions" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
+              )
+            )
+            .join("")
+        : "") +
+      (as.length
+        ? `<h3 style="margin-top:16px">${t("prof.ct.answers")}</h3>` +
+          as
+            .map((r) =>
+              manageRow(
+                escapeHtml(String(r.body || "").slice(0, 80)),
+                `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))}`,
+                `./answers.html?id=${encodeURIComponent(r.id)}&kind=answer`,
+                `data-del="community_answers" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
+              )
+            )
+            .join("")
+        : "");
+  }
+
+  async function manageSocial(box, me, kinds) {
+    const res = await supabaseRequest(
+      `/rest/v1/posts?owner_id=eq.${restValue(me)}&select=*&order=created_at.desc&limit=120`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${t("com.loadFail")}</p>`);
+    const rows = (Array.isArray(res.data) ? res.data : []).filter((p) => kinds.includes(p.kind));
+    box.innerHTML = rows.length
+      ? rows
+          .map((p) =>
+            manageRow(
+              escapeHtml(p.title || ""),
+              `${escapeHtml(kindLabel(p.kind))} · ${escapeHtml(visLabel(p.visibility))} · ${escapeHtml(String(p.created_at || "").slice(0, 10))}`,
+              "",
+              `data-del="posts" data-id="${escapeHtml(p.id)}" data-owner="owner_id"`
+            )
+          )
+          .join("")
+      : `<p class="empty">${t("manage.none")}</p>`;
+  }
+
+  // Deletion is ownership-checked against the row itself, right before the write.
+  async function manageDelete(btn) {
+    const table = btn.dataset.del;
+    const id = btn.dataset.id;
+    const ownerCol = btn.dataset.owner;
+    if (!table || !id) return;
+    if (!confirm(t("manage.confirm"))) return;
+    const chk = await supabaseRequest(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}&select=${ownerCol}`);
+    const row = chk.ok && Array.isArray(chk.data) ? chk.data[0] : null;
+    if (!row || String(row[ownerCol]) !== String(state.me.member.member_id)) return toast(t("manage.forbidden"));
+    const del = await supabaseRequest(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!del.ok) return toast(t("manage.delFail"));
+    toast(t("manage.delOk"));
+    viewCreate($("#prof-main"));
+  }
+
+  // ── Studio › Content statistics ──────────────────────────────────────────
+  async function studioStats(box) {
+    const me = state.me.member.member_id;
+    const [vids, arts, qs, as, posts, mp] = await Promise.all([
+      supabaseRequest(`/rest/v1/content?owner_id=eq.${restValue(me)}&select=content_id,views,likes,dislikes,shares,impressions,clicks&limit=500`),
+      supabaseRequest(`/rest/v1/community_articles?member_id=eq.${restValue(me)}&select=id,views&limit=500`),
+      supabaseRequest(`/rest/v1/community_questions?member_id=eq.${restValue(me)}&select=id&limit=500`),
+      supabaseRequest(`/rest/v1/community_answers?member_id=eq.${restValue(me)}&select=id,votes&limit=500`),
+      supabaseRequest(`/rest/v1/posts?owner_id=eq.${restValue(me)}&select=id,post_id,kind&limit=500`),
+      (async () => {
+        try {
+          return await window.CineAura.memberPoints(me, {});
+        } catch {
+          return null;
+        }
+      })(),
+    ]);
+    const v = vids.ok && Array.isArray(vids.data) ? vids.data : [];
+    const ar = arts.ok && Array.isArray(arts.data) ? arts.data : [];
+    const qq = qs.ok && Array.isArray(qs.data) ? qs.data : [];
+    const aa = as.ok && Array.isArray(as.data) ? as.data : [];
+    const ps = posts.ok && Array.isArray(posts.data) ? posts.data : [];
+    const sum = (rows, key) => rows.reduce((n, r) => n + Number(r[key] || 0), 0);
+    const views = sum(v, "views") + sum(ar, "views");
+    const likes = sum(v, "likes");
+    const votes = sum(aa, "votes");
+    // comments on the member's own posts (one request, ids only)
+    let comments = 0;
+    const pids = ps.map((p) => p.post_id).filter(Boolean);
+    if (pids.length) {
+      const cm = await supabaseRequest(
+        `/rest/v1/post_comments?post_id=in.(${pids.slice(0, 60).map((x) => `"${x}"`).join(",")})&select=id`
+      );
+      comments = cm.ok && Array.isArray(cm.data) ? cm.data.length : 0;
+    }
+    const recs = ps.filter((p) => ["recommendation", "reclist"].includes(p.kind)).length;
+    const tile = (value, label) => `<div class="stat"><b>${escapeHtml(String(value))}</b><span>${escapeHtml(label)}</span></div>`;
+    box.innerHTML = `
+      <div class="stat-row">
+        ${tile(views, t("prof.stats.views"))}
+        ${tile(likes, t("prof.stats.likes"))}
+        ${tile(votes, t("prof.stats.votes"))}
+        ${tile(comments, t("prof.stats.comments"))}
+        ${tile(recs, t("prof.stats.recs"))}
+        ${tile(mp ? Number(mp.earned || 0) : 0, t("prof.stats.points"))}
+      </div>
+      <p class="muted" style="margin-top:10px">${t("prof.stats.note")}
+        <a class="btn btn-sm btn-ghost" href="./dashboard.html#analytics">${t("dash.nav.analytics")}</a></p>`;
+  }
+
+  // ── Your content › Videos (read-only shelf; management lives in the Studio) ──
+  async function memberVideos(box, memberId) {
+    const res = await supabaseRequest(
+      `/rest/v1/content?owner_id=eq.${restValue(memberId)}&select=content_id,title,views,thumb_url,visibility,publish_at,created_at&order=created_at.desc&limit=60`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("com.loadFail"))}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    if (!rows.length)
+      return (box.innerHTML = `<p class="empty">${escapeHtml(t("prof.ct.none"))}${state.isOwner ? ` <a class="btn btn-sm btn-primary" href="?section=create">${escapeHtml(t("prof.studio.open"))}</a>` : ""}</p>`);
+    box.innerHTML =
+      (state.isOwner ? `<p class="muted">${escapeHtml(t("prof.studio.videosNote"))} <a class="btn btn-sm btn-primary" href="?section=create">${escapeHtml(t("prof.studio.open"))}</a></p>` : "") +
+      rows
+        .map(
+          (r) => `<a class="glass" style="display:flex;gap:12px;align-items:center;padding:10px 12px;margin-bottom:8px;text-decoration:none" href="./video.html?id=${encodeURIComponent(r.content_id)}">
+            ${r.thumb_url ? `<img src="${escapeHtml(r.thumb_url)}" alt="" loading="lazy" style="width:72px;height:44px;object-fit:cover;border-radius:8px" />` : `<span style="width:72px;height:44px;display:grid;place-items:center;border-radius:8px;background:rgba(255,255,255,.06)">🎬</span>`}
+            <span style="flex:1;min-width:0;display:flex;flex-direction:column">
+              <strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.title || r.content_id)}</strong>
+              <span class="muted">${escapeHtml(t("pm.vis." + (r.visibility || "public")))} · ${escapeHtml(String(r.created_at || "").slice(0, 10))} · 👁 ${r.views || 0}</span>
+            </span>
+          </a>`
+        )
+        .join("");
   }
 
   async function savePlaylistPost() {
@@ -2394,7 +2918,9 @@
     await insertPost("playlist", title, body, vis, playlistId, []);
   }
 
-  // ---------- Rich composer: recommendation / list / review ----------
+  // ---------- Rich composer: post / recommendation / list / review ----------
+  // A "post" is a plain text post: the title picker stays available, but no
+  // title is required (members must be able to publish without a title).
   function drawRichComposer(box, kind) {
     const d = (state.draft = {
       kind,
@@ -2405,7 +2931,7 @@
     });
     const multi = kind === "reclist";
     const isReview = kind === "review";
-    const pickLabel = isReview ? t("rev.pickTitle") : multi ? t("rich.pickMany") : t("rich.pickOne");
+    const pickLabel = kind === "post" ? t("cr.attachOpt") : isReview ? t("rev.pickTitle") : multi ? t("rich.pickMany") : t("rich.pickOne");
     const pcCol = (key) => `
       <div class="pc-col ${key}">
         <h5>${t(`rev.${key}`)}</h5>
@@ -2428,6 +2954,13 @@
           <input id="c-title" placeholder="${isReview ? t("rev.titlePh") : multi ? t("prof.listTitle") : t("prof.recTitle")}" />
           <label class="field-label" for="c-body">${isReview ? t("rev.textLabel") : t("rich.textLabel")}</label>
           <textarea id="c-body" rows="${isReview ? 7 : 4}" placeholder="${isReview ? t("rev.textPh") : t("prof.writeRec")}"></textarea>
+          <label class="field-label" for="c-vid">${t("prof.postVideo")}</label>
+          <input id="c-vid" type="file" accept="video/*" />
+          <p class="muted addlink-hint">${t("prof.postVideoHint")}</p>
+          <div class="up-prog" id="c-video-prog" hidden>
+            <div class="up-prog-bar" id="c-video-bar"></div>
+            <span class="up-prog-n" id="c-video-n">0%</span>
+          </div>
           ${isReview ? `<div class="pc-grid">${pcCol("pros")}${pcCol("cons")}</div>` : ""}
           <fieldset class="display-opts">
             <legend>${t("rich.displayTitle")}</legend>
@@ -2615,18 +3148,65 @@
     if (!vis) return;
     const title = $("#c-title").value.trim();
     const body = $("#c-body").value.trim();
-    if (!d.items.length) return toast(kind === "review" ? t("rev.needTitle") : t("rich.needItem"));
-    if (!title || !body) return toast(kind === "review" ? t("rev.needText") : "Title and text are required.");
+    if (kind !== "post" && !d.items.length) return toast(kind === "review" ? t("rev.needTitle") : t("rich.needItem"));
+    if (kind === "post") {
+      if (!body) return toast(t("prof.needPostText"));
+    } else if (!title || !body) return toast(kind === "review" ? t("rev.needText") : "Title and text are required.");
     const extras = { display: Rich.displayString(d.display) };
     if (kind === "review") {
       extras.pros = d.pros.join("\n");
       extras.cons = d.cons.join("\n");
     }
+    // An optional video file of the member: uploads to Streamtape (Posts) on save.
+    const videoFile = $("#c-vid")?.files?.[0] || null;
+    if (videoFile) extras.videoFile = videoFile;
     await insertPost(kind, title, body, vis, "", d.items.map((it) => Rich.toItemRow(it)), extras);
   }
 
   async function insertPost(kind, title, body, vis, playlistId, items, extras = {}) {
+    // Profile publishing shares the links rule: the level gives the daily cap
+    // (LV × 10 posts a day), and level 0 cannot publish at all.
+    const quota = await window.CineAura.publishQuota(state.me.member.member_id, "posts");
+    if (quota.cap != null && quota.left <= 0) {
+      return toast(t("prof.postDayFull", { cap: quota.cap, lv: quota.level }));
+    }
     const postId = uid("P");
+    /* An attached video goes to the member's Streamtape Posts folder, named
+       "Post - {postId}"; its page url rides on the post and plays in the
+       feed. Registered in media_uploads so a deleted post deletes its file. */
+    if (extras.videoFile instanceof File) {
+      const file = extras.videoFile;
+      delete extras.videoFile;
+      const ST = window.Streamtape;
+      if (!ST) return toast(t("up.fail"));
+      const prog = $("#c-video-prog");
+      if (prog) prog.hidden = false;
+      const paint = (n) => {
+        const b = $("#c-video-bar");
+        const ne = $("#c-video-n");
+        if (b) b.style.width = `${n}%`;
+        if (ne) ne.textContent = `${n}%`;
+      };
+      const up = await ST.uploadNamed(state.me.member.member_id, "posts", file, ST.names.post(postId), paint);
+      if (prog) prog.hidden = true;
+      if (!up.ok) return toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+      const reg = await ST.registerUpload({
+        owner_id: state.me.member.member_id,
+        owner_username: state.me.member.username,
+        folder: "posts",
+        name: up.name,
+        file_id: up.fileId,
+        page_url: up.pageUrl,
+        embed_url: up.embedUrl,
+        ref_id: postId,
+        size_bytes: file.size || 0,
+      });
+      if (!reg.ok) {
+        try { await ST.deleteFile(up.fileId); } catch { /* the orphan goes */ }
+        return toast(t(reg.reason === "sql" ? "up.needSql" : "up.fail"));
+      }
+      extras.video_url = up.pageUrl;
+    }
     const row = {
       post_id: postId,
       owner_id: state.me.member.member_id,
@@ -2653,6 +3233,8 @@
       // Reviews need the columns + kind from sql/post_reviews.sql; other posts
       // still publish without the display options on an older schema.
       if (kind === "review") return toast(t("rev.needSql"));
+      // A video post is only a video post with its video: no fallback without it.
+      if (extras.video_url) return toast(t("up.needSql"));
       saved = await supabaseRequest("/rest/v1/posts", { method: "POST", body: JSON.stringify(row) });
     }
     if (!saved.ok) return toast(t("prof.pubFail"));
@@ -2686,7 +3268,7 @@
         post: `«${title}»`,
       }),
       href: playlistId
-        ? `./Playlist.html?ID=${encodeURIComponent(playlistId)}`
+        ? `./playlist.html?ID=${encodeURIComponent(playlistId)}`
         : profileHref(state.me.member.username),
       visibility: vis.visibility,
     });
@@ -2706,6 +3288,10 @@
     if (!res.ok) {
       toast(t("pm.delFail"));
       return false;
+    }
+    // An uploaded video of the post goes with it (Posts folder on Streamtape).
+    if (post.video_url && window.Streamtape) {
+      window.Streamtape.dropRefUploads("posts", post.post_id).catch(() => {});
     }
     await Promise.all(
       ["post_items", "post_access", "post_votes", "post_comments", "updates"].map((tb) =>
@@ -2738,6 +3324,80 @@
       if (ok) {
         toast(t("pm.deleted"));
         onDone?.();
+      }
+    });
+  }
+
+  // Report a post (sql/post_reports.sql -> public.post_reports): one report per
+  // post per member, with a subject and an optional note. Valid reports weigh on
+  // the post's search points (−60 each, see _search_rank in sql/search.sql).
+  function postReportDlg(post) {
+    const myId = state.me?.member?.member_id || "";
+    if (!myId) {
+      toast(t("prof.signFirst"));
+      return;
+    }
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML = `<section class="glass modal-card">
+      <span class="eyebrow">${kindLabel(post.kind)}</span>
+      <h2>${t("prof.repTitle")}</h2>
+      <p class="muted">${escapeHtml(post.title || post.post_id || "")}</p>
+      <div class="form-row">
+        <select id="pr-subj">
+          <option value="spam">${t("prof.repSpam")}</option>
+          <option value="abuse">${t("prof.repAbuse")}</option>
+          <option value="misleading">${t("prof.repMislead")}</option>
+          <option value="other" selected>${t("prof.repOther")}</option>
+        </select>
+      </div>
+      <div class="form-row" style="margin-top:8px">
+        <textarea id="pr-note" rows="3" maxlength="500" placeholder="${t("prof.repNote")}"></textarea>
+      </div>
+      <div class="prof-actions" style="margin-top:12px">
+        <button class="btn btn-sm btn-primary" id="pr-go" type="button">${t("common.send")}</button>
+        <button class="btn btn-sm btn-ghost" id="pr-x" type="button">${t("prof.cancel")}</button>
+      </div>
+    </section>`;
+    document.body.appendChild(ov);
+    ov.addEventListener("click", async (e) => {
+      if (e.target === ov || e.target.closest("#pr-x")) return ov.remove();
+      const go = e.target.closest("#pr-go");
+      if (!go) return;
+      go.disabled = true;
+      const res = await supabaseRequest("/rest/v1/post_reports", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          post_id: post.post_id,
+          owner_id: post.owner_id || "",
+          owner_username: post.owner_username || "",
+          reporter_id: myId,
+          reporter_username: state.me.member.username || "",
+          subject: ov.querySelector("#pr-subj")?.value || "other",
+          note: (ov.querySelector("#pr-note")?.value || "").trim(),
+        }),
+      });
+      if (res.ok || res.status === 409) {
+        ov.remove();
+        toast(t(res.ok ? "prof.repSent" : "prof.repDup"));
+        if (res.ok && post.owner_id && post.owner_id !== myId) {
+          // The author hears about the report once, like any other post event.
+          notifyOnce(post.owner_id, {
+            kind: "report",
+            title: t("prof.repTitle"),
+            body: t("prof.repNotif", {
+              actor: `@${state.me.member.username}`,
+              post: post.title || post.post_id,
+            }),
+            href: postDest(post, state.me.member.username),
+            from_id: myId,
+            from_username: state.me.member.username,
+          });
+        }
+      } else {
+        go.disabled = false;
+        toast(t("prof.repFail"));
       }
     });
   }
@@ -2788,7 +3448,7 @@
     ov.className = "modal-overlay";
     ov.innerHTML = `<section class="glass modal-card pm-modal">
       <span class="eyebrow">${kindLabel(post.kind)} · ${String(post.created_at || "").slice(0, 10)}</span>
-      <h2>${escapeHtml(post.title)}</h2>
+      <h2>${escapeHtml(post.title || t("rich.untitled"))}</h2>
       <div class="stack">
         <label class="field-label" for="em-vis">${t("pm.visibility")}</label>
         <div class="vis-picker" role="radiogroup">
@@ -3596,7 +4256,7 @@
       <h1>${t("nav.search")}</h1>
       <div class="tabs follow-tabs" role="tablist">
         <button type="button" role="tab" class="follow-tab${searchTab === "content" ? " active" : ""}" data-stab="content">${t("prof.searchContent")}</button>
-        <button type="button" role="tab" class="follow-tab${searchTab === "profiles" ? " active" : ""}" data-stab="profiles">${t("prof.searchProfiles")}</button>
+        <button type="button" role="tab" class="follow-tab${searchTab === "profiles" ? " active" : ""}" data-stab="profiles">${t("prof.find")}</button>
       </div>
       <div id="stab-content" ${searchTab !== "content" ? "hidden" : ""}></div>
       <div id="stab-profiles" ${searchTab !== "profiles" ? "hidden" : ""}></div>`;
@@ -3807,11 +4467,23 @@
         return String(b.created_at || "").localeCompare(String(a.created_at || ""));
       });
 
-      await primeAvatars(visible.map((p) => p.owner_id), visible.map((p) => p.owner_username));
-      await enrichItemMap(visible, itemMap);
-      visible.forEach((p) => state.postCache.set(p.post_id, p));
+      // Silenced posts (net-negative day) stay findable only by owner & followers.
+      let gated = visible;
+      try {
+        const gate = await supabaseRequest(`/rest/v1/rpc/posts_gate`, {
+          method: "POST",
+          body: JSON.stringify({ p_member: state.me?.member?.member_id || "", p_ids: visible.map((p) => p.post_id) }),
+        });
+        if (gate.ok && Array.isArray(gate.data)) {
+          const okIds = new Set(gate.data.filter((g) => g.allowed).map((g) => g.post_id));
+          gated = visible.filter((p) => okIds.has(p.post_id));
+        }
+      } catch (e) { /* RPC missing: fail open */ }
+      await primeAvatars(gated.map((p) => p.owner_id), gated.map((p) => p.owner_username));
+      await enrichItemMap(gated, itemMap);
+      gated.forEach((p) => state.postCache.set(p.post_id, p));
 
-      results.innerHTML = visible.map((p) => {
+      results.innerHTML = gated.map((p) => {
         const owner = ownerProfileMap[p.owner_id] || {};
         const items = itemMap[p.post_id] || [];
         const pvotes = voteMap[p.post_id] || [];
@@ -3845,14 +4517,16 @@
         <span class="chip cs-points" title="${t("prof.pointsHelp")}">${t("prof.recPoints", { n: points })}</span>
         ${minutes ? `<span class="chip cs-minutes">${t("prof.postMin", { n: minutes })}</span>` : ""}
       </div>
-      <h3>${escapeHtml(p.title)}</h3>
+      ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
       ${postContentHtml(p, items)}
       <div class="prof-actions">
         <button class="btn btn-sm ${mine === "up" ? "btn-vote-on" : "btn-ghost"}" data-vote="up" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.recommendBtn", { n: up })}</button>
         <button class="btn btn-sm ${mine === "down" ? "btn-vote-on" : "btn-ghost"}" data-vote="down" data-pid="${escapeHtml(p.post_id)}" type="button">${t("prof.dont", { n: down })}</button>
+        ${state.me ? `<button class="btn btn-sm btn-ghost" data-focus-cmt="${escapeHtml(p.post_id)}" type="button" title="${t("prof.writeCmt")}">💬 ${t("prof.comment")}</button>` : ""}
+        ${state.me && p.owner_id !== state.me.member?.member_id ? `<button class="btn btn-sm btn-ghost" data-report-post="${escapeHtml(p.post_id)}" type="button" title="${t("prof.reportPost")}">⚑ ${t("prof.reportPost")}</button>` : ""}
       </div>
       <div class="stack" style="margin-top:10px">
-        ${(comments || []).map((c) => `<p><a href="${profileHref(c.username)}"><strong>@${escapeHtml(c.username)}</strong></a> ${escapeHtml(c.comment)}</p>`).join("")}
+        ${commentListHtml(comments, p.post_id)}
         ${state.me ? `<div class="form-row"><input data-cmt="${escapeHtml(p.post_id)}" placeholder="${t("prof.writeCmt")}" /><button class="btn btn-sm btn-primary" data-send-cmt="${escapeHtml(p.post_id)}" type="button">${t("prof.comment")}</button></div>` : ""}
       </div>
       <div class="post-share">${shareRowHtml(postHref(p), postShareText(p), { compact: true, track: p.post_id })}</div>
@@ -3862,6 +4536,7 @@
   function drawProfilesSearch(main) {
     const box = main.querySelector("#stab-profiles");
     box.innerHTML = `
+      <div id="q-top"></div>
       <div class="stack">
         <input id="q-user" placeholder="${t("reg.username")}" />
         <div class="form-row">
@@ -3922,6 +4597,39 @@
     };
     box.querySelector("#q-go").onclick = doSearch;
     box.querySelector("#q-user").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+    // Leader-board: the members whose posts reached the most people this month —
+    // each post's reach (up+30 / down-30 / comments / shares, sql/post_reach.sql)
+    // summed across all of their posts.
+    (async () => {
+      const top = box.querySelector("#q-top");
+      if (!top) return;
+      top.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+      try {
+        const res = await supabaseRequest(`/rest/v1/rpc/post_top_members`, {
+          method: "POST",
+          body: JSON.stringify({ p_limit: 12 }),
+        });
+        const topRows = res.ok && Array.isArray(res.data) ? res.data : [];
+        if (!topRows.length) { top.innerHTML = ""; return; }
+        await primeAvatars(topRows.map((r) => r.owner_id), topRows.map((r) => r.username));
+        top.innerHTML = `
+          <div class="section-head">
+            <div>
+              <div class="kicker"><span class="eyebrow">${t("prof.reachPts")}</span></div>
+              <h2>${t("prof.topMembers")}</h2>
+            </div>
+          </div>
+          ${topRows.map((r) => `<div class="person-row">
+            <img src="${escapeHtml(avatarOf(null, r.username))}" alt="" data-avatar-for="${escapeHtml(r.owner_id)}" data-avatar-name="${escapeHtml(r.username)}" />
+            <div>
+              <strong>@${escapeHtml(r.username)}</strong>
+              <div class="muted">${t("prof.topMemberMeta", { n: Number(r.posts || 0), pts: Number(r.reach || 0) })}</div>
+            </div>
+            <a class="btn btn-sm btn-primary" href="${profileHref(r.username)}">${t("common.visit")}</a>
+          </div>`).join("")}`;
+        hydrateAvatars(top);
+      } catch (e) { top.innerHTML = ""; }
+    })();
   }
 
   async function viewFollowing(main) {
@@ -4002,13 +4710,155 @@
     </div>`;
   }
 
-  // ---------- Your content (the member's videos, js/content-studio.js) ----------
+  // ---------- Your content: one hub for everything the member made ----------
+  // Profile > Community: the groups this member created or joined. Discovery
+  // and the group pages stay on community.html (single hub, no duplication).
+  async function viewMemberGroups(main) {
+    const target = state.hostMember?.member_id || state.me?.member?.member_id;
+    main.innerHTML = `<p class="eyebrow">${escapeHtml(t("prof.community"))}</p>
+      <h1>${escapeHtml(t("prof.grp.title"))}</h1>
+      <div class="com-acts" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px">
+        <a class="btn btn-sm btn-primary" href="./community.html">🌐 ${escapeHtml(t("com.openHub"))}</a>
+        ${state.isOwner ? `<a class="btn btn-sm btn-ghost" href="./community.html#new-group">👥 ${escapeHtml(t("grp.create"))}</a>` : ""}
+      </div>
+      <div id="pf-groups"><p class="muted">${escapeHtml(t("common.loading"))}</p></div>`;
+    const box = main.querySelector("#pf-groups");
+    if (!target || !window.CineAuraCommunity?.memberGroups)
+      return (box.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("com.loadFail"))}</p>`);
+    await window.CineAuraCommunity.memberGroups(box, target);
+  }
+
+  // Type filter: All - Videos (content studio) - Articles - Questions - Answers
+  // (community contributions, js/community.js, sql/community.sql).
+  const CONTENT_TYPES = ["all", "videos", "articles", "documents", "questions", "answers", "posts", "reviews", "recs"];
+  // The social side of "Your content": rows of `posts` grouped by their kind.
+  const POST_TYPES = { posts: ["post"], reviews: ["review"], recs: ["recommendation", "reclist"] };
+  // Your content > Posts / Reviews / Recommendations: the member's own rows with
+  // the state the schema really carries (visibility + date; drafts/review states
+  // do not exist in the tables yet, so none are invented here).
+  async function memberPosts(box, memberId, vt) {
+    const kinds = POST_TYPES[vt] || [];
+    const res = await supabaseRequest(
+      `/rest/v1/posts?owner_id=eq.${restValue(memberId)}&select=*&order=created_at.desc&limit=80`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("com.loadFail"))}</p>`);
+    const rows = (Array.isArray(res.data) ? res.data : []).filter((p) => kinds.includes(p.kind));
+    if (!rows.length) return (box.innerHTML = `<p class="empty">${escapeHtml(t("prof.ct.none"))}</p>`);
+    box.innerHTML = rows
+      .map(
+        (p) => `<article class="glass" style="padding:12px 14px;margin-bottom:10px">
+          <span class="eyebrow">${escapeHtml(kindLabel(p.kind))} · ${escapeHtml(visLabel(p.visibility))} · ${escapeHtml(String(p.created_at || "").slice(0, 10))}</span>
+          <h3 style="margin:4px 0">${escapeHtml(p.title || "")}</h3>
+          ${p.body ? `<p class="muted" style="margin:0">${escapeHtml(String(p.body).slice(0, 220))}</p>` : ""}
+        </article>`
+      )
+      .join("");
+  }
   function viewContent(main) {
-    if (!window.CineAuraStudio) {
-      main.innerHTML = `<p class="empty">${escapeHtml(t("vid.setup"))}</p>`;
+    const vt = CONTENT_TYPES.includes(state.contentType) ? state.contentType : "all";
+    main.innerHTML = `<div class="tabs follow-tabs" role="tablist" style="flex-wrap:wrap">
+        ${CONTENT_TYPES.map((k) => `<button type="button" role="tab" class="follow-tab${k === vt ? " active" : ""}" data-vt="${k}">${escapeHtml(t("prof.ct." + k))}</button>`).join("")}
+      </div><div id="content-body" style="margin-top:14px"></div>`;
+    main.querySelectorAll("[data-vt]").forEach((b) => (b.onclick = () => { state.contentType = b.dataset.vt; viewContent(main); }));
+    const body = main.querySelector("#content-body");
+    const member = state.me.member;
+    const hostId = state.hostMember?.member_id || member.member_id;
+    if (POST_TYPES[vt]) return memberPosts(body, hostId, vt);
+    if (vt === "documents") {
+      if (!window.CineAuraDocs) return (body.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("doc.loadFail"))}</p>`);
+      return window.CineAuraDocs.memberDocuments(body, hostId, state.isOwner);
+    }
+    if (vt === "videos" || vt === "all") {
+      // Read-only shelf: the Studio owns creating and managing videos.
+      const videos = document.createElement("div");
+      const community = document.createElement("div");
+      videos.id = "ct-videos";
+      community.id = "ct-com";
+      body.replaceChildren(videos);
+      if (vt === "all") body.append(community);
+      memberVideos(videos, hostId);
+      if (vt === "all" && window.CineAuraCommunity) window.CineAuraCommunity.memberBlocks(community, hostId);
+      else if (vt === "all") community.innerHTML = `<p class="com-note">⚠ ${escapeHtml(t("com.loadFail"))}</p>`;
       return;
     }
-    window.CineAuraStudio.render(main, { member: state.me.member });
+    if (window.CineAuraCommunity) window.CineAuraCommunity.memberBlocks(body, hostId, vt);
+    else body.innerHTML = `<p class="com-note">⚠ ${escapeHtml(t("com.loadFail"))}</p>`;
+  }
+
+  // ---------- Market (the member's own store + orders, sql/market.sql) ----------
+  // The own side of the Market in the sidebar, right under Your content: the
+  // store's card (tier of its balance, balance / capital / held), the sales and
+  // purchases counters, and the shortcuts into the Market page's panels.
+  async function viewMarket(main) {
+    const M = window.CineAuraMarket;
+    const me = state.me?.member?.member_id;
+    if (!M || !me) {
+      main.innerHTML = `<p class="empty">${escapeHtml(t("mkt.setupText"))}</p>`;
+      return;
+    }
+    main.innerHTML = `<p class="eyebrow">${escapeHtml(t("mkt.eyebrow"))}</p><h1>${escapeHtml(t("prof.market"))}</h1>
+      <div class="loader" style="display:grid"><div class="spinner"></div></div>`;
+    const r = await window.CineAura.rpc("market_me", { p_member: me });
+    const d = r.ok && r.data?.ok ? r.data : null;
+    if (!d || !state.me || state.me.member?.member_id !== me) {
+      main.innerHTML = `<p class="eyebrow">${escapeHtml(t("mkt.eyebrow"))}</p><h1>${escapeHtml(t("prof.market"))}</h1><p class="empty">${escapeHtml(t("mkt.setupText"))}</p>`;
+      return;
+    }
+    const s = d.store || null;
+    const counts = d.counts || {};
+    const sales = counts.sales || {};
+    const buys = counts.purchases || {};
+    // balance/held/capital come with the new sql/market.sql; before it only the card shows
+    const hasBal = s && s.balance !== undefined && s.balance !== null;
+    const chip = (group, key, n) =>
+      `<a class="prof-mkt-chip${n ? " has" : ""}" href="./market.html#${group}/${key}"><b>${M.fmt(n)}</b><span>${escapeHtml(t(`mkt.tab.${group}.${key}`))}</span></a>`;
+    const logo = s?.logo
+      ? `<img class="prof-mkt-logo" src="${escapeHtml(s.logo)}" alt="" loading="lazy" />`
+      : `<span class="prof-mkt-logo prof-mkt-logo-ph">${M.ICON.store}</span>`;
+    main.innerHTML = `
+      <p class="eyebrow">${escapeHtml(t("mkt.eyebrow"))}</p><h1>${escapeHtml(t("prof.market"))}</h1>
+      <div class="prof-mkt">
+        <div class="prof-mkt-store">
+          ${s ? `
+            <a class="prof-mkt-id" href="${escapeHtml(M.storeHref(s.id))}">
+              ${logo}
+              <span class="prof-mkt-who">
+                <strong dir="auto">${escapeHtml(s.name || "")}</strong>
+                <span class="muted">${escapeHtml(t(s.open ? "mkt.open" : "mkt.closed"))}${s.level ? ` · ${escapeHtml(s.level)}` : ""}</span>
+              </span>
+              ${balanceTierHtml(s.tier)}
+            </a>
+            ${hasBal ? `
+              <div class="prof-mkt-balance">
+                <span><small>${escapeHtml(t("mkt.bal.balance"))}</small><b>${M.fmt(Number(s.balance || 0))} PT</b></span>
+                <span><small>${escapeHtml(t("mkt.bal.capital"))}</small><b>${M.fmt(Number(s.capital ?? 0))} PT</b></span>
+                <span><small>${escapeHtml(t("mkt.bal.held"))}</small><b>${M.fmt(Number(s.held || 0))} PT</b></span>
+              </div>` : ""}
+          ` : `
+            <span class="prof-mkt-logo prof-mkt-logo-ph">${M.ICON.store}</span>
+            <div class="prof-mkt-nostore">
+              <p class="muted">${escapeHtml(t("mkt.s.intro"))}</p>
+              <a class="btn btn-sm btn-primary" href="./market.html#settings">${M.ICON.store}<span>${escapeHtml(t("mkt.openStore"))}</span></a>
+            </div>
+          `}
+          <div class="prof-mkt-acts">
+            ${s ? `<a class="btn btn-sm btn-ghost" href="${escapeHtml(M.storeHref(s.id))}"><span>${escapeHtml(t("mkt.yourStore"))}</span></a>` : ""}
+            <a class="btn btn-sm btn-ghost" href="./market.html#settings"><span>${escapeHtml(t("mkt.nav.settings"))}</span></a>
+            <a class="btn btn-sm btn-ghost" href="./dashboard.html#address"><span>${escapeHtml(t("mkt.addrLink"))}</span></a>
+            <a class="btn btn-sm btn-ghost" href="./market.html"><span>${escapeHtml(t("mkt.eyebrow"))}</span></a>
+          </div>
+        </div>
+        <div class="prof-mkt-cols">
+          <section class="prof-mkt-col">
+            <h3>${escapeHtml(t("mkt.nav.sales"))}</h3>
+            <div class="prof-mkt-chips">${["requests", "sold", "shipped", "delivered", "returned"].map((k) => chip("sales", k, Number(sales[k] || 0))).join("")}</div>
+          </section>
+          <section class="prof-mkt-col">
+            <h3>${escapeHtml(t("mkt.nav.purchases"))}</h3>
+            <div class="prof-mkt-chips">${["later", "requests", "purchased", "shipped", "received", "returned"].map((k) => chip("purchases", k, Number(buys[k] || 0))).join("")}</div>
+          </section>
+        </div>
+      </div>`;
   }
 
   async function viewBlocked(main) {
@@ -4048,6 +4898,7 @@
       <p class="eyebrow">${t("dash.settings.eyebrow")}</p>
       <h1>${t("prof.settings")}</h1>
       ${state.isOwner ? "" : `<p class="muted settings-note">${t("prof.settingsNote", { name: hostName })}</p>`}
+      <p class="muted">${t("prof.settingsDashNote")} <a class="btn btn-sm btn-ghost" href="./dashboard.html#settings">${t("dash.settings.title")}</a></p>
       <div class="stack">
         ${window.CineAura.avatarFieldHtml({ id: "st-avatar", value: p.avatar_url || "", name: state.me.member.username, memberId: state.me.member.member_id })}
         <input id="st-name" value="${escapeHtml(p.display_name || "")}" placeholder="${t("common.displayName")}" />
@@ -4187,15 +5038,15 @@
     if (state.isOwner && !host.profile) state.host = state.me.profile || ownSeed();
     await loadRelations();
     await loadHostStatus();
-    // Profile.html#content (and #content/manage, #content/stats) opens "Your content"
+    // profile.html#content (and #content/manage, #content/stats) opens "Your content"
     if (state.me && /^#content(\/|$)/.test(location.hash)) state.section = "content";
-    // Profile.html?@name#videos, #playlists, #playlist/CPL… open the Content tab
+    // profile.html?@name#videos, #playlists, #playlist/CPL… open the Content tab
     const pcWant = pcFromHash();
     if (pcWant && !postId) {
       state.homeTab = "content";
       Object.assign(pcState(), pcWant);
     }
-    // Profile.html?@name#market (#market/recs | lists | reviews) opens the Market tab
+    // profile.html?@name#market (#market/recs | lists | reviews) opens the Market tab
     const mkWant = mkFromHash();
     if (mkWant && !postId) {
       state.homeTab = "market";

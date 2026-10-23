@@ -196,6 +196,7 @@
           <span>${a.published_at ? new Date(a.published_at).toLocaleDateString(getLang()==='ar'?'ar-EG':'en-US') : ''}</span>
         </div>
       </div>
+      ${a.image ? `<img class="help-article-hero" src="${esc(a.image)}" alt="" loading="lazy" />` : ''}
       <div class="help-article-body" id="help-body"></div>
       <div class="help-vote" id="help-vote-box">
         <p>${t('help.wasHelpful')}</p>

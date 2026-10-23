@@ -1,5 +1,5 @@
 /* CineAura — member videos, shared by Profile > Your content (js/content-studio.js),
-   Content.html (js/content.js), Search.html (js/search.js), the home page
+   video.html (js/content.js), search.html (js/search.js), the home page
    (js/home-videos.js) and a member's page > Content / Updates (js/profile.js).
 
    Everything goes through the content_* functions of sql/content.sql: the tables
@@ -22,13 +22,84 @@
   const AGES = [3, 6, 13, 16, 18];
   const VISIBILITIES = ["public", "exclusive", "private"];
   const LANGUAGES = [...C.LINK_LANGUAGES, "Other"];
-  // Search.html: the language filter also narrows TMDB results (original_language).
+  // search.html: the language filter also narrows TMDB results (original_language).
   const LANG_ISO = {
     Arabic: "ar", English: "en", French: "fr", Spanish: "es", German: "de", Italian: "it", Portuguese: "pt",
     Turkish: "tr", Russian: "ru", Japanese: "ja", Korean: "ko", Chinese: "zh", Hindi: "hi", Dutch: "nl",
     Polish: "pl", Indonesian: "id", Thai: "th", Vietnamese: "vi", Persian: "fa", Urdu: "ur",
   };
   const PROVIDERS = ["youtube", "vimeo", "dailymotion", "facebook", "drive", "tiktok", "file", "hls", "link"];
+
+  /* ── Round 53 · the YouTube record behind a site video ───────────────────
+     The video page (and the hub's YouTube modal) ask the youtube-search edge
+     function — which keeps the API key on the server — for the real YouTube
+     record: the channel (name + avatar), the description, and the tags when
+     YouTube lists them. One fetch per video per session; any failure stays
+     honest: the caller simply keeps its own description, nothing is faked. */
+  const ytMetaCache = new Map();
+  async function fetchYouTubeMeta(videoId) {
+    const id = String(videoId || "").trim();
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return { ok: false, reason: "missing" };
+    if (ytMetaCache.has(id)) return ytMetaCache.get(id);
+    let out = null;
+    try {
+      const res = await fetch(`${C.SUPABASE_URL}/functions/v1/youtube-search`, {
+        method: "POST",
+        headers: {
+          apikey: C.SUPABASE_KEY,
+          Authorization: `Bearer ${C.SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ video: id }),
+      });
+      out = await res.json();
+    } catch {
+      out = null;
+    }
+    const ans =
+      out && out.ok === true && out.video
+        ? { ok: true, video: out.video }
+        : { ok: false, reason: out?.reason || "upstream" };
+    ytMetaCache.set(id, ans);
+    return ans;
+  }
+
+  function ytLinkify(text) {
+    return escapeHtml(text).replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, (u) => `<a href="${u}" target="_blank" rel="noopener noreferrer nofollow">${u}</a>`);
+  }
+
+  /* The block a YouTube video's page shows where every embedded-link video's
+     own text stands: the channel row, its description, its tags (if it has
+     any). opts.footHtml keeps the caller's own footer line under it. */
+  function youTubeMetaHtml(video, opts = {}) {
+    const chId = String(video?.channelId || "").trim();
+    const chUrl = chId ? `https://www.youtube.com/channel/${encodeURIComponent(chId)}` : "";
+    const desc = String(video?.description || "").trim();
+    const long = desc.length > 420;
+    const tags = (Array.isArray(video?.tags) ? video.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12);
+    const avatar = String(video?.channelAvatar || "");
+    const chName = String(video?.channel || "YouTube").trim() || "YouTube";
+    const head = `
+    <div class="vw-ythead">
+      ${chUrl
+        ? `<a class="vw-ytch" href="${escapeHtml(chUrl)}" target="_blank" rel="noopener" aria-label="${escapeHtml(t("vid.yt.openChannel"))}">`
+        : `<div class="vw-ytch">`}
+        ${avatar
+          ? `<img class="vw-ytch-img" src="${escapeHtml(avatar)}" alt="" loading="lazy" />`
+          : `<span class="vw-ytch-img vw-ytch-ph" aria-hidden="true">${escapeHtml(chName.slice(0, 1).toUpperCase())}</span>`}
+        <span class="vw-ytch-txt">
+          <bdi class="vw-ytch-name">${escapeHtml(chName)}</bdi>
+          <small class="vw-ytch-src">${escapeHtml(t("vid.prov.youtube"))}</small>
+        </span>
+      ${chUrl ? `</a>` : `</div>`}
+      <span class="vw-chip">${escapeHtml(t("vid.prov.youtube"))}</span>
+    </div>`;
+    return `${head}
+    <div class="vw-desc-text${long ? " is-long" : ""}" data-ytdesc>${desc ? ytLinkify(desc) : `<span class="muted">${escapeHtml(t("vid.noDesc"))}</span>`}</div>
+    ${long ? `<button class="vw-more" type="button" data-yt-more aria-expanded="false">${escapeHtml(t("vid.showMore"))}</button>` : ""}
+    ${tags.length ? `<div class="vw-tags vw-tags--yt">${tags.map((x) => `<span><bdi>#${escapeHtml(x)}</bdi></span>`).join("")}</div>` : ""}
+    ${opts.footHtml || ""}`;
+  }
 
   // ---------------------------------------------------------------- links
   function parseStart(v) {
@@ -59,7 +130,7 @@
       else if ((m = path.match(/^\/(?:embed|shorts|live|v)\/([\w-]{11})/))) id = m[1];
       else id = u.searchParams.get("v") || "";
       if (/^[\w-]{11}$/.test(id)) {
-        return { ...base, provider: "youtube", id, start: parseStart(u.searchParams.get("t") || u.searchParams.get("start")) };
+        return { ...base, provider: "youtube", id, start: parseStart(u.searchParams.get("t") || u.searchParams.get("start")), shorts: /^\/shorts\//.test(path) };
       }
     }
     if (/(^|\.)vimeo\.com$/.test(host)) {
@@ -86,6 +157,12 @@
       m = path.match(/\/video\/(\d{8,25})/);
       if (m) return { ...base, provider: "tiktok", id: m[1] };
     }
+    // Streamtape (the site's own uploads, js/streamtape.js): /v/ is the page,
+    // /e/ the frameable player; both carry the same file id.
+    if (/(^|\.)streamtape\.(com|net)$/.test(host) || host === "streamta.pe") {
+      m = path.match(/\/[ve]\/([\w-]{6,40})/);
+      if (m) return { ...base, provider: "streamtape", id: m[1] };
+    }
     if (/\.m3u8$/i.test(path)) return { ...base, provider: "hls" };
     if (/\.(mp4|webm|ogg|ogv|mov|m4v)$/i.test(path)) return { ...base, provider: "file" };
     return { ...base, provider: "link" };
@@ -109,6 +186,8 @@
         return `https://drive.google.com/file/d/${info.id}/preview`;
       case "tiktok":
         return `https://www.tiktok.com/embed/v2/${info.id}`;
+      case "streamtape":
+        return `https://streamtape.com/e/${info.id}`;
       case "link":
         return info.url;
       default:
@@ -211,14 +290,14 @@
     }
   }
 
-  const contentHref = (id) => `./Content.html?idcontent=${encodeURIComponent(id || "")}`;
+  const contentHref = (id) => `./video.html?id=${encodeURIComponent(id || "")}`;
   function searchHref(params = {}) {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && String(v) !== "") q.set(k, String(v));
     });
     const s = q.toString();
-    return `./Search.html${s ? `?${s}` : ""}`;
+    return `./search.html${s ? `?${s}` : ""}`;
   }
 
   // ---------------------------------------------------------------- server
@@ -539,6 +618,8 @@
     openDialog,
     confirmDialog,
     playlistDialog,
+    fetchYouTubeMeta,
+    youTubeMetaHtml,
     LOCK_ICON,
   };
 })();

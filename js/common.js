@@ -576,7 +576,7 @@
   }
 
   function personHref(id) {
-    return `./Cast.html?person=${id}`;
+    return `./cast.html?person=${id}`;
   }
 
   // TMDB filmography of a person, cached in sessionStorage so the profile
@@ -963,7 +963,7 @@
   }
 
   // ---------- Picture fields: image links, or pictures picked on the device ----------
-  // Prizes and prize groups (Panel > Prizes), products, store logos and covers (Market.html).
+  // Prizes and prize groups (Panel > Prizes), products, store logos and covers (market.html).
   // Like the profile picture, a field takes an image link or a picture from the device; unlike
   // it, what it shows may not exist yet (a new prize, a new product), so a picked picture waits
   // in the field (made smaller, as a JPEG) and goes up only once the page has saved and knows
@@ -1728,8 +1728,8 @@
   const codeLockLeft = () => Math.max(0, readCodeLock().until - Date.now());
 
   /* ---------- Channel lists of the home page: two playlists in Supabase Storage ----------
-     Free channels (Listchannels.html?free=1): IPTV-Free.m3u, played as they are.
-     Premium channels (Listchannels.html?premium=1): IPTV-Premuim.m3u. Its links
+     Free channels (listchannels.html?free=1): IPTV-Free.m3u, played as they are.
+     Premium channels (listchannels.html?premium=1): IPTV-Premuim.m3u. Its links
      carry the words Username and Password (http://line.ottcst.net:80/Username/Password/1784957),
      replaced with the username and password of a premium IPTV account: typed on
      the page, or found with a watch code (sql/iptv_premium.sql). */
@@ -1902,18 +1902,18 @@
 
   function profileHref(username) {
     const name = String(username || "").replace(/^@/, "").trim();
-    return name ? `./Profile.html?@${encodeURIComponent(name)}` : "./Profile.html";
+    return name ? `./profile.html?@${encodeURIComponent(name)}` : "./profile.html";
   }
 
-  // A single post has its own link too: ./Profile.html?post=P123456789
+  // A single post has its own link too: ./profile.html?post=P123456789
   function postHref(postId) {
     const id = String(postId || "").trim();
-    return id ? `./Profile.html?post=${encodeURIComponent(id)}` : "./Profile.html";
+    return id ? `./profile.html?post=${encodeURIComponent(id)}` : "./profile.html";
   }
 
   /* ---------- Sharing a CineAura link ----------
      Facebook · Pinterest · Telegram · WhatsApp · Reddit, plus copy.
-     Every network needs an absolute URL, so a page-relative href ("./Profile.html?post=P1")
+     Every network needs an absolute URL, so a page-relative href ("./profile.html?post=P1")
      is resolved against the current page first. */
   function absoluteUrl(href) {
     const raw = String(href || "");
@@ -2275,7 +2275,7 @@
         /* not a link */
       }
     }
-    return "./Profile.html";
+    return "./profile.html";
   }
 
   function dateFormat(options) {
@@ -2513,6 +2513,39 @@
     return membershipCache[id];
   }
 
+  // Panel > Plans (sql/plans_settings.sql): the per-plan permission settings.
+  // plans_public answers the visible plans; [] while the migration is missing,
+  // so every reader falls back to today's hard rules.
+  let plansCache = null;
+  function plansPublic() {
+    if (!plansCache) {
+      plansCache = rpc("plans_public", {})
+        .then((res) => (res.ok && res.data?.ok && Array.isArray(res.data.plans) ? res.data.plans : []))
+        .catch(() => []);
+    }
+    return plansCache;
+  }
+  async function planSettings(planName) {
+    const plans = await plansPublic();
+    const hit = plans.find((p) => p.plan === String(planName || "")) || plans.find((p) => p.plan === "Free");
+    return hit && hit.settings && typeof hit.settings === "object" ? hit.settings : null;
+  }
+  // The rules a page needs about one membership: the Panel's numbers win, the old
+  // hard ones stand in until sql/plans_settings.sql has run.
+  async function planRules(planName) {
+    const name = String(planName || "Free");
+    const premium = name !== "Free";
+    const s = (await planSettings(name)) || {};
+    return {
+      adFree: s.ad_free ?? premium,
+      dailyUploads: s.daily_uploads ?? 50,
+      batchUploads: s.batch_uploads ?? 1,
+      codesMax: s.codes_max ?? (premium ? 10 : 5),
+      codeMonths: s.code_months ?? (name === "Silver" ? 3 : name === "Gold" ? 6 : name === "Diamond" ? 12 : 1),
+      levelCap: s.level_cap ?? (name === "Diamond" ? 10 : name === "Gold" ? 8 : name === "Silver" ? 5 : 2),
+    };
+  }
+
   const adFreeKey = (id) => `cineaura_adfree_${id}`;
   function adFreeFlag() {
     const id = getSession()?.member_id;
@@ -2533,15 +2566,28 @@
     }
     document.dispatchEvent(new CustomEvent("cineaura:adfree", { detail: { on } }));
   }
-  // True only for an active premium member who switched "Watch without ads" on.
+  // True when the member switched "Watch without ads" on and the Panel's plan
+  // settings allow it (plans without settings: the premium plans, as before).
   async function adFreeActive() {
     if (!adFreeFlag()) return false;
     const m = await membership();
+    if (m.guest) return false;
+    if (!m.unknown && m.type) {
+      const s = await planSettings(m.type);
+      if (s && typeof s.ad_free === "boolean") return s.ad_free;
+    }
     return Boolean(m.premium);
   }
   async function adsEligible() {
     const m = await membership();
     if (m.guest || m.unknown) return false; // cannot check the plan → no ads
+    if (m.type) {
+      const s = await planSettings(m.type);
+      if (s && typeof s.ad_free === "boolean") {
+        // ad_free off: the plan keeps ads for everyone; on: only until the member's switch
+        return s.ad_free ? !adFreeFlag() : true;
+      }
+    }
     if (!m.premium) return true;
     return PREMIUM_ADS_BY_DEFAULT && !adFreeFlag();
   }
@@ -2610,26 +2656,38 @@
     return geoPromise;
   }
 
-  const manualLang = () => LANGS.includes(localStorage.getItem(LANG_KEY));
   const manualCountry = () => {
     const c = localStorage.getItem(COUNTRY_KEY);
     return /^[A-Z]{2}$/.test(c || "") ? c : "";
   };
   const currentCountry = () => manualCountry() || readGeo()?.cc || "";
-  const geoLang = (cc) => {
-    const l = window.CineAuraCountryLang?.[cc];
-    return LANGS.includes(l) ? l : "";
-  };
-
-  // First visit: follow the IP. A language or country picked by the visitor always wins.
+  // First visit: the country follows the IP; the language follows the browser
+  // (prefs.js decides it before the paint). A pick by the visitor always wins.
   async function geoBoot() {
     const cc = await detectGeo(false);
     if (!cc) return;
-    if (!manualLang()) {
-      const lang = geoLang(cc);
-      if (lang && lang !== getLang() && !accountLangApplied) applyPrefs({ language: lang, persist: false });
-    }
     document.dispatchEvent(new CustomEvent("cineaura:geo", { detail: { country: currentCountry() } }));
+  }
+
+  // First visit on this device: open Site Settings so the language (browser by
+  // default), the country (IP by default), the appearance and — for premium
+  // members — the ads choice are settled right away. The header button brings
+  // the dialog back at any time.
+  const WELCOME_KEY = "cineaura_settings_welcomed";
+  function welcomeSettingsOnce() {
+    let seen = "";
+    try {
+      seen = localStorage.getItem(WELCOME_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    if (seen) return;
+    try {
+      localStorage.setItem(WELCOME_KEY, "1");
+    } catch {
+      /* storage unavailable */
+    }
+    setTimeout(() => openSettings(), 300);
   }
 
   // The country of the content (watch providers, prices…): "" follows the IP.
@@ -2752,7 +2810,13 @@
       }
       const m = await membership();
       if (getSession()?.member_id !== session.member_id) return;
-      if (m.premium) {
+      let allowed = Boolean(m.premium);
+      if (!m.unknown && m.type) {
+        const s = await planSettings(m.type);
+        if (getSession()?.member_id !== session.member_id) return;
+        if (s && typeof s.ad_free === "boolean") allowed = s.ad_free;
+      }
+      if (allowed) {
         adBox.disabled = false;
         adBox.checked = adFreeFlag();
         adState.textContent = "";
@@ -2909,8 +2973,8 @@
       }
       const cc = await detectGeo(true);
       detecting = false;
-      const lang = geoLang(cc) || browserLang();
-      applyPrefs({ language: lang, persist: false });
+      // country from the new lookup, language back to the browser's
+      applyPrefs({ language: browserLang(), persist: false });
       if (!cc) toast(t("set.countryFail"));
       document.dispatchEvent(new CustomEvent("cineaura:geo", { detail: { country: currentCountry() } }));
     });
@@ -3068,34 +3132,46 @@
     refitHeader();
   }
 
-  // The member videos (Search.html, Content.html) get a place in the header menu of every
-  // page, after Series, and in the phone menu.
-  // "Videos" in every header: Content.html, the search box and the 50 videos with the
-  // most watched minutes, recommendations or shares.
-  function addVideosNav() {
-    const here = /\/(search|content)(\.html)?$/i.test(location.pathname);
-    const make = () => {
+  /* One header menu for every page — only the home page keeps its own landing
+     links (#features, #plans…). The same links in the phone menu, above its
+     Sign In/Sign Up rows; the page you're on is marked aria-current. */
+  const HEADER_NAV = [
+    ["./index.html", "nav.home"],
+    ["./search.html", "nav.search"],
+    ["./movies.html", "nav.movies"],
+    ["./series.html", "nav.series"],
+    // One entry for the whole content area: content.html is its home, and the
+    // bar at the top of every content page leads to each type (round 39).
+    ["./content.html", "nav.content"],
+    ["./iptv.html", "nav.iptv"],
+    ["./prize.html", "nav.prizes"],
+    ["./market.html", "nav.market"],
+    ["./community.html", "nav.community"],
+    ["./help.html", "nav.help"],
+  ];
+  function unifyHeaderNav() {
+    const page = (location.pathname.split("/").pop() || "").toLowerCase();
+    if (!page || page === "index.html") return; // home keeps its own menu
+    const make = ([href, key]) => {
       const a = document.createElement("a");
-      a.href = "./Content.html";
-      a.dataset.i18n = "nav.videos";
-      a.dataset.videosNav = "1";
-      a.textContent = t("nav.videos");
-      if (here) a.setAttribute("aria-current", "page");
+      a.href = href;
+      a.dataset.i18n = key;
+      a.textContent = t(key);
+      if (href.toLowerCase().endsWith("/" + page)) a.setAttribute("aria-current", "page");
       return a;
     };
     const nav = document.querySelector("#site-header nav.nav");
-    if (nav && !nav.querySelector("[data-videos-nav]")) {
-      const series = [...nav.querySelectorAll("a")].find((x) => /#series$/.test(x.getAttribute("href") || ""));
-      if (series) series.after(make());
-      else nav.appendChild(make());
-    }
+    if (nav) nav.replaceChildren(...HEADER_NAV.map(make));
     const menu = document.querySelector("#mobile-menu");
-    if (menu && !menu.querySelector("[data-videos-nav]")) {
-      const series = [...menu.querySelectorAll(":scope > a")].find((x) => /#series$/.test(x.getAttribute("href") || ""));
-      const auth = menu.querySelector(":scope > div");
-      if (series) series.after(make());
-      else if (auth) auth.before(make());
-      else menu.appendChild(make());
+    if (menu) {
+      // the old top-level navigation links of this page go; the auth rows
+      // (Sign In / Sign Up / Dashboard / Log Out) stay, below the menu
+      const isNav = (a) => {
+        const file = (a.getAttribute("href") || "").split(/[?#]/)[0].split("/").pop().toLowerCase();
+        return !file || HEADER_NAV.some(([href]) => href.toLowerCase().endsWith("/" + file));
+      };
+      [...menu.querySelectorAll(":scope > a")].forEach((a) => isNav(a) && a.remove());
+      menu.prepend(...HEADER_NAV.map(make));
     }
   }
 
@@ -3288,6 +3364,7 @@
     applyPrefs({ persist: false });
     initSettingsMenu();
     geoBoot();
+    welcomeSettingsOnce();
     startPresence();
     renderAuth();
     // No session on a page that needs one: lock it before any handler is bound.
@@ -3297,7 +3374,7 @@
     initHeaderBell();
     pollSectionBadges();
     hydratePrefsFromProfile();
-    addVideosNav();
+    unifyHeaderNav();
     watchHeaderFit();
     showAccountDeadline().catch(() => {});
     const header = $("#site-header");
@@ -3635,9 +3712,9 @@
     return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
   }
 
-  // The id of a playlist row on Listchannels.html (&channel=<id>): its stream link (else
+  // The id of a playlist row on listchannels.html (&channel=<id>): its stream link (else
   // its name) and its group. The members' IPTV lists keep the same id with each channel,
-  // so a result of Search.html > Channels opens that very channel.
+  // so a result of search.html > Channels opens that very channel.
   function m3uRowId(row) {
     const name = String(row?.channel_name || "").trim().toLowerCase().replace(/\s+/g, " ");
     return `m${cyrb53(`${row?.stream_url || name}\n${row?.group_name}`)}`;
@@ -3816,7 +3893,10 @@
   const NAV_ICONS = {
     overview: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>',
     playlists: '<path d="M4 6h11M4 11h11M4 16h7"/><path d="M15.5 14.5v6l5-3z"/>',
+    community: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17.5" cy="9.5" r="2.4"/><path d="M15.5 15.4c2.6-.4 5 1.4 5 4.6"/>',
+    manage: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 4.5v15"/>',
     links: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>',
+    upload: '<path d="M12 16V4.5"/><path d="M7 9.5l5-5 5 5"/><path d="M4.5 15v4.5h15v-4.5"/>',
     reports: '<path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2 4 2 4h-11"/>',
     codes: '<circle cx="8" cy="15.5" r="4"/><path d="M10.9 12.6L20 3.5M16.5 7l2.5 2.5M14 9.5l2 2"/>',
     iptv: '<rect x="3" y="6.5" width="18" height="12.5" rx="2"/><path d="M8.5 3l3.5 3.5L15.5 3M9 22h6"/>',
@@ -3834,10 +3914,15 @@
     messages: '<path d="M20.5 12a8 8 0 0 1-11.7 7.1L3.5 20.5l1.4-4.9A8 8 0 1 1 20.5 12z"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
     following: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M18 14.3a6.5 6.5 0 0 1 3.5 5.7"/>',
+    community: '<circle cx="7" cy="8.5" r="3"/><path d="M2 19.5a5 5 0 0 1 10 0"/><circle cx="16.5" cy="8.5" r="3"/><path d="M12.5 19.5a5.5 5.5 0 0 1 9 0"/>',
     blocked: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
     accounts: '<circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
     apps: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
     staff: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><circle cx="12" cy="10.5" r="2.3"/><path d="M8.3 16.2a4.2 4.2 0 0 1 7.4 0"/>',
+    // the sections the article editor and the documents brought (2026-10-23)
+    articles: '<path d="M5 3.5h9.5L19 8v12.5H5z"/><path d="M14.5 3.5V8H19"/><path d="M8 12h8M8 15.5h8M8 8.5h3"/>',
+    documents: '<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 16h5"/>',
+    customize: '<path d="M4 6.5h6M14 6.5h6M4 12h10M18 12h2M4 17.5h3M11 17.5h9"/><circle cx="12" cy="6.5" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="17.5" r="2"/>',
   };
   NAV_ICONS.content = '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.5 9.3v5.4l4.5-2.7z"/>';
   NAV_ICONS.notifications = '<path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>';
@@ -3962,6 +4047,56 @@
   const POINT_LEVELS = [0, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10];
   const LEVEL_MAX = POINT_LEVELS.length - 1;
 
+  // The unified balance tier, shared by the stores (their balance: the capital placed in the
+  // store plus the points of the orders on their way) and the members (their available
+  // points). sql/market.sql balance_tier() holds the same table; the total earned keeps its
+  // own measure, the level (POINT_LEVELS above).
+  const BALANCE_TIERS = [
+    { code: "N1", min: 0 },
+    { code: "N2", min: 10 },
+    { code: "N3", min: 100 },
+    { code: "K1", min: 1e3 },
+    { code: "K2", min: 1e4 },
+    { code: "K3", min: 1e5 },
+    { code: "M1", min: 1e6 },
+    { code: "M2", min: 1e7 },
+    { code: "M3", min: 1e8 },
+    { code: "B1", min: 1e9 },
+    { code: "B2", min: 1e10 },
+    { code: "B3", min: 1e11 },
+  ];
+  const BALANCE_TIER_TOP = 1e12; // from 1 trillion on the tier stays B3
+  // Where a balance puts a store / a member: { code, letter, index, points, from, top, next, pct }.
+  function balanceTier(balance) {
+    const pts = Math.max(0, Math.floor(Number(balance) || 0));
+    let i = 0;
+    for (let k = 1; k < BALANCE_TIERS.length; k += 1) if (pts >= BALANCE_TIERS[k].min) i = k;
+    const code = BALANCE_TIERS[i].code;
+    const top = i + 1 < BALANCE_TIERS.length ? BALANCE_TIERS[i + 1].min : BALANCE_TIER_TOP;
+    return {
+      code,
+      letter: code.slice(0, 1),
+      index: i,
+      points: pts,
+      from: BALANCE_TIERS[i].min,
+      top,
+      next: i + 1 < BALANCE_TIERS.length ? BALANCE_TIERS[i + 1].code : null,
+      pct: Math.min(100, Math.floor(((pts * 100) / top) * 10) / 10),
+    };
+  }
+
+  // The badge of the unified balance tier: the code and the progress to the next one, in the
+  // four letter colours (.mkt-tier, css/market.css). Accepts a tier (balanceTier result / the
+  // server's balance_tier) or a plain balance. Title via i18n points.balanceTier.
+  function balanceTierHtml(tierOrBalance, { big = false } = {}) {
+    const tier =
+      tierOrBalance && typeof tierOrBalance === "object" && tierOrBalance.code ? tierOrBalance : balanceTier(tierOrBalance);
+    if (!tier?.code) return "";
+    const pct = tier.pct >= 10 ? String(Math.floor(tier.pct)) : String(Math.floor(tier.pct * 10) / 10);
+    const title = t("points.balanceTier", { code: tier.code, pct, points: compactPoints(Number(tier.points ?? tierOrBalance) || 0) });
+    return `<span class="mkt-tier t-${escapeHtml(String(tier.code).slice(0, 1))}${big ? " big" : ""}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" dir="ltr"><b>${escapeHtml(tier.code)}</b><span>${escapeHtml(pct)}%</span></span>`;
+  }
+
   function watchTier(cc) {
     const code = String(cc || "").trim().toUpperCase();
     return WATCH_TIERS.find((x) => x.countries.includes(code)) || WATCH_TIERS[WATCH_TIERS.length - 1];
@@ -3999,6 +4134,29 @@
     };
   }
 
+  // The membership is the level's ceiling (2026-10-20 spec; sql/withdrawals.sql
+  // account_level): Free LV2 · Silver LV5 · Gold LV8 · Diamond LV10. The points
+  // decide the base level and keep accumulating either way.
+  const LEVEL_CAPS = { Free: 2, Silver: 5, Gold: 8, Diamond: 10 };
+  // The plan of a member row (type + expiry): the paid plan while it runs, else Free.
+  function accountPlan(plan, expiresAt) {
+    const p = String(plan || "").trim().toLowerCase();
+    const good = { silver: "Silver", gold: "Gold", diamond: "Diamond" }[p] || "Free";
+    if (good === "Free") return "Free";
+    const active = !expiresAt || new Date(expiresAt).getTime() > Date.now();
+    return active ? good : "Free";
+  }
+  // levelInfo() with the membership as the ceiling: same shape plus
+  // { rawLevel, rawName, cap, capped, plan } (mirrors sql account_level()).
+  function accountLevelInfo(earned, plan, expiresAt) {
+    const info = levelInfo(earned);
+    const p = accountPlan(plan, expiresAt);
+    const cap = LEVEL_CAPS[p] ?? LEVEL_CAPS.Free;
+    const level = Math.min(info.level, cap);
+    const named = level === info.level ? info : { ...info, level, name: levelName(level), multiplier: levelMultiplier(level) };
+    return { ...named, rawLevel: info.level, rawName: info.name, cap, capped: info.level > cap, plan: p };
+  }
+
   /* ════════════════════════════════════════════════════════════════════
      LV-gated permissions — 2026-10-19 spec (cumulative, client-side guard;
      server must enforce the same POINT_LEVELS thresholds via RLS / RPC):
@@ -4008,10 +4166,14 @@
        LV2 (100 PT) + join challenge-mode prizes
        LV3 (1K PT) + join prize/lottery-mode prizes (includes gift)
        LV4 (10K PT) + buy in market
-       LV5 (100K PT) + sell in market (open store + publish products)
+       LV5 (100K PT) + sell in market (open store + publish products) + withdraw points
        LV6 (1M PT) + auction buy
        LV7 (10M PT) + auction sell
-     Each LV includes all previous. POINT_LEVELS defines the thresholds; see
+     Each LV includes all previous. AND the membership is the level's CEILING
+     (2026-10-20 spec, sql/withdrawals.sql account_level): Free LV2 · Silver LV5 ·
+     Gold LV8 · Diamond LV10 — points keep accumulating, the level waits for the
+     plan to step up (LEVEL_CAPS / accountLevelInfo below).
+     POINT_LEVELS defines the thresholds; see
      levelInfo()/pointLevel(). Do not trust client alone — Supabase policies /
      sql/market.sql, sql/prize*.sql, sql/content.sql should repeat the check.
      ════════════════════════════════════════════════════════════════════ */
@@ -4039,11 +4201,12 @@
     // LV2 — challenge prizes
     challenge: 2, join_challenge: 2,
     // LV3 — lottery / prize mode
-    lottery: 3, join_lottery: 3, prize: 3, gift: 3, join_prize: 3, withdraw: 3,
+    lottery: 3, join_lottery: 3, prize: 3, gift: 3, join_prize: 3,
     // LV4 — market buy
     buy: 4, buy_market: 4, purchase: 4, market_buy: 4,
-    // LV5 — market sell
-    sell: 5, sell_market: 5, store_open: 5, market_sell: 5,
+    // LV5 — market sell + withdraw points (2026-10-20; sql/withdrawals.sql needs LV5)
+    sell: 5, sell_market: 5, store_open: 5, market_sell: 5, withdraw: 5,
+    withdraw_points: 5, withdraw_money: 5,
     // LV6 / LV7 — auction
     auction: 6, auction_buy: 6, auction_purchase: 6,
     auction_sell: 7, auction_sale: 7,
@@ -4132,8 +4295,17 @@
     try {
       const mp = await memberPoints(sess.member_id);
       const have = Number(mp?.earned || 0);
-      if (pointLevel(have) >= min) return true;
-      toast(levelGateMessage(feature, have));
+      // the membership caps the level (LEVEL_CAPS — the server gates the same way)
+      const mem = await membership().catch(() => null);
+      const plan = mem?.premium ? String(mem.type || "Free") : "Free";
+      const cap = LEVEL_CAPS[plan] ?? LEVEL_CAPS.Free;
+      const rawLv = pointLevel(have);
+      if (Math.min(rawLv, cap) >= min) return true;
+      if (rawLv >= min && cap < min) {
+        toast(t("level.err.cap", { plan: tr(plan), cap: levelName(cap), need: levelName(min) }));
+      } else {
+        toast(levelGateMessage(feature, have));
+      }
       return false;
     } catch {
       // offline: don't block
@@ -4255,7 +4427,7 @@
     let prof = profile || {};
     // Callers that loaded only some columns: read the stored points (absent on a database
     // that never ran their SQL file — the minutes count then, as before, and the rest is 0).
-    // A caller with no profile at all (Market.html) gets the minutes and the spent points too.
+    // A caller with no profile at all (market.html) gets the minutes and the spent points too.
     const BASIC = ["points_spent", "private_minutes", "public_minutes"];
     if (memberId && [...STORED_POINT_COLUMNS, ...BASIC].some((c) => !(c in prof))) {
       const res = await supabaseRequest(`/rest/v1/profiles?member_id=eq.${restValue(memberId)}&select=*`).catch(() => null);
@@ -4276,7 +4448,17 @@
     const earned = breakdown.reduce((sum, r) => sum + r.points, 0);
     const spent = Math.max(0, Number(prof.points_spent || 0));
     const levels = parts.watchPoints != null;
-    const level = levelInfo(earned);
+    let level = levelInfo(earned);
+    // the membership is the level's ceiling (LEVEL_CAPS — sql account_level): the badge,
+    // the multiplier and the rates speak of the capped level, like the server gates
+    let levelCap = null;
+    if (memberId && getSession()?.member_id === memberId) {
+      const mem = await membership().catch(() => null);
+      const plan = mem?.premium ? String(mem.type || "Free") : "Free";
+      const cap = LEVEL_CAPS[plan] ?? LEVEL_CAPS.Free;
+      levelCap = { plan, cap, raw: level.level, rawName: level.name, capped: level.level > cap };
+      if (levelCap.capped) level = { ...level, level: cap, name: levelName(cap), multiplier: levelMultiplier(cap) };
+    }
     const country = levels ? readGeo()?.cc || "" : "";
     if (levels) {
       const watch = breakdown.find((r) => r.key === "minutes");
@@ -4294,8 +4476,15 @@
       earned,
       spent,
       available: Math.max(0, earned - spent),
+      // the unified balance tier (BALANCE_TIERS / sql/market.sql balance_tier): the available
+      // points of the member; public in the profile, exactly like a store's in its page
+      balanceTier: balanceTier(Math.max(0, earned - spent)),
       levels,
       level,
+      // LEVEL_CAPS applied to the signed-in member (null for everyone else)
+      levelCap,
+      rawLevel: levelCap?.raw ?? level.level,
+      levelCapped: Boolean(levelCap?.capped),
       country,
       tier: country ? watchTier(country) : null,
     };
@@ -4361,9 +4550,13 @@
     const myTier = mp.tier?.tier || 0;
     const tierRows = WATCH_TIERS.map((x) => {
       const you = x.tier === myTier;
+      // each country shows its SVG flag (icons/flags/<cc>.svg); the fall-back
+      // tier gets a little globe
       const where = x.countries.length
-        ? `<bdi dir="ltr">${x.countries.join(", ")}</bdi>`
-        : escapeHtml(t("points.tierOther"));
+        ? `<bdi dir="ltr" class="pt-flags">${x.countries
+            .map((c) => `<img class="pt-flag" src="icons/flags/${c.toLowerCase()}.svg" alt="${escapeHtml(c)}" title="${escapeHtml(c)}" loading="lazy" />`)
+            .join("")}</bdi>`
+        : `<img class="pt-flag" src="icons/flags/globe.svg" alt="" title="${escapeHtml(t("points.tierOther"))}" loading="lazy" /> ${escapeHtml(t("points.tierOther"))}`;
       return `<tr${you ? ' class="is-you" aria-current="true"' : ""}>
             <td>${escapeHtml(t("points.tierN", { n: x.tier }))}${you ? ` <span class="pt-you">${escapeHtml(t("points.you"))}</span>` : ""}</td>
             <td class="pt-countries">${where}</td>
@@ -4569,6 +4762,243 @@
       skipped: wanted.filter((kind) => have.has(kind)),
       error,
     };
+  }
+
+  /* ── Round-34: daily publish quotas + ID/title dump parser ──────────────── */
+
+  /* Every member has a daily cap of LEVEL × 10 watch/download links (and the
+     same cap on profile posts). The level is the points level — the same one
+     the LV permission gates use. Task 22 adds the plan's own "links per day":
+     the effective daily cap is the SMALLER of the level quota and the plan's
+     number. The membership decides the batch size of one paste: Free 5 ·
+     Silver 10 · Gold 15 · Diamond 20. */
+  const MEMBERSHIP_BATCH_CAP = { Free: 5, Silver: 10, Gold: 15, Diamond: 20 };
+  const dailyCapForLevel = (lv) => Math.max(0, Math.floor(Number(lv) || 0)) * 10;
+
+  // The plan's "links per day" (Panel > Plans); null when the plan does not
+  // tighten the level quota.
+  async function planDailyCap(type) {
+    const rules = await planRules(type || "Free").catch(() => null);
+    const n = Number(rules?.dailyUploads);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+  }
+
+  function membershipBatchCap(info) {
+    if (!info || info.guest || info.unknown) return MEMBERSHIP_BATCH_CAP.Free;
+    const type = info.premium ? info.type || "Free" : "Free";
+    return MEMBERSHIP_BATCH_CAP[type] ?? MEMBERSHIP_BATCH_CAP.Free;
+  }
+
+  const dayStartUtcIso = () => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  };
+
+  // Links the member published since today's UTC midnight.
+  async function linksPublishedToday(memberId) {
+    if (!memberId) return 0;
+    const from = dayStartUtcIso();
+    const [m, t] = await Promise.all([
+      countRows(`/rest/v1/movielink?member_id=eq.${restValue(memberId)}&added_at=gte.${encodeURIComponent(from)}&select=id`),
+      countRows(`/rest/v1/tvlink?member_id=eq.${restValue(memberId)}&added_at=gte.${encodeURIComponent(from)}&select=id`),
+    ]);
+    return m + t;
+  }
+
+  // Posts the member wrote since today's UTC midnight (the profile quota).
+  async function postsPublishedToday(memberId) {
+    if (!memberId) return 0;
+    return countRows(
+      `/rest/v1/posts?owner_id=eq.${restValue(memberId)}&created_at=gte.${encodeURIComponent(dayStartUtcIso())}&select=post_id`
+    );
+  }
+
+  /* One call, one answer: the member's level, their daily cap and how much of
+     it is still open. `what` is "links" (watch/download rows) or "posts"
+     (profile publishing). Level 0 has a cap of 0 — publishing stays shut. */
+  async function publishQuota(memberId, what = "links") {
+    const out = { level: null, cap: null, used: 0, left: null, planCap: null };
+    if (!memberId) return out;
+    try {
+      const mp = await memberPoints(memberId).catch(() => null);
+      out.level = pointLevel(Number(mp?.earned || 0));
+      out.cap = dailyCapForLevel(out.level);
+      // Task 22: the plan's "links per day" tightens the level quota (links only;
+      // the posts quota stays purely level-based).
+      if (what !== "posts") {
+        let type = "Free";
+        const m = await membership().catch(() => null);
+        if (m && m.premium && m.type) type = m.type;
+        const pCap = await planDailyCap(type);
+        if (pCap != null) {
+          out.planCap = pCap;
+          out.cap = Math.min(out.cap, pCap);
+        }
+      }
+      out.used = what === "posts" ? await postsPublishedToday(memberId) : await linksPublishedToday(memberId);
+      out.left = Math.max(0, out.cap - out.used);
+    } catch {
+      // offline: the caller lets the server decide
+    }
+    return out;
+  }
+
+  /* The import grammar, one pair = comment line + URL line:
+
+       <!--  IDTMDB - S1 - Ep353 [SD] -->     series by TMDB id
+       <!--  One Piece - S1 - Ep351 [HD] -->  series by title
+       <!--  IDTMDB [SD] -->                  movie by TMDB id
+       <!--  Title [SD] -->                   movie by title
+
+     The [quality] is optional; the season/episode flags a series. */
+  const LINK_DUMP_HEAD = /^\s*<!--\s*(.*?)\s*-->\s*$/;
+  const LINK_DUMP_TV = /^(.*?)\s*-\s*[Ss]\s*(\d{1,2})\s*-\s*[Ee][Pp]?\s*(\d{1,4})(?:\s*\[([^\]]{1,16})\])?\s*$/;
+  const LINK_DUMP_MOVIE = /^(.*?)(?:\s*\[([^\]]{1,16})\])?\s*$/;
+
+  function parseLinkDump(text) {
+    const pairs = [];
+    let bad = 0;
+    let head = null;
+    String(text || "")
+      .split(/\r?\n/)
+      .forEach((raw) => {
+        const line = raw.trim();
+        if (!line) return;
+        const h = line.match(LINK_DUMP_HEAD);
+        if (h) { head = h[1]; return; }
+        if (validWatchUrl(line)) {
+          if (head) pairs.push({ head, url: line });
+          else bad += 1; // a URL without its comment line
+          head = null;
+          return;
+        }
+        /* Some dumps skip the <!-- --> wrapper: a bare line that still parses
+           as a head (id or name + S/E, or an id/name with a quality bracket)
+           counts as the next URL's head as well. Plain prose never does. */
+        const bare = parseLinkDumpHead(line);
+        if (bare && (bare.kind === "tv" || bare.tmdb !== null || bare.quality)) { head = line; return; }
+        bad += 1;
+      });
+    return { pairs, bad };
+  }
+
+  function parseLinkDumpHead(head) {
+    const clean = String(head || "").trim();
+    const idOrName = (part) => {
+      const v = String(part || "").trim().replace(/^-+|[-–—]+$/g, "").trim();
+      return /^\d{1,10}$/.test(v) ? { tmdb: Number(v), name: null } : { tmdb: null, name: v || null };
+    };
+    /* The bracket can name any real-world quality label: every common
+       resolution is folded into the site's palette (360p/480p → SD,
+       720p → HD, 1080p → FHD, 1440p/2K → 2K, 2160p/4K → 4K, 4320p/8K → 8K),
+       a palette word itself goes through unchanged, and the junk words around
+       a number (HDTV, WEB-DL, CAM…) never block the number. Anything else is
+       not a quality at all, and the form's picker decides instead. */
+    const qualOf = (q) => {
+      const v = String(q || "").trim().toUpperCase().replace(/[\s_.\-]+/g, "");
+      if (!v) return "";
+      if (LINK_QUALITIES.includes(v)) return v;
+      const rp = v.match(/(\d{3,4})[PI]/);
+      if (rp) {
+        const n = Number(rp[1]);
+        if (/(CAM|TS|LOW)/.test(v) && n < 1080) return "SD";
+        if (n <= 480) return "SD";
+        if (n <= 760) return "HD";
+        if (n <= 1120) return "FHD";
+        if (n <= 1600) return "2K";
+        if (n <= 2500) return "4K";
+        return "8K";
+      }
+      if (/4320|8K/.test(v)) return "8K";
+      if (/2160|4K|UHD|ULTRAHD/.test(v)) return "4K";
+      if (/1440|WQHD|QHD|2K/.test(v)) return "2K";
+      if (/1080|FULLHD/.test(v)) return "FHD";
+      if (/CAM|HDCAM|(^|[^A-Z])TS([^A-Z]|$)|LOW/.test(v) || /(^|[^0-9])(144|240|360|480|540|576)([^0-9]|$)/.test(v) || v.startsWith("SD")) return "SD";
+      if (/(^|[^A-Z])720|HD720|(^|[^A-Z])HD([^A-Z]|$)|HDTV/.test(v)) return "HD";
+      return "";
+    };
+    const tv = clean.match(LINK_DUMP_TV);
+    if (tv && tv[1].trim()) {
+      const idName = idOrName(tv[1]);
+      if (!idName.tmdb && !idName.name) return null;
+      const season = Number(tv[2]);
+      const episode = Number(tv[3]);
+      if (!(season >= 1 && season <= 99 && episode >= 1 && episode <= 999)) return null;
+      return { kind: "tv", ...idName, season, episode, quality: qualOf(tv[4]) };
+    }
+    if (clean.includes(" - ")) {
+      // A dash pair that is not the S/E form — try the movie form anyway.
+    }
+    const mv = clean.match(LINK_DUMP_MOVIE);
+    if (!mv || !mv[1].trim()) return null;
+    const idName = idOrName(mv[1]);
+    if (!idName.tmdb && !idName.name) return null;
+    return { kind: "movie", ...idName, season: null, episode: null, quality: qualOf(mv[2]) };
+  }
+
+  // Every pair gets its full target: id pairs are confirmed against TMDB, name
+  // pairs are searched (best hit), so a dump may mix films and series, even
+  // ones other than the page it is pasted on.
+  async function resolveLinkDumpTitles(pairs, tmdbFn) {
+    const searchCache = {};
+    const detailCache = {};
+    const searchTitle = async (kind, name) => {
+      const key = `${kind}:${name.toLowerCase()}`;
+      if (!(key in searchCache)) {
+        searchCache[key] = null;
+        try {
+          const q = encodeURIComponent(name);
+          const first = await tmdbFn(`/search/${kind}?query=${q}&page=1`);
+          let hit = Array.isArray(first?.results) ? first.results[0] : null;
+          if (!hit && name.includes(" ")) {
+            const second = await tmdbFn(`/search/${kind}?query=${encodeURIComponent(name.split(" - ")[0].split(" ").slice(0, 3).join(" "))}&page=1`);
+            hit = Array.isArray(second?.results) ? second.results[0] : null;
+          }
+          if (hit) searchCache[key] = { tmdb: Number(hit.id), title: hit.title || hit.name || "" };
+        } catch {
+          searchCache[key] = null;
+        }
+      }
+      return searchCache[key];
+    };
+    const fetchTitle = async (kind, id) => {
+      const key = `${kind}:${id}`;
+      if (!(key in detailCache)) {
+        try {
+          const info = await tmdbFn(`/${kind}/${id}`);
+          detailCache[key] = { tmdb: id, title: info?.title || info?.name || "" };
+        } catch {
+          detailCache[key] = null;
+        }
+      }
+      return detailCache[key];
+    };
+    const out = [];
+    for (const pair of pairs) {
+      const h = parseLinkDumpHead(pair.head);
+      if (!h) { out.push({ ...pair, error: "head" }); continue; }
+      let target;
+      if (h.tmdb) target = await fetchTitle(h.kind, h.tmdb);
+      else target = await searchTitle(h.kind, h.name);
+      if (!target || !target.tmdb) { out.push({ ...pair, error: h.name ? "notfound" : "id" }); continue; }
+      out.push({ ...pair, parsed: h, ...target });
+    }
+    return out;
+  }
+
+  // Rows published one by one; a URL the title already has (with its kind) is
+  // skipped as a duplicate. Shared by the watch page and the dashboard.
+  async function publishLinkRows(entries) {
+    let added = 0;
+    let dup = 0;
+    let bad = 0;
+    for (const entry of entries) {
+      const result = await publishWatchLink(entry.table, entry.row, [entry.row.link_kind]);
+      if (result.ok) added += result.added.length;
+      else if (!result.error || /duplicate|23505/i.test(JSON.stringify(result.error?.data || {}))) dup += 1;
+      else bad += 1;
+    }
+    return { added, dup, bad };
   }
 
   /* ── Who hosts a watch link, and what it looks like ──────────────────────
@@ -4901,6 +5331,121 @@
   // "1.0", "v1.0" and "1.0v" all read 1.0
   const appVersion = (value) => String(value || "").trim().replace(/^v\s*/i, "").replace(/\s*v$/i, "").slice(0, 20);
 
+  /* ── Menu icons (icons/nav/*.svg) — professional, one consistent outline set.
+     Decorates the site header menus (links carrying a data-i18n="nav.*" key)
+     and the Panel sidebar (links carrying data-section). Idempotent, and it
+     re-runs on translations and on dynamic nav repaints. */
+  const NAV_ICON_KEYS = {
+    "nav.home": "home", "nav.features": "features", "nav.find": "find", "nav.search": "search",
+    "nav.movies": "movie", "nav.series": "series", "nav.videos": "videos", "nav.iptv": "tv", "nav.community": "users",
+    "nav.prizes": "trophy", "nav.market": "store", "nav.plans": "crown", "nav.support": "help",
+    "nav.signin": "login", "nav.signup": "signup", "nav.signout": "logout", "nav.account": "account",
+    "nav.panel": "dashboard", "nav.points": "points", "nav.profile": "account", "nav.help": "help",
+    "nav.messages": "chat", "nav.settings": "gear", "nav.playlists": "list", "nav.downloads": "download",
+    "nav.wallet": "wallet", "nav.store": "store", "nav.users": "users",
+  };
+  const SECTION_ICON_KEYS = {
+    overview: "dashboard", accounts: "users", plans: "crown", links: "link", iptv: "tv", apps: "apps",
+    reports: "report", prizes: "trophy", messages: "chat", content: "film", market: "store",
+    packages: "package", withdrawals: "wallet", patreon: "heart", announce: "megaphone", help: "help",
+    staff: "shield", platforms: "share", settings: "gear",
+  };
+  function navIconImg(file, cls) {
+    return `<img class="ni ${cls || ""}" src="icons/nav/${file}.svg" alt="" width="16" height="16" loading="lazy" />`;
+  }
+  function decorateNavIcons(root = document) {
+    root.querySelectorAll?.(".nav a[data-i18n], .nav a[data-ni-file], .hdr-menu a[data-i18n], .menu-drawer a[data-i18n], [data-menu-root] a[data-i18n]").forEach((a) => {
+      const key = a.getAttribute("data-i18n");
+      const file = a.getAttribute("data-ni-file") || NAV_ICON_KEYS[key];
+      if (file && !a.querySelector(".ni")) a.insertAdjacentHTML("afterbegin", navIconImg(file));
+    });
+    root.querySelectorAll?.('.side-nav a[data-section]').forEach((a) => {
+      const file = SECTION_ICON_KEYS[a.getAttribute("data-section")];
+      if (file && !a.querySelector(".ni")) a.insertAdjacentHTML("afterbegin", navIconImg(file));
+    });
+  }
+  let navIconTimer = 0;
+  function scheduleNavIcons() {
+    if (navIconTimer) return;
+    navIconTimer = setTimeout(() => { navIconTimer = 0; try { decorateNavIcons(); } catch {} }, 160);
+  }
+  try {
+    document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", scheduleNavIcons) : scheduleNavIcons();
+    window.addEventListener("cineaura:prefs", scheduleNavIcons);
+    new MutationObserver(scheduleNavIcons).observe(document.documentElement, { childList: true, subtree: true });
+  } catch {}
+
+  /* ── Content pages: one page per type, and the old addresses keep working ─────
+     content.html is the home that gathers what the members published. Each type
+     has its own page, and one detail is one id on that page:
+        video.html?id=ID        one video      (also ?idcontent= / ?video= / ?yt=)
+        articles.html?id=ID     one article    (also ?article=)
+        answers.html?id=ID      one question (also ?question=) or one answer (?answer=)
+        documents.html?id=ID    one document   (also ?document=)
+       ?top=minutes|likes|shares stayed with the videos, ?type=documents with the
+     documents. Every address the site published before this split is rewritten
+     here to the page that now owns it — the id travels untouched — so a link, a
+     bookmark or a share posted in an earlier round still lands on the same work. */
+  const CONTENT_TYPE_PAGES = { video: "video", articles: "articles", questions: "answers", documents: "documents", videos: "video" };
+  // old query key → [page that owns it, the key the id takes there, extra params]
+  const CONTENT_LEGACY = [
+    ["video", "video", "id"],
+    ["idcontent", "video", "id"],
+    ["yt", "video", "yt"],
+    ["article", "articles", "id"],
+    ["question", "answers", "id"],
+    ["answer", "answers", "id", [["kind", "answer"]]],
+    ["document", "documents", "id"],
+  ];
+  const CONTENT_PAGE_OF = { "video.html": "video", "articles.html": "articles", "answers.html": "answers", "documents.html": "documents", "content.html": "home" };
+  function routeAliases() {
+    const file = (location.pathname.split("/").pop() || "").toLowerCase();
+    const kind = CONTENT_PAGE_OF[file];
+    if (!kind) return false;
+    const params = new URLSearchParams(location.search);
+    const hash = location.hash || "";
+    const send = (page, pairs) => {
+      const q = new URLSearchParams();
+      (pairs || []).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && String(v) !== "") q.set(k, String(v));
+      });
+      const qs = q.toString();
+      location.replace(`./${page}.html${qs ? "?" + qs : ""}${hash}`);
+      return true;
+    };
+    const pairsOf = (key, as, extra) => [[as, params.get(key)]].concat(extra || []);
+    // The home: the work itself lives on the type pages, so any detail key (and
+    // the documents' own tab and the videos' top lists) leaves right away.
+    if (kind === "home") {
+      for (const [key, page, as, extra] of CONTENT_LEGACY) if (params.has(key)) return send(page, pairsOf(key, as, extra));
+      const type = String(params.get("type") || "").toLowerCase();
+      if (CONTENT_TYPE_PAGES[type]) return send(CONTENT_TYPE_PAGES[type], [["id", params.get("id")]]);
+      if (params.has("top")) return send("video", [["top", params.get("top")]]);
+      // a hash names a type on the old tabs: #articles, #questions, #documents
+      const h = hash.replace(/^#/, "").toLowerCase();
+      if (CONTENT_TYPE_PAGES[h] && h !== "videos") return send(CONTENT_TYPE_PAGES[h], []);
+      if (h === "videos") return send("video", []);
+      return false; // plain content.html: the home page itself
+    }
+    // A type page: another type's key is a move. Its own older keys stay
+    // readable — and the address is rewritten to the canonical ?id= — so a link
+    // from an earlier round keeps working and the bar keeps one shape.
+    for (const [key, page, as, extra] of CONTENT_LEGACY) {
+      if (!params.has(key)) continue;
+      if (page !== kind) return send(page, pairsOf(key, as, extra));
+      if (key === "id" || as === "yt" || params.has("id")) continue;
+      // this page, under an older key: same page, canonical address
+      const keep = new URLSearchParams();
+      keep.set("id", params.get(key));
+      (extra || []).forEach(([k, v]) => keep.set(k, v));
+      for (const [k, v] of params) if (k !== key && k !== "id") keep.set(k, v);
+      const qs = keep.toString();
+      location.replace(`./${file}${qs ? "?" + qs : ""}${hash}`);
+      return true;
+    }
+    return false; // a plain type page, or the videos' own ?top= list
+  }
+
   window.CineAura = {
     API_KEY,
     API,
@@ -4925,6 +5470,9 @@
     mountSideToggle,
     hydratePrefsFromProfile,
     adsEligible,
+    plansPublic,
+    planSettings,
+    planRules,
     adFreeActive,
     membership,
     openSettings,
@@ -4954,6 +5502,16 @@
     publishWatchLink,
     LINK_KIND_CHOICES,
     linkKindsFor,
+    MEMBERSHIP_BATCH_CAP,
+    dailyCapForLevel,
+    membershipBatchCap,
+    linksPublishedToday,
+    postsPublishedToday,
+    publishQuota,
+    parseLinkDump,
+    parseLinkDumpHead,
+    resolveLinkDumpTitles,
+    publishLinkRows,
     urlHost,
     linkHostName,
     hostIconUrl,
@@ -5107,6 +5665,12 @@
     pointsEarned,
     WATCH_TIERS,
     POINT_LEVELS,
+    NAV_ICON_KEYS,
+    SECTION_ICON_KEYS,
+    decorateNavIcons,
+    BALANCE_TIERS,
+    balanceTier,
+    balanceTierHtml,
     LEVEL_PERMS,
     FEATURE_MIN_LEVEL,
     featureMinLevel,
@@ -5120,6 +5684,9 @@
     levelMultiplier,
     levelName,
     levelInfo,
+    LEVEL_CAPS,
+    accountPlan,
+    accountLevelInfo,
     compactPoints,
     levelHtml,
     pointRowHtml,
@@ -5141,5 +5708,9 @@
     syncAuthGate,
     sessionWriteBlocked,
     authGateEnabled,
+    routeAliases,
   };
+
+  // Rewrite an old content address before any page code looks at the query string.
+  routeAliases();
 })();

@@ -1,8 +1,12 @@
 /* CineAura — Dashboard > Withdraw: points exchanged for real money (sql/withdrawals.sql).
  *
- *   Who may: an account of level LV3 or higher (1,000 points earned) that is old enough for its
- *   membership — Free 12 months, Silver 6, Gold 3, Diamond 1, counted from signing up (a paid
- *   membership that has ended waits like a Free one).
+ *   Who may (2026-10-20 rules):
+ *     1. the account level is LV5 or higher (100,000 points earned) — the membership is the
+ *        level's ceiling: Free LV2 · Silver LV5 · Gold LV8 · Diamond LV10;
+ *     2. the membership is paid and renewed enough times on the CURRENT plan — Free never,
+ *        Silver 12, Gold 6, Diamond 1 reactivations, each plan keeping its own tally;
+ *     3. the request asks for at least the level's minimum — LV5 5,000 PT, doubling per level
+ *        up to LV10 160,000 — and never less than the Panel's floor.
  *   How: a bank transfer, or a money transfer agency such as Western Union. The details can be
  *   remembered: they are shown again masked (GB82 •••• 5432) and used without typing them. The
  *   account password confirms each request. One request at a time; its points are held until the
@@ -49,6 +53,7 @@
   const ERR = {
     member: "wd.err.member", disabled: "wd.err.disabled", banned: "wd.err.disabled", blocked: "wd.err.blocked",
     locked: "wd.err.locked", password: "wd.err.password", closed: "wd.err.closed", level: "wd.err.level", age: "wd.err.age",
+    membership: "wd.err.membership", turns: "wd.err.turns",
     open: "wd.err.open", method: "wd.err.method", saved: "wd.err.saved", holder: "wd.err.holder", bank: "wd.err.bank",
     account: "wd.err.account", iban: "wd.err.iban", swift: "wd.err.swift", country: "wd.err.country", agency: "wd.err.agency",
     name: "wd.err.name", city: "wd.err.city", phone: "wd.err.phone", min: "wd.err.min", max: "wd.err.max",
@@ -110,38 +115,57 @@
     return [w.agency || d.agency || t("wd.m.agency"), d.name, d.city].filter(Boolean).map((x) => esc(x)).join(" · ");
   }
 
+  // the least a request may ask for: the Panel's floor, raised by the level's own minimum
+  const minPoints = (d) => {
+    const s = d.settings || {};
+    const c = d.check || {};
+    return Math.max(Number(s.min_points) || 0, Number(c.min_points) || 0);
+  };
+
   function statsHtml(d) {
     const s = d.settings || {};
     const c = d.check || {};
     const rate = Number(s.rate) || 100;
     const cur = s.currency || "USD";
+    const minP = minPoints(d);
+    const byLevel = Number(c.min_points) > (Number(s.min_points) || 0);
     return `
       <div class="stat-row wd-stats">
         <div class="stat ov-accent"><b data-wd-avail>${pt(c.available)}</b><span>${esc(t("wd.available"))}</span><small>≈ ${money(Number(c.available || 0) / rate, cur)}</small></div>
         <div class="stat"><b>${money(1, cur)}</b><span>${esc(t("wd.rateIs", { n: num(rate) }))}</span><small>${esc(t("wd.rateNote"))}</small></div>
-        <div class="stat"><b>${pt(s.min_points)}</b><span>${esc(t("wd.minimum"))}</span><small>≈ ${money(Number(s.min_points || 0) / rate, cur)}${Number(s.max_points) > 0 ? ` · ${t("wd.maxIs", { pts: pt(s.max_points) })}` : ""}</small></div>
+        <div class="stat"><b>${pt(minP)}</b><span>${esc(t("wd.minimum"))}</span><small>≈ ${money(minP / rate, cur)}${byLevel ? ` · ${t("wd.minLevel", { level: esc(c.level_name || ""), pts: pt(c.min_points) })}` : ""}${Number(s.max_points) > 0 ? ` · ${t("wd.maxIs", { pts: pt(s.max_points) })}` : ""}</small></div>
         ${Number(d.totals?.paid) > 0 ? `<div class="stat"><b>${pt(d.totals.paid_points)}</b><span>${esc(t("wd.withdrawn"))}</span><small>${esc(t("wd.paidN", { n: num(d.totals.paid) }))}</small></div>` : ""}
       </div>`;
   }
 
   function condsHtml(d) {
     const c = d.check || {};
-    const plans = d.plans || { Free: 12, Silver: 6, Gold: 3, Diamond: 1 };
-    const need = Number(c.need_earned) || 1000;
+    const caps = d.caps || { Free: 2, Silver: 5, Gold: 8, Diamond: 10 };
+    const need = Number(c.need_earned) || 100000;
     const earned = Number(c.earned) || 0;
     const lvPct = Math.max(0, Math.min(100, Math.round((Math.min(earned, need) / need) * 100)));
-    const start = Date.parse(c.created_at || "") || Date.now();
-    const due = Date.parse(c.eligible_at || "") || Date.now();
-    const agePct = c.age_ok ? 100 : Math.max(0, Math.min(100, Math.round(((Date.now() - start) / Math.max(1, due - start)) * 100)));
+    const plan = PLANS.includes(c.plan) ? c.plan : "Free";
+    const cap = Number(c.cap ?? caps[plan]) || 2;
+    const raw = Number(c.raw_level ?? c.level) || 0;
+    const capped = Boolean(c.capped) || raw > cap;
+    const needTurns = c.need_turns == null ? null : Number(c.need_turns);
+    const turns = Number(c.turns) || 0;
+    const payPct = needTurns == null ? 0 : Math.max(0, Math.min(100, Math.round((Math.min(turns, needTurns) / Math.max(1, needTurns)) * 100)));
+    const payOk = Boolean(c.membership_ok) && Boolean(c.turns_ok);
     const rules = PLANS.map((p) => {
-      const you = p === c.plan;
+      const you = p === plan;
       return `<li class="wd-rule${you ? " is-you" : ""}"${you ? ' aria-current="true"' : ""}><span>${esc(t(`wd.rule.${p}`))}</span>${you ? `<b class="pt-you">${esc(t("points.you"))}</b>` : ""}</li>`;
     }).join("");
-    const upgrade = !c.age_ok && c.plan !== "Diamond"
+    const upgrade = (!payOk || (capped && plan !== "Diamond"))
       ? `<p class="wd-hint"><a href="./activate.html">${esc(t("wd.upgradeHint"))}</a></p>` : "";
     const ended = c.plan_ended
       ? `<p class="wd-hint wd-warn">${esc(t("wd.planEnded", { plan: planName(c.plan_type) }))} <a href="./activate.html">${esc(t("wd.renew"))}</a></p>` : "";
     const lvMissing = Math.max(0, need - earned);
+    const cappedNote = capped
+      ? `<p class="wd-cond-note${c.level_ok ? "" : " wd-warn"}">${t("wd.levelCapped", { plan: esc(planName(plan)), cap: `LV${num(cap)}`, raw: `LV${num(raw)}` })}</p>` : "";
+    const turnsNote = needTurns == null
+      ? `<p class="wd-cond-note wd-warn">${esc(t("wd.turnsFree"))} <a href="./activate.html">${esc(t("wd.renew"))}</a></p>`
+      : `<p class="wd-cond-note${payOk ? " ok" : ""}">${t(payOk ? "wd.turnsOk" : "wd.turnsMore", { have: num(turns), need: num(needTurns), plan: esc(planName(plan)) })}</p>`;
     return `
       <section class="wd-conds" aria-labelledby="wd-conds-h">
         <div class="wd-sec-head">
@@ -157,15 +181,16 @@
               <div class="pt-lv-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${lvPct}" aria-label="${esc(t("wd.condLevel"))}"><span style="width:${lvPct}%"></span></div>
               ${c.level_ok ? `<p class="wd-cond-note ok">${esc(t("wd.levelOk"))}</p>`
                 : `<p class="wd-cond-note">${t("wd.levelMore", { pts: pt(lvMissing) })} <a href="#points" data-section="points">${esc(t("wd.howEarn"))}</a></p>`}
+              ${cappedNote}
             </div>
           </article>
-          <article class="wd-cond ${c.age_ok ? "ok" : "no"}" data-wd-cond="age">
-            <span class="wd-cond-ico">${c.age_ok ? ICON.ok : ICON.no}</span>
+          <article class="wd-cond ${payOk ? "ok" : "no"}" data-wd-cond="age">
+            <span class="wd-cond-ico">${payOk ? ICON.ok : ICON.no}</span>
             <div class="wd-cond-main">
               <h3>${esc(t("wd.condAge"))}</h3>
-              <p>${t("wd.yourPlan", { plan: `<b>${esc(planName(c.plan))}</b>`, need: `<b>${esc(t(`wd.need.${PLANS.includes(c.plan) ? c.plan : "Free"}`))}</b>` })}</p>
-              <div class="pt-lv-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${agePct}" aria-label="${esc(t("wd.condAge"))}"><span style="width:${agePct}%"></span></div>
-              <p class="wd-cond-note${c.age_ok ? " ok" : ""}">${t(c.age_ok ? "wd.ageOk" : "wd.ageWait", { opened: `<bdi>${esc(day(c.created_at))}</bdi>`, date: `<b><bdi>${esc(day(c.eligible_at))}</bdi></b>` })}</p>
+              <p>${t("wd.yourPlan", { plan: `<b>${esc(planName(plan))}</b>`, need: `<b>${esc(t(`wd.need.${plan}`))}</b>` })}</p>
+              <div class="pt-lv-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${payPct}" aria-label="${esc(t("wd.condAge"))}"><span style="width:${payPct}%"></span></div>
+              ${turnsNote}
               <ul class="wd-rules" aria-label="${esc(t("wd.rulesLabel"))}">${rules}</ul>
               ${ended}${upgrade}
             </div>
@@ -224,7 +249,8 @@
     const rate = Number(s.rate) || 100;
     const avail = Number(c.available) || 0;
     const most = Number(s.max_points) > 0 ? Math.min(avail, Number(s.max_points)) : avail;
-    const enough = most >= Number(s.min_points);
+    const minP = minPoints(d);
+    const enough = most >= minP;
     const methods = [s.bank ? "bank" : "", (s.agencies || []).length ? "agency" : ""].filter(Boolean);
     // the method with remembered details first (the bank when both have some), else the first one open
     const first = methods.includes("bank") && d.saved?.bank ? "bank" : methods.includes("agency") && d.saved?.agency ? "agency" : methods[0];
@@ -234,7 +260,7 @@
       return `
         <section class="wd-form-box wd-locked" aria-labelledby="wd-form-h">
           <h2 id="wd-form-h">${esc(t("wd.formTitle"))}</h2>
-          <p>${t("wd.notEnough", { pts: pt(s.min_points), have: pt(avail) })}</p>
+          <p>${t("wd.notEnough", { pts: pt(minP), have: pt(avail) })}</p>
           <p><a class="btn btn-sm btn-primary" href="#points" data-section="points">${esc(t("wd.howEarn"))}</a></p>
         </section>`;
     }
@@ -245,11 +271,11 @@
           <div class="wd-amount">
             <label class="wd-field" data-wd-f="points"><span>${esc(t("wd.f.points"))}</span>
               <span class="wd-amount-row">
-                <input name="points" type="number" inputmode="numeric" dir="ltr" min="${Number(s.min_points)}" max="${most}" step="1" value="${most}" required />
+                <input name="points" type="number" inputmode="numeric" dir="ltr" min="${minP}" max="${most}" step="1" value="${most}" required />
                 <b class="wd-unit">PT</b>
                 <button class="btn btn-sm btn-ghost" type="button" data-wd-all>${esc(t("wd.all"))}</button>
               </span>
-              <small class="muted">${t("wd.between", { min: pt(s.min_points), max: pt(most) })}</small></label>
+              <small class="muted">${t("wd.between", { min: pt(minP), max: pt(most) })}</small></label>
             <p class="wd-sum" id="wd-sum" aria-live="polite"></p>
           </div>
           <fieldset class="wd-methods">
@@ -370,6 +396,7 @@
     const box = main.querySelector("#wd-body");
     const s = d.settings || {};
     const rate = Number(s.rate) || 100;
+    const minP = minPoints(d);
     box.onclick = async (e) => {
       const cancel = e.target.closest("[data-wd-cancel]");
       if (cancel) {
@@ -470,7 +497,7 @@
       clearError();
       const pts = Number(form.points.value);
       const max = Number(form.points.max);
-      if (!Number.isInteger(pts) || pts < Number(s.min_points)) return showError(t("wd.err.min", { pts: pt(s.min_points) }), "points");
+      if (!Number.isInteger(pts) || pts < minP) return showError(t("wd.err.min", { pts: pt(minP) }), "points");
       if (pts > max) {
         const capped = Number(s.max_points) > 0 && max >= Number(s.max_points);
         return showError(t(capped ? "wd.err.max" : "wd.err.balance", { pts: pt(max) }), "points");
@@ -509,9 +536,10 @@
         const text = t(ERR[x.reason] || "wd.err.network", {
           n: num(x.reason === "locked" ? x.minutes : x.left), date: day(x.eligible_at), pts: pt(x.min ?? x.max ?? x.have ?? 0),
           fee: money(x.fee || 0, s.currency),
+          plan: esc(planName(String(x.plan || "Free"))), have: num(x.turns ?? 0), need: num(x.need ?? 0),
         });
         // a refusal that changes the page (the conditions, a request sent meanwhile): drawn again
-        if (["level", "age", "open", "closed", "disabled", "banned", "blocked", "saved"].includes(x.reason)) {
+        if (["level", "age", "membership", "turns", "open", "closed", "disabled", "banned", "blocked", "saved"].includes(x.reason)) {
           C.toast(text);
           await draw(main, ctx);
           return;

@@ -1,4 +1,4 @@
-/* CineAura — Market.html, the shared pieces (sql/market.sql): calls, numbers, cards and the
+/* CineAura — market.html, the shared pieces (sql/market.sql): calls, numbers, cards and the
  * dialogs. js/market.js draws the page with them.
  *
  *   M.call(name, args)              a market function -> { ok, data } | { ok:false, setup | network | data }
@@ -22,7 +22,7 @@
 (() => {
   "use strict";
   const C = window.CineAura;
-  const { t, escapeHtml: esc } = C;
+  const { t, escapeHtml: esc, supabaseRequest: sbReq, restValue: restV } = C;
   const M = {};
 
   M.memberId = () => String(C.getSession()?.member_id || "");
@@ -60,6 +60,7 @@
     lock: svg('<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>', 14),
     star: svg('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', 14),
     thumb: svg('<path d="M7 10.5v9H4v-9z"/><path d="M7 10.5l3.6-6.3a1.9 1.9 0 0 1 3.4 1.3l-.5 3.5h5a2 2 0 0 1 2 2.3l-1.1 6.4a2 2 0 0 1-2 1.8H7"/>', 16),
+    thumbDn: svg('<g transform="rotate(180 12 12)"><path d="M7 10.5v9H4v-9z"/><path d="M7 10.5l3.6-6.3a1.9 1.9 0 0 1 3.4 1.3l-.5 3.5h5a2 2 0 0 1 2 2.3l-1.1 6.4a2 2 0 0 1-2 1.8H7"/></g>', 16),
     repost: svg('<path d="M17 3l3 3-3 3"/><path d="M4 11V9.5A3.5 3.5 0 0 1 7.5 6H20"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v1.5a3.5 3.5 0 0 1-3.5 3.5H4"/>', 16),
     list: svg('<path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.6" cy="6.5" r="1.1"/><circle cx="4.6" cy="12" r="1.1"/><circle cx="4.6" cy="17.5" r="1.1"/>', 16),
     trash: svg('<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4.5h6V7"/>', 15),
@@ -75,7 +76,15 @@
   }
 
   // -> { ok: true, data } | { ok: false, setup | network | status, data }
+  // The market RPCs that gate the exclusive products round by the visitor's interface
+  // language (sql/market.sql round 32): the page sends it by itself, in these calls.
+  const LANG_RPCS = new Set([
+    "market_home", "market_search", "market_category", "market_product", "market_suggest", "market_buy",
+    "market_list", "market_feed", "market_profile", "market_review_save", "market_rec_save",
+    "market_later", "market_list_item",
+  ]);
   M.call = async (name, args = {}) => {
+    if (LANG_RPCS.has(name) && args.p_lang == null) args = { ...args, p_lang: C.getLang?.() || "" };
     let res;
     try {
       res = await C.rpc(name, args);
@@ -98,13 +107,21 @@
     "return_days", "title", "kind", "price", "shipping_cost", "stock", "categories", "images", "video", "limit",
     "not_found", "own", "closed", "qty", "address", "points", "state", "note", "window", "empty", "text", "body",
     "product", "orders", "commission", "download", "suspended", "reason", "already", "phone",
-    "people", "visibility", "private", "full", "level",
+    "people", "visibility", "private", "full", "level", "store", "amount",
+    "exclusive", "tier", "age", "gender", "vip", "excountries",
   ];
+  // The twelve points tiers and the seven interface languages (sql/market.sql round 32)
+  M.TIERS = ["N1", "N2", "N3", "K1", "K2", "K3", "M1", "M2", "M3", "B1", "B2", "B3"];
+  M.LANGS = ["en", "ar", "fr", "de", "es", "nl", "it"];
   M.errText = (data) => {
     const r = String(data?.reason || "");
     if (r === "points") return t("mkt.err.points", { need: M.fmt(data.need), have: M.fmt(data.have) });
-    // (round 30) opening a store needs LV1 (10 points earned)
-    if (r === "level") return t("mkt.err.level", { have: M.fmt(data.earned ?? 0), need: M.fmt(data.need_points ?? 10) });
+    // the price may not exceed the store capital (the guarantee), or no store / no capital yet
+    if (r === "balance") return t("mkt.err.balance", { capital: M.fmt(data.capital ?? 0) });
+    // a withdrawal beyond what can come back now
+    if (r === "capital") return t("mkt.err.capital", { max: M.fmt(data.max ?? 0) });
+    // the level gate (buying LV4, opening a store LV5 — sql/market.sql _mkt_level)
+    if (r === "level") return t("mkt.err.level", { level: data.need ?? 5, have: M.fmt(data.earned ?? 0), need: M.fmt(data.need_points ?? 0) });
     // a coupon (js/market-coupons.js) that cannot be used for this order
     if (r === "coupon" && M.couponWhy) return M.couponWhy(data.why);
     if (r === "stock" && data?.stock != null) return t("mkt.err.stockLeft", { n: M.fmt(data.stock) });
@@ -112,6 +129,8 @@
     if (r === "people" && Array.isArray(data?.unknown) && data.unknown.length) {
       return t("mkt.err.peopleUnknown", { names: data.unknown.map((n) => `@${n}`).join(", ") });
     }
+    // the VIP list messaged too recently: the next moment comes back with the refusal
+    if (r === "wait" && data?.next_at) return t("mkt.err.wait", { at: M.dateTime(data.next_at) });
     return t(REASONS.includes(r) || r === "stock" || r === "city" ? `mkt.err.${r}` : "mkt.err.failed");
   };
   // A failed call (no answer, SQL missing…) or a refusal, as a sentence.
@@ -175,9 +194,11 @@
   };
 
   // ---------------------------------------------------------------- addresses
-  // ---------------------------------------------------------------- the tier of a store
-  // { code: N|K|M|B, pct, points, top, next } (sql/market.sql _mkt_tier): the points of its
-  // successful orders. The progress: one decimal under 10% (K0.6%), then whole numbers (K25%).
+  // ---------------------------------------------------------------- the tier (stores and members)
+  // { code: N1…B3, pct, points, top, next } (sql/market.sql balance_tier / js/common.js
+  // BALANCE_TIERS): one classification over the available balance — for a store its balance
+  // (capital + orders on their way), for a member the points they can spend. The progress:
+  // one decimal under 10% (K2 0.6%), then whole numbers (K2 25%).
   M.tierPct = (pct) => {
     const v = Math.max(0, Math.min(100, Number(pct) || 0));
     return v >= 10 ? String(Math.floor(v)) : String(Math.floor(v * 10) / 10);
@@ -187,12 +208,22 @@
   M.tierHtml = (tier, { big = false } = {}) => {
     if (!tier || !tier.code) return "";
     const title = M.tierTitle(tier);
-    return `<span class="mkt-tier t-${esc(tier.code)}${big ? " big" : ""}" title="${esc(title)}" aria-label="${esc(title)}" dir="ltr"><b>${esc(tier.code)}</b><span>${esc(M.tierPct(tier.pct))}%</span></span>`;
+    const letter = String(tier.code || "N").slice(0, 1);
+    return `<span class="mkt-tier t-${esc(letter)}${big ? " big" : ""}" title="${esc(title)}" aria-label="${esc(title)}" dir="ltr"><b>${esc(tier.code)}</b><span>${esc(M.tierPct(tier.pct))}%</span></span>`;
   };
-  // The tier box of a store page: the badge, a bar and what is left to the next tier.
-  M.tierBoxHtml = (tier) => {
+  // The tier box of a store page: the badge, the balance and its parts, a bar, what is left to
+  // the next tier, and the store's level (the total of its successful orders).
+  M.tierBoxHtml = (store) => {
+    const s = store || {};
+    const tier = s.tier;
     if (!tier || !tier.code) return "";
-    const left = Math.max(0, Number(tier.top) - Number(tier.points));
+    // balance/held/capital come with the market update of sql/market.sql; before it only the
+    // badge and the bar make sense to show
+    const hasBal = s.balance !== undefined && s.balance !== null;
+    const bal = hasBal ? Number(s.balance) : Number(tier.points || 0);
+    const held = Number(s.held || 0);
+    const capital = Number(s.capital ?? Math.max(0, bal - held));
+    const left = Math.max(0, Number(tier.top) - bal);
     const pct = Math.max(0, Math.min(100, Number(tier.pct) || 0));
     const next = tier.next
       ? t("mkt.tier.toNext", { left: M.ptIn(left), next: tier.next })
@@ -203,21 +234,99 @@
           ${M.tierHtml(tier, { big: true })}
           <div>
             <b>${esc(t("mkt.tier.label"))}</b>
-            <span class="muted">${esc(t("mkt.tier.sold", { points: M.ptIn(tier.points) }))}</span>
+            <span class="muted">${esc(hasBal ? t("mkt.tier.balance", { points: M.ptIn(bal) }) : t("mkt.tier.sold", { points: M.ptIn(bal) }))}</span>
           </div>
         </div>
         <div class="mkt-tierbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${esc(String(pct))}" aria-label="${esc(M.tierTitle(tier))}"><i style="width:${Math.max(pct, pct > 0 ? 1.5 : 0)}%"></i></div>
         <p class="muted mkt-tierbox-next">${esc(next)}</p>
+        ${hasBal ? `<div class="mkt-tierbox-parts">
+          <span>${esc(t("mkt.tier.capitalLine", { points: M.ptIn(capital) }))}</span>
+          ${held > 0 ? `<span>${esc(t("mkt.tier.heldLine", { points: M.ptIn(held) }))}</span>` : ""}
+          ${s.level ? `<span>${esc(t("mkt.tier.levelLine", { level: s.level, points: M.ptIn(s.sales_points || 0) }))}</span>` : ""}
+        </div>` : ""}
         <details class="mkt-tierbox-help"><summary>${esc(t("mkt.tier.how"))}</summary><p>${esc(t("mkt.tier.help"))}</p></details>
       </div>`;
   };
 
-  M.productHref = (id, ref = "") => `./Market.html?Product=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
-  M.storeHref = (id) => `./Market.html?Store=${encodeURIComponent(id)}`;
-  M.categoryHref = (id) => `./Market.html?Categories=${encodeURIComponent(id)}`;
-  M.profileHref = (u) => `./Profile.html?@${encodeURIComponent(String(u || "").replace(/^@/, ""))}`;
+  // ---------------------------------------------------------------- the store balance
+  // market.html > Store settings: the store's capital — the points placed in the store,
+  // separate from the member's points — plus the points of the orders on their way, and the
+  // tier all of it gives. Added from the member's available points, back the same way.
+  M.balanceCardHtml = (me) => {
+    const s = me?.store || {};
+    // balance/held/capital come with the new sql/market.sql; before it the card hides
+    // its form instead of offering a deposit that the database cannot honour yet
+    if (s.balance === undefined || s.balance === null) return "";
+    const bal = Number(s.balance || 0);
+    const held = Number(s.held || 0);
+    const capital = Number(s.capital ?? Math.max(0, bal - held));
+    const yours = Number(me?.member?.available || 0);
+    const num = (v) => `<b dir="ltr">${esc(M.fmt(v))}</b>`;
+    return `
+      <section class="mkt-balance" data-balance>
+        <div class="mkt-balance-head">
+          <h3>${ICON.coins}<span>${esc(t("mkt.bal.title"))}</span>${M.tierHtml(s.tier)}</h3>
+          <p class="muted">${esc(t("mkt.bal.intro"))}</p>
+        </div>
+        <div class="mkt-balance-nums">
+          <div><span>${esc(t("mkt.bal.balance"))}</span>${num(bal)}</div>
+          <div><span>${esc(t("mkt.bal.capital"))}</span>${num(capital)}</div>
+          <div><span>${esc(t("mkt.bal.held"))}</span>${num(held)}</div>
+          <div class="mkt-balance-yours"><span>${esc(t("mkt.bal.yours"))}</span>${num(yours)}</div>
+        </div>
+        <form class="mkt-balance-form" data-bform novalidate>
+          <label class="mkt-field"><span>${esc(t("mkt.bal.amount"))}</span>
+            <input name="amount" type="number" min="1" step="1" inputmode="numeric" required placeholder="0" /></label>
+          <button class="btn btn-primary" type="submit" data-dep>${ICON.plus}<span>${esc(t("mkt.bal.deposit"))}</span></button>
+          <button class="btn btn-ghost" type="button" data-wd>${ICON.coins}<span>${esc(t("mkt.bal.withdraw"))}</span></button>
+        </form>
+        <p class="mkt-form-err" data-berr role="alert"></p>
+        <p class="muted mkt-f-hint">${esc(t("mkt.bal.hint"))}</p>
+      </section>`;
+  };
+  M.wireBalanceCard = (root, { onChanged = null } = {}) => {
+    const form = root.querySelector("[data-bform]");
+    if (!form) return;
+    const err = root.querySelector("[data-berr]");
+    const dep = form.querySelector("[data-dep]");
+    const wd = form.querySelector("[data-wd]");
+    let busy = false;
+    const run = async (fn) => {
+      if (busy) return;
+      err.textContent = "";
+      const amount = String(M.digits ? M.digits(form.amount.value) : form.amount.value).trim();
+      if (!/^[0-9]{1,13}$/.test(amount) || Number(amount) < 1) {
+        err.textContent = t("mkt.err.amount");
+        form.amount.focus();
+        return;
+      }
+      busy = true;
+      dep.disabled = true;
+      wd.disabled = true;
+      const r = await M.call(fn, { p_member: M.memberId(), p_amount: amount });
+      busy = false;
+      dep.disabled = false;
+      wd.disabled = false;
+      if (!r.ok || !r.data?.ok) {
+        err.textContent = M.failText(r);
+        return;
+      }
+      C.toast(t(fn === "market_store_deposit" ? "mkt.bal.added" : "mkt.bal.withdrawn", { n: M.fmt(amount) }));
+      onChanged?.(r.data);
+    };
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      run("market_store_deposit");
+    });
+    wd.addEventListener("click", () => run("market_store_withdraw"));
+  };
+
+  M.productHref = (id, ref = "") => `./market.html?Product=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
+  M.storeHref = (id) => `./market.html?Store=${encodeURIComponent(id)}`;
+  M.categoryHref = (id) => `./market.html?Categories=${encodeURIComponent(id)}`;
+  M.profileHref = (u) => `./profile.html?@${encodeURIComponent(String(u || "").replace(/^@/, ""))}`;
   M.absolute = (href) => new URL(href, location.href).href;
-  M.signinHref = (back) => `./login.html?next=${encodeURIComponent(back || `Market.html${location.search}${location.hash}`)}`;
+  M.signinHref = (back) => `./login.html?next=${encodeURIComponent(back || `market.html${location.search}${location.hash}`)}`;
 
   // The embedded video of a product: YouTube, Vimeo, Dailymotion become their player; any
   // other https link is embedded as it is.
@@ -282,6 +391,7 @@
     const href = M.productHref(p.id, o.ref || "");
     const badges = [
       p.kind === "digital" ? `<span class="mkt-badge b-digital">${esc(t("mkt.kind.digital"))}</span>` : "",
+      p.visibility === "exclusive" ? `<span class="mkt-badge b-exclusive">${ICON.lock}${esc(t("mkt.gate.title"))}</span>` : "",
       Number(p.stock) <= 0 ? `<span class="mkt-badge b-out">${esc(t("mkt.soldOut"))}</span>` : "",
       p.status === "hidden" ? `<span class="mkt-badge b-hidden">${esc(t("mkt.hidden"))}</span>` : "",
     ].join("");
@@ -583,6 +693,19 @@
     // off for a new product; the percentage chosen before is kept while it is off
     const cOn = typeof p.commission_on === "boolean" ? p.commission_on : Number(p.commission) > 0;
     const cPct = commissionOk(Number(p.commission_pct)) ? Number(p.commission_pct) : commissionOk(Number(p.commission)) ? Number(p.commission) : 10;
+    // who may see it (round 32): public or exclusive behind these criteria (gate: the owner's page)
+    const g0 = p.gate || {};
+    const aud = {
+      vis: g0.visibility === "exclusive" || p.visibility === "exclusive" ? "exclusive" : "public",
+      followers: Boolean(g0.followers),
+      tier: g0.tier || "",
+      countries: (Array.isArray(g0.countries) ? g0.countries : []).join(", "),
+      langs: Array.isArray(g0.langs) ? g0.langs : [],
+      ageMin: g0.age_min ?? "",
+      ageMax: g0.age_max ?? "",
+      gender: g0.gender || "",
+      vip: typeof store?.vip === "string" ? store.vip : "",
+    };
     const wrap = M.modal(`
       ${head(t(editing ? "mkt.editProduct" : "mkt.addProduct"))}
       <form class="mkt-form" data-pform novalidate>
@@ -603,6 +726,7 @@
             <input name="shipping_cost" type="number" min="0" max="1000000" step="1" inputmode="numeric" value="${esc(p.shipping_cost ?? 0)}" /></label>
         </div>
         <p class="muted mkt-f-hint" data-price-hint></p>
+        <p class="muted mkt-f-hint" data-capital-hint></p>
         ${!ships ? `<p class="muted mkt-f-hint">${esc(t("mkt.f.noShipHint"))}</p>` : ""}
         <div class="mkt-field mkt-f-download" data-download ${kind === "digital" ? "" : "hidden"}>
           <label class="mkt-field"><span>${ICON.lock} ${esc(t("mkt.f.download"))}</span>
@@ -625,9 +749,63 @@
           </div>
           <p class="muted mkt-f-hint">${esc(t("mkt.f.categoriesHint", { n: MAX_CATS }))}</p>
         </div>
+        <fieldset class="mkt-field mkt-seg" data-audience>
+          <legend>${esc(t("mkt.f.audience"))}</legend>
+          <label><input type="radio" name="pvis" value="public" ${aud.vis !== "exclusive" ? "checked" : ""} /><span>${esc(t("mkt.f.visPublic"))}</span></label>
+          <label><input type="radio" name="pvis" value="exclusive" ${aud.vis === "exclusive" ? "checked" : ""} /><span>${esc(t("mkt.f.visExclusive"))}</span></label>
+          <div class="mkt-aud-more" data-exc ${aud.vis === "exclusive" ? "" : "hidden"}>
+            <p class="muted mkt-f-hint">${esc(t("mkt.f.excHint"))}</p>
+            <fieldset class="mkt-field mkt-seg"><legend>${esc(t("mkt.f.exFollowers"))}</legend>
+              <label><input type="radio" name="pfollowers" value="0" ${aud.followers ? "" : "checked"} /><span>${esc(t("mkt.f.exEveryone"))}</span></label>
+              <label><input type="radio" name="pfollowers" value="1" ${aud.followers ? "checked" : ""} /><span>${esc(t("mkt.f.exFollowersOnly"))}</span></label>
+            </fieldset>
+            <div class="mkt-form-row">
+              <label class="mkt-field"><span>${esc(t("mkt.f.exTier"))}</span>
+                <select name="ptier">
+                  <option value="">${esc(t("mkt.f.exTierAny"))}</option>
+                  ${M.TIERS.map((c) => `<option value="${c}" ${aud.tier === c ? "selected" : ""}>${c}</option>`).join("")}
+                </select></label>
+              <label class="mkt-field"><span>${esc(t("mkt.f.exCountries"))}</span>
+                <input name="pcountries" dir="ltr" maxlength="120" value="${esc(aud.countries)}" placeholder="${esc(t("mkt.f.exCountriesPh"))}" /></label>
+              <label class="mkt-field"><span>${esc(t("mkt.f.exGender"))}</span>
+                <select name="pgender">
+                  <option value="">${esc(t("mkt.f.exGenderAny"))}</option>
+                  <option value="male" ${aud.gender === "male" ? "selected" : ""}>${esc(t("mkt.gate.male"))}</option>
+                  <option value="female" ${aud.gender === "female" ? "selected" : ""}>${esc(t("mkt.gate.female"))}</option>
+                </select></label>
+            </div>
+            <div class="mkt-field">
+              <span id="mkt-plangs-label">${esc(t("mkt.f.exLangs"))}</span>
+              <div class="mkt-aud-opts" role="group" aria-labelledby="mkt-plangs-label">
+                ${M.LANGS.map((c) => `<label class="mkt-aud-opt"><input type="checkbox" name="plang" value="${c}" ${aud.langs.includes(c) ? "checked" : ""} /><span>${esc(M.langName(c))}</span></label>`).join("")}
+              </div>
+            </div>
+            <div class="mkt-form-row">
+              <label class="mkt-field"><span>${esc(t("mkt.f.exAge"))}</span>
+                <span class="mkt-age-row">
+                  <input name="page_min" type="number" min="3" max="120" step="1" inputmode="numeric" value="${esc(aud.ageMin)}" placeholder="${esc(t("mkt.f.exAgeMin"))}" aria-label="${esc(t("mkt.f.exAgeMin"))}" />
+                  <input name="page_max" type="number" min="3" max="120" step="1" inputmode="numeric" value="${esc(aud.ageMax)}" placeholder="${esc(t("mkt.f.exAgeMax"))}" aria-label="${esc(t("mkt.f.exAgeMax"))}" />
+                </span></label>
+            </div>
+            <label class="mkt-field"><span>${esc(t("mkt.f.exVip"))}</span>
+              <input name="pvip" dir="ltr" maxlength="2000" value="${esc(aud.vip)}" placeholder="${esc(t("mkt.f.exVipPh"))}" />
+              <p class="muted mkt-f-hint">${esc(t("mkt.f.exVipHint", { n: 50 }))}</p></label>
+          </div>
+        </fieldset>
         ${C.pictureFieldHtml({ label: t("mkt.f.pictures"), hint: t("mkt.f.picturesHint", { n: MAX_PICS }), values: images(p), max: MAX_PICS })}
         <label class="mkt-field"><span>${esc(t("mkt.f.video"))}</span>
           <input name="video_url" type="url" dir="ltr" maxlength="500" value="${esc(p.video_url || "")}" placeholder="https://www.youtube.com/watch?v=…" /></label>
+        <!-- The video may also be a file of the seller's own: it lands in the
+             member's Streamtape folder (Market), named VID - product - n with
+             n climbing per upload. Only for a product that already has an id. -->
+        <div class="mkt-st" data-stvideo>
+          <button class="btn btn-sm btn-ghost" type="button" data-st-toggle>${esc(t("mkt.f.videoUpload"))}</button>
+          <div class="stvideo-box" hidden>
+            <input type="file" accept="video/*" data-st-file ${editing && p.id ? "" : "disabled"} />
+            <p class="mkt-f-hint muted">${editing && p.id ? esc(t("mkt.f.videoUploadHint")) : esc(t("up.saveFirst"))}</p>
+            <div class="up-prog" hidden data-st-prog><div class="up-prog-bar" data-st-bar></div><span class="up-prog-n" data-st-n>0%</span></div>
+          </div>
+        </div>
         <p class="mkt-form-err" data-err role="alert"></p>
         <div class="mkt-form-acts">
           <button class="btn btn-ghost" type="button" data-close>${esc(t("common.cancel"))}</button>
@@ -635,7 +813,89 @@
         </div>
       </form>`, { cls: "mkt-modal-wide", label: t(editing ? "mkt.editProduct" : "mkt.addProduct") });
     const form = wrap.querySelector("[data-pform]");
+    // Fill the audience controls from a gate (the seller's page is where the criteria live —
+    // a product card may come without them: fetch them once then)
+    const setAud = (g) => {
+      const vis = g?.visibility === "exclusive" ? "exclusive" : "public";
+      form.pvis.value = vis;
+      form.querySelector("[data-exc]").hidden = vis !== "exclusive";
+      form.querySelector(`input[name="pfollowers"][value="${g?.followers ? "1" : "0"}"]`).checked = true;
+      form.ptier.value = g?.tier || "";
+      form.pcountries.value = (Array.isArray(g?.countries) ? g.countries : []).join(", ");
+      const langs = Array.isArray(g?.langs) ? g.langs : [];
+      form.querySelectorAll('input[name="plang"]').forEach((cb) => { cb.checked = langs.includes(cb.value); });
+      form.page_min.value = g?.age_min ?? "";
+      form.page_max.value = g?.age_max ?? "";
+      form.pgender.value = g?.gender || "";
+    };
+    form.addEventListener("change", (e) => {
+      if (e.target.name === "pvis") form.querySelector("[data-exc]").hidden = form.pvis.value !== "exclusive";
+    });
+    let vipTouched = false;
+    form.pvip.addEventListener("input", () => { vipTouched = true; });
+    if (editing && !p.gate) M.call("market_product", { p_id: p.id, p_member: M.memberId() }).then((r2) => {
+      if (r2.ok && r2.data?.ok && r2.data.viewer?.own) setAud(r2.data.product.gate || {});
+    });
+    if (typeof store?.vip !== "string") M.call("market_me", { p_member: M.memberId() }).then((r3) => {
+      if (r3.ok && r3.data?.ok && !vipTouched && typeof r3.data.store?.vip === "string") form.pvip.value = r3.data.store.vip;
+    });
     const pics = C.wirePictureField(form.querySelector("[data-pcf]"), { maxSide: 1600 });
+    // Optional video file of the seller: uploads immediately to the member's
+    // Streamtape Market folder and fills (or replaces) the video url field.
+    (() => {
+      const box = form.querySelector("[data-stvideo]");
+      if (!box) return;
+      const tgl = box.querySelector("[data-st-toggle]");
+      const inner = box.querySelector(".stvideo-box");
+      tgl?.addEventListener("click", () => { inner.hidden = !inner.hidden; });
+      const fileIn = box.querySelector("[data-st-file]");
+      if (!fileIn || fileIn.disabled || !window.Streamtape) return;
+      let doneByUpload = false;
+      fileIn.addEventListener("change", async () => {
+        const file = fileIn.files?.[0];
+        if (!file) return;
+        const ST = window.Streamtape;
+        const mine = await ST.uploadsByRef("market", p.id);
+        const ordinal = (mine.reduce((m, r) => Math.max(m, Number(r.ordinal) || 0), -1) + 1);
+        const prog = box.querySelector("[data-st-prog]");
+        const bar = box.querySelector("[data-st-bar]");
+        const nEl = box.querySelector("[data-st-n]");
+        prog.hidden = false;
+        const paint = (n) => { bar.style.width = `${n}%`; nEl.textContent = `${n}%`; };
+        paint(0);
+        fileIn.disabled = true;
+        const up = await ST.uploadNamed(M.memberId(), "market", file, ST.names.market(p.id, ordinal), paint);
+        fileIn.disabled = false;
+        if (!up.ok) {
+          prog.hidden = true;
+          C.toast(t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+          fileIn.value = "";
+          return;
+        }
+        const reg = await ST.registerUpload({
+          owner_id: M.memberId(),
+          owner_username: String(C.getSession()?.username || ""),
+          folder: "market",
+          name: up.name,
+          file_id: up.fileId,
+          page_url: up.pageUrl,
+          embed_url: up.embedUrl,
+          ref_id: String(p.id),
+          ordinal,
+          size_bytes: file.size || 0,
+        });
+        prog.hidden = true;
+        if (!reg.ok) {
+          try { await ST.deleteFile(up.fileId); } catch { /* */ }
+          C.toast(t(reg.reason === "sql" ? "up.needSql" : reg.reason === "dup" ? "up.dupAgain" : "up.fail"));
+          fileIn.value = "";
+          return;
+        }
+        if (!form.video_url.value.trim() || doneByUpload) form.video_url.value = up.pageUrl;
+        doneByUpload = true;
+        C.toast(t("up.done"));
+      });
+    })();
     const err = form.querySelector("[data-err]");
     const catIn = form.querySelector("[data-cat-in]");
     const catChips = form.querySelector("[data-cat-chips]");
@@ -703,9 +963,27 @@
         ? `${t("mkt.f.commissionHint")} ${t("mkt.f.commissionCalc", { pts: M.pt(cut), net: M.pt(v - cut) })}`
         : t("mkt.f.commissionHint");
     };
+    // the capital of the store caps the price (the guarantee): shown under the price field
+    // once the store card reports it (the market update of sql/market.sql)
+    const capHint = form.querySelector("[data-capital-hint]");
+    const hasCapital = store && store.capital !== undefined;
+    const capital = hasCapital ? Math.max(0, Number(store.capital) || 0) : 0;
+    const showCapital = () => {
+      if (!capHint) return;
+      if (!hasCapital) {
+        capHint.textContent = "";
+        capHint.classList.remove("mkt-hint-bad");
+        return;
+      }
+      capHint.textContent = capital > 0 ? t("mkt.f.capitalHint", { n: M.fmt(capital) }) : t("mkt.f.capitalNone");
+      const v = Number(form.price.value) || 0;
+      capHint.classList.toggle("mkt-hint-bad", v > capital);
+    };
+    form.price.addEventListener("input", showCapital);
     form.price.addEventListener("input", showPrice);
     form.commission_pct.addEventListener("input", showPrice);
     showPrice();
+    showCapital();
     form.addEventListener("change", (e) => {
       if (e.target.name === "kind") {
         form.querySelector("[data-ship-cost]").hidden = form.kind.value === "digital";
@@ -734,21 +1012,45 @@
         commission_pct: form.commission_pct.value.trim(),
       };
       if (editing) d.id = p.id;
+      // its audience: public (a public save clears the criteria server-side) or exclusive with
+      // every criterion the controls set (the missing ones are simply not criteria)
+      const ageMin = form.page_min.value.trim();
+      const ageMax = form.page_max.value.trim();
+      const countries = form.pcountries.value.replace(/\s+/g, "").toUpperCase();
+      d.visibility = form.pvis.value === "exclusive" ? "exclusive" : "public";
+      if (d.visibility === "exclusive") {
+        d.followers = form.querySelector('input[name="pfollowers"]:checked')?.value === "1";
+        d.tier = form.ptier.value;
+        d.countries = countries;
+        d.langs = [...form.querySelectorAll('input[name="plang"]:checked')].map((cb) => cb.value);
+        d.age_min = ageMin;
+        d.age_max = ageMax;
+        d.gender = form.pgender.value;
+      }
+      // the store's VIP list (usernames; only a typed change replaces it — an untouched field
+      // keeps what the store has, in particular when this copy of the store did not load it)
+      if (vipTouched) d.vip = form.pvip.value;
       // the private download link (digital); a product opened without it (not from Your
       // products / its page) leaves it as it is unless something was typed
       const dl = form.download_url.value.trim();
       if (d.kind === "digital" && (!editing || typeof p.download_url === "string" || dl)) d.download_url = dl;
       const bad =
         (d.title.length < 3 && "title") ||
+        (d.visibility === "exclusive" && countries && !/^([A-Z]{2})(,[A-Z]{2})*$/.test(countries) && "excountries") ||
+        (d.visibility === "exclusive" &&
+          ((ageMin && !(Number(ageMin) >= 3 && Number(ageMin) <= 120)) ||
+           (ageMax && !(Number(ageMax) >= 3 && Number(ageMax) <= 120)) ||
+           (ageMin && ageMax && Number(ageMin) > Number(ageMax))) && "age") ||
         (!(Number(d.price) >= 1) && "price") ||
+        (hasCapital && Number(d.price) > capital && { reason: "balance", capital }) ||
         (!(Number(d.stock) >= 0) || d.stock === "" ? "stock" : "") ||
         (!cats.length && "categories") ||
         (d.video_url && !/^https?:\/\/\S+$/i.test(d.video_url) && "video") ||
         (d.download_url && !/^https?:\/\/[^\s<>"']+$/i.test(d.download_url) && "download") ||
         (d.commission_on && !(d.commission_pct !== "" && commissionOk(Number(d.commission_pct))) && "commission");
       if (bad) {
-        err.textContent = M.errText({ reason: bad });
-        const field = { categories: "kind", video: "video_url", commission: "commission_pct", download: "download_url" }[bad] || bad;
+        err.textContent = typeof bad === "object" ? M.errText(bad) : M.errText({ reason: bad });
+        const field = (typeof bad === "string" && { categories: "kind", video: "video_url", commission: "commission_pct", download: "download_url" }[bad]) || (typeof bad === "string" ? bad : "price");
         form.querySelector(`[name="${field}"]`)?.focus?.();
         if (bad === "categories") catIn.focus();
         return;
@@ -775,6 +1077,42 @@
       wrap.close();
       C.toast(t(editing || !r.data.created ? "mkt.productSaved" : "mkt.productAdded"));
       onSaved?.(id, { created: r.data.created });
+    });
+    return wrap;
+  };
+
+  // Message the store's VIP list about a product (sql/market.sql round 32): a chat message and
+  // a bell note for every member, six hours apart at most between two messages of a product.
+  M.openVipNotify = ({ product, onSent = null } = {}) => {
+    const wrap = M.modal(`
+      ${head(t("mkt.vip.send"))}
+      <form class="mkt-form" data-vform novalidate>
+        <label class="mkt-field"><span>${esc(t("mkt.vip.note"))}</span>
+          <textarea name="vnote" dir="auto" rows="3" maxlength="300" placeholder="${esc(t("mkt.vip.notePh"))}"></textarea></label>
+        <p class="mkt-form-err" data-err role="alert"></p>
+        <div class="mkt-form-acts">
+          <button class="btn btn-ghost" type="button" data-close>${esc(t("common.cancel"))}</button>
+          <button class="btn btn-primary" type="submit">${esc(t("mkt.vip.send"))}</button>
+        </div>
+      </form>`, { label: t("mkt.vip.send") });
+    const form = wrap.querySelector("[data-vform]");
+    const err = form.querySelector("[data-err]");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      err.textContent = "";
+      const btn = form.querySelector("[type=submit]");
+      btn.disabled = true;
+      const r = await M.call("market_product_notify_vip", { p_member: M.memberId(), p_product: product?.id || "", p_note: form.vnote.value.trim() });
+      btn.disabled = false;
+      if (!r.ok || !r.data?.ok) {
+        err.textContent = r.ok && r.data?.reason === "wait" && r.data.next_at
+          ? t("mkt.vip.wait", { at: M.dateTime(r.data.next_at) })
+          : M.failText(r);
+        return;
+      }
+      wrap.close();
+      C.toast(t("mkt.vip.sent", { n: M.fmt(r.data.sent || 0) }));
+      onSent?.(r.data);
     });
     return wrap;
   };
@@ -1372,9 +1710,9 @@
     return res?.ok && res.data && res.data.ok === false && map[r] ? t(map[r]) : M.failText(res);
   };
 
-  M.listHref = (id, ref = "") => `./Market.html?List=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
+  M.listHref = (id, ref = "") => `./market.html?List=${encodeURIComponent(id)}${ref ? `&@${encodeURIComponent(ref)}` : ""}`;
   // a member's page > Market (#market, #market/recs | lists | reviews)
-  M.profileMarketHref = (u, tab = "") => `${u ? M.profileHref(u) : "./Profile.html"}#market${tab ? `/${tab}` : ""}`;
+  M.profileMarketHref = (u, tab = "") => `${u ? M.profileHref(u) : "./profile.html"}#market${tab ? `/${tab}` : ""}`;
 
   const productLine = (p) => `
     <div class="mkt-dlg-product">
@@ -1695,8 +2033,33 @@
   };
 
   // ---------------------------------------------------------------- the cards of what members publish
+  // The criteria of an exclusive product (round 32), as lines — on the locked page the visitor
+  // who fails it sees, and on the owner's page (the form's them, in words).
+  const LANG_NAMES = { en: "English", ar: "العربية", fr: "Français", de: "Deutsch", es: "Español", nl: "Nederlands", it: "Italiano" };
+  M.langName = (code) => LANG_NAMES[String(code || "").toLowerCase()] || code;
+  M.gateCriteriaHtml = (gate) => {
+    const g = gate || {};
+    const lines = [];
+    if (g.followers) lines.push(esc(t("mkt.gate.followers")));
+    if (g.tier) lines.push(esc(t("mkt.gate.tier", { tier: g.tier })));
+    if (Array.isArray(g.countries) && g.countries.length) lines.push(esc(t("mkt.gate.countries", { list: g.countries.join(", ") })));
+    if (Array.isArray(g.langs) && g.langs.length) lines.push(esc(t("mkt.gate.langs", { list: g.langs.map(M.langName).join(", ") })));
+    const mn = Number(g.age_min) || 0, mx = Number(g.age_max) || 0;
+    if (mn && mx) lines.push(esc(t("mkt.gate.ageSpan", { min: mn, max: mx })));
+    else if (mn) lines.push(esc(t("mkt.gate.ageMin", { min: mn })));
+    else if (mx) lines.push(esc(t("mkt.gate.ageMax", { max: mx })));
+    if (g.gender === "male" || g.gender === "female") lines.push(esc(t(`mkt.gate.${g.gender}`)));
+    if (!lines.length) return "";
+    return `<ul class="mkt-gate-lines">${lines.map((l) => `<li>${ICON.check}<span dir="auto">${l}</span></li>`).join("")}</ul>`;
+  };
+  // The slate in place of a hidden (exclusive) product's embedded card
+  M.gatedSlateHtml = () =>
+    `<span class="mkt-mini mkt-gated">${ICON.lock}<span class="mkt-mini-body"><b>${esc(t("mkt.gate.locked"))}</b></span></span>`;
+
   // A product inside a recommendation or a review (ref: who brings the sale, in its link).
   M.productMiniHtml = (p, ref = "") => {
+    // an exclusive product the reader may not see: a locked slate instead of its card (round 32)
+    if (p && (p.gated || (!p.title && p.id))) return M.gatedSlateHtml();
     if (!p) return `<p class="muted mkt-mini-gone">${esc(t("mkt.productGone"))}</p>`;
     const img = M.images(p)[0];
     return `
@@ -1783,6 +2146,14 @@
           <ul class="pro">${(item.pros || []).map((x) => `<li dir="auto">${esc(x)}</li>`).join("") || `<li class="muted">${esc(t("mkt.noPros"))}</li>`}</ul>
           <ul class="con">${(item.cons || []).map((x) => `<li dir="auto">${esc(x)}</li>`).join("") || `<li class="muted">${esc(t("mkt.noCons"))}</li>`}</ul>
         </div>`;
+      // Helpful / not-helpful votes on reviews (sql/market_review_votes.sql):
+      // a "helpful" adds +30 positive points, a "not-helpful" +30 negative
+      // points — the same reach arithmetic the profile posts use.
+      const rvUp = Number(item.rv_up || 0);
+      const rvDown = Number(item.rv_down || 0);
+      acts.push(`<button class="btn btn-sm ${item.rv_mine === "up" ? "btn-vote-on" : "btn-ghost"}" type="button" data-mi-act="rv-up" title="${esc(t("mkt.rv.helpful", { n: M.fmt(rvUp) }))}">${ICON.thumb}<span>${esc(t("mkt.rv.helpful", { n: M.fmt(rvUp) }))}</span></button>`);
+      acts.push(`<button class="btn btn-sm ${item.rv_mine === "down" ? "btn-vote-on" : "btn-ghost"}" type="button" data-mi-act="rv-down" title="${esc(t("mkt.rv.notHelpful", { n: M.fmt(rvDown) }))}">${ICON.thumbDn}<span>${esc(t("mkt.rv.notHelpful", { n: M.fmt(rvDown) }))}</span></button>`);
+      acts.push(`<span class="muted mkt-rv-pts" title="${esc(t("mkt.rv.ptsLine", { pos: M.fmt(rvUp * 30), neg: M.fmt(rvDown * 30) }))}">${esc(t("mkt.rv.ptsLine", { pos: M.fmt(rvUp * 30), neg: M.fmt(rvDown * 30) }))}</span>`);
       if (item.mine) {
         if (!item.suspended) acts.push(`<button class="btn btn-sm btn-ghost" type="button" data-mi-act="edit-review">${ICON.edit}<span>${esc(t("mkt.edit"))}</span></button>`);
         acts.push(`<button class="btn btn-sm btn-ghost mkt-del" type="button" data-mi-act="delete-review">${ICON.trash}<span>${esc(t("common.delete"))}</span></button>`);
@@ -1802,6 +2173,31 @@
       </article>`;
   };
 
+  // Paints rv_up / rv_down / rv_mine onto the review items of the list, so
+  // itemHtml can show the vote counters. Review rows the info is known for are
+  // kept (no refetch); call M.enrichReviewVotes after every items reload.
+  // Numeric review id from either 5 or "rv5" (feed wrappers can carry a prefix).
+  const rvId = (it) => Number(String(it?.id ?? "").replace(/\D/g, "")) || null;
+
+  M.enrichReviewVotes = async (items) => {
+    const miss = (items || []).filter((x) => x && x.type === "review" && x.id && x.rv_up == null);
+    if (!miss.length) return;
+    miss.forEach((x) => { x.rv_up = 0; x.rv_down = 0; x.rv_mine = ""; }); // safe defaults even when the table is missing
+    try {
+      const ids = miss.map(rvId).filter(Boolean);
+      if (!ids.length) return;
+      const res = await sbReq(`/rest/v1/market_review_votes?review_id=in.(${ids.join(",")})&select=review_id,member_id,vote`);
+      if (!res.ok || !Array.isArray(res.data)) return;
+      const me = M.memberId();
+      miss.forEach((it) => {
+        const vs = res.data.filter((v) => Number(v.review_id) === rvId(it));
+        it.rv_up = vs.filter((v) => v.vote === "up").length;
+        it.rv_down = vs.filter((v) => v.vote === "down").length;
+        it.rv_mine = vs.find((v) => String(v.member_id) === me)?.vote || "";
+      });
+    } catch { /* defaults stay */ }
+  };
+
   // The buttons of the cards inside root. items(): the cards' data; changed(): draw them again.
   M.wireItems = (root, { items, changed }) => {
     if (!root || root.dataset.miWired) return;
@@ -1815,6 +2211,37 @@
       const act = b.dataset.miAct;
       if (!M.memberId()) {
         location.href = M.signinHref(`${location.pathname.replace(/^\//, "")}${location.search}${location.hash}`);
+        return;
+      }
+      if (act === "rv-up" || act === "rv-down") {
+        if (item.mine) return C.toast(t("mkt.rv.ownerCant"));
+        const me = M.memberId();
+        const id = rvId(item);
+        if (!id) return C.toast(t("mkt.rv.voteFail"));
+        const choice = act === "rv-up" ? "up" : "down";
+        b.disabled = true;
+        try {
+          await sbReq(
+            `/rest/v1/market_review_votes?review_id=eq.${restV(id)}&member_id=eq.${restV(me)}`,
+            { method: "DELETE" }
+          );
+          const ins = await sbReq("/rest/v1/market_review_votes", {
+            method: "POST",
+            body: JSON.stringify({ review_id: id, member_id: me, username: M.username(), vote: choice }),
+          });
+          if (!ins.ok) throw ins;
+          const again = await sbReq(`/rest/v1/market_review_votes?review_id=eq.${restV(id)}&select=member_id,vote`);
+          const vs = Array.isArray(again.data) ? again.data : [];
+          item.rv_up = vs.filter((v) => v.vote === "up").length;
+          item.rv_down = vs.filter((v) => v.vote === "down").length;
+          item.rv_mine = choice;
+          const card = b.closest("[data-mi]");
+          if (card) card.outerHTML = M.itemHtml(item); // delegation lives on root: the fresh card keeps working
+          C.toast(choice === "up" ? t("prof.youUp") : t("prof.youDown"));
+        } catch {
+          C.toast(t("mkt.rv.voteFail"));
+        }
+        b.disabled = false;
         return;
       }
       if (act === "reshare") return M.openReshare({ kind: "rec", item, onSaved: () => changed() });

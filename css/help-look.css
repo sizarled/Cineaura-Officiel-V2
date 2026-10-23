@@ -201,3 +201,7 @@ html[data-style="default"] .header-bell-panel{
 /* ---- Background: orbs + grain (Help page) ---- */
 html[data-style="default"] .bg-orbs,
 html[data-style="default"] .grain{ display:block; }
+
+
+/* Arabic: the decorative serif has no Arabic glyphs — Cairo takes over */
+html[lang="ar"] html[data-style="default"] body.page-inner .page-main h1 { font-family: "Cairo", var(--sans); }

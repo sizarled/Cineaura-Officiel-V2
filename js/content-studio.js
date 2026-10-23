@@ -36,6 +36,7 @@
     private: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>',
     dup: '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5a1.5 1.5 0 0 0-1.5-1.5H5A1.5 1.5 0 0 0 3.5 5v9A1.5 1.5 0 0 0 5 15.5h3.5"/>',
+    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
     pl: '<path d="M4 6h11M4 11h11M4 16h7"/><path d="M17 13v7M13.5 16.5h7"/>',
     del: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
     up: '<path d="M7 11v9H4v-9zM7 11l4-7c1.7 0 2.6 1.2 2.2 2.8L12.6 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/>',
@@ -55,7 +56,13 @@
     period: "today",
     timers: [],
     playlists: null,
+    // Manage content: which type is on screen, and how the list is ordered.
+    mgmtKind: "videos",
+    mgmtSort: "newest",
+    createKind: "video",
   };
+  const MGMT = ["videos", "documents", "playlists"];
+  const SORTS = ["newest", "oldest", "views"];
 
   function clearTimers() {
     state.timers.forEach((id) => clearInterval(id));
@@ -82,6 +89,9 @@
       playlistName: "",
       when: "now",
       later: "",
+      portrait: false,
+      // the publisher's own switch: a Download button on the watch page
+      downloads: false,
     };
   }
 
@@ -93,6 +103,16 @@
   function render(main, ctx = {}) {
     state.main = main;
     state.member = ctx.member || null;
+    // solo: embedded inside Create > Studio, which owns the tab bar. Only the
+    // requested pane is drawn, so the studio's own tabs are never nested.
+    state.solo = Boolean(ctx.solo);
+    if (ctx.solo) {
+      clearTimers();
+      main.innerHTML = `<div id="vs-pane" class="vs-pane" role="tabpanel"></div>`;
+      state.tab = TABS.includes(ctx.tab) ? ctx.tab : "create";
+      show(state.tab);
+      return;
+    }
     const m = /^#content\/(manage|stats)$/.exec(location.hash || "");
     if (m) state.tab = m[1];
     else if (location.hash === "#content") state.tab = state.tab || "create";
@@ -123,8 +143,11 @@
       b.classList.toggle("active", on);
       b.setAttribute("aria-selected", String(on));
     });
+    // Embedded in Create > Studio the host owns the URL: never write the video
+    // studio's own #content hash there (it would switch the profile section).
     const hash = state.tab === "create" ? "#content" : `#content/${state.tab}`;
-    if (location.hash !== hash) history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+    if (!state.solo && location.hash !== hash)
+      history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
     const pane = state.main.querySelector("#vs-pane");
     pane.setAttribute("aria-labelledby", `vs-tab-${state.tab}`);
     if (state.tab === "create") drawCreate(pane);
@@ -154,8 +177,118 @@
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
+  // Create content now covers the three kinds the studio manages: a video, a
+  // playlist, or a document. The video form below is untouched — it is simply
+  // the "video" branch.
   async function drawCreate(pane) {
+    const kind = ["video", "playlist", "document"].includes(state.createKind) ? state.createKind : "video";
+    const counts = await countMine();
+    pane.innerHTML = `
+      <div class="vs-kindbar" role="tablist" aria-label="${esc(t("vid.createKind"))}">
+        ${[
+          ["video", t("vid.kind.video"), counts.videos],
+          ["playlist", t("vid.kind.playlist"), counts.playlists],
+          ["document", t("doc.tab"), counts.documents],
+        ]
+          .map(
+            ([k, label, n]) =>
+              `<button type="button" role="tab" class="follow-tab${k === kind ? " active" : ""}" data-ck="${k}">${esc(label)}<span class="vs-count-pill">${V.fmtNum(n)}</span></button>`
+          )
+          .join("")}
+      </div>
+      <div id="vs-create-body"></div>`;
+    pane.querySelectorAll("[data-ck]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          state.createKind = b.dataset.ck;
+          drawCreate(pane);
+        })
+    );
+    const body = pane.querySelector("#vs-create-body");
+    if (kind === "document") {
+      if (window.CineAuraDocs) window.CineAuraDocs.renderUpload(body, { member: state.member });
+      else body.innerHTML = `<p class="empty">⚠ ${esc(t("doc.loadFail"))}</p>`;
+      return;
+    }
+    if (kind === "playlist") return drawPlaylistCreate(body);
+    body.id = "vs-pane-inner";
+    return drawVideoCreate(body);
+  }
+
+  // Counts for the kind bars — the same numbers in Create and Manage.
+  async function countMine() {
+    const id = encodeURIComponent(me());
+    const [vids, docs, pls] = await Promise.all([
+      C.supabaseRequest(`/rest/v1/content?owner_id=eq.${id}&select=content_id`),
+      C.supabaseRequest(`/rest/v1/community_documents?member_id=eq.${id}&select=id`),
+      C.supabaseRequest(`/rest/v1/playlists?owner_id=eq.${id}&select=playlist_id`),
+    ]);
+    return {
+      videos: vids.ok && Array.isArray(vids.data) ? vids.data.length : 0,
+      documents: docs.ok && Array.isArray(docs.data) ? docs.data.length : 0,
+      playlists: pls.ok && Array.isArray(pls.data) ? pls.data.length : 0,
+    };
+  }
+
+  // A playlist straight from the studio: name, description, type, visibility.
+  function drawPlaylistCreate(box) {
+    box.innerHTML = `
+      <form class="vs-create stack" id="vs-pl-form" novalidate>
+        <label class="field-label" for="vs-pl-name">${esc(t("dash.listName"))}</label>
+        <input id="vs-pl-name" maxlength="120" required />
+        <label class="field-label" for="vs-pl-desc">${esc(t("dash.descReq"))}</label>
+        <textarea id="vs-pl-desc" rows="3" maxlength="600" required></textarea>
+        <label class="field-label" for="vs-pl-type">${esc(t("common.type"))}</label>
+        <select id="vs-pl-type"><option value="movie">${esc(t("common.movies"))}</option><option value="tv">${esc(t("common.series"))}</option></select>
+        <label class="field-label" for="vs-pl-vis">${esc(t("pm.visibility"))}</label>
+        <select id="vs-pl-vis">
+          <option value="public">${esc(t("pm.vis.public"))}</option>
+          <option value="exclusive">${esc(t("pm.vis.exclusive"))}</option>
+          <option value="private">${esc(t("pm.vis.private"))}</option>
+        </select>
+        <button class="btn btn-primary" id="vs-pl-save" type="submit">${esc(t("dash.createList"))}</button>
+      </form>`;
+    box.querySelector("#vs-pl-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const name = box.querySelector("#vs-pl-name").value.trim();
+      const description = box.querySelector("#vs-pl-desc").value.trim();
+      if (!name) return C.toast(t("dash.nameList"));
+      if (!description) return C.toast(t("dash.writeDesc"));
+      const btn = box.querySelector("#vs-pl-save");
+      btn.disabled = true;
+      const payload = {
+        playlist_id: `IDP${Math.floor(100000000 + Math.random() * 900000000)}`,
+        name,
+        description,
+        owner_username: state.member?.username || "",
+        owner_id: me(),
+        media_type: box.querySelector("#vs-pl-type").value,
+        kind: "custom",
+        visibility: box.querySelector("#vs-pl-vis").value,
+      };
+      const res = await C.supabaseRequest("/rest/v1/playlists", { method: "POST", body: JSON.stringify(payload) });
+      btn.disabled = false;
+      if (!res.ok) return C.toast(t("dash.listFail"));
+      C.toast(t("dash.listCreated"));
+      state.playlists = null; // the manage bar reads it again
+      drawCreate(box.closest("#vs-pane") || box);
+    };
+  }
+
+  async function drawVideoCreate(pane) {
     const d = state.draft || (state.draft = blankDraft());
+    /* Landing from video.html?yt=… — its "Import this video" button left the
+       link for the form: the import offer stands by it, one click fills the
+       title and the description, the member may also write everything by hand
+       (the video itself still passes content_create's one-link-once ban). */
+    let importUrl = "";
+    try {
+      importUrl = sessionStorage.getItem("cineaura_import_url") || "";
+      if (importUrl) sessionStorage.removeItem("cineaura_import_url");
+    } catch {
+      /* private mode: nothing to carry */
+    }
+    if (importUrl && !String(d.url || "").trim()) d.url = importUrl;
     pane.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
     const pls = await loadPlaylists();
     if (state.tab !== "create") return;
@@ -167,11 +300,38 @@
             <label class="field-label" for="vc-url">${esc(t("vid.f.url"))}</label>
             <input id="vc-url" type="url" inputmode="url" maxlength="2000" autocomplete="off" dir="ltr" placeholder="https://www.youtube.com/watch?v=…" value="${esc(d.url)}" />
             <p class="vs-hint" id="vc-url-hint" aria-live="polite">${esc(t("vid.f.urlHint"))}</p>
+            <!-- A YouTube link can borrow its own record, here under the link
+                 field: one click fills the title and the description (what the
+                 member writes instead is theirs just as well) — the link itself
+                 stays the video's source, and it can live here only once, for
+                 whoever publishes it first (content_create, "dup_link"). -->
+            <div class="vs-ytimp" id="vc-yt-imp" hidden>
+              <button class="btn btn-sm btn-ghost" type="button" id="vc-yt-import">${icon("link", 15)}<span>${esc(t("vid.f.ytImport"))}</span></button>
+              <p class="vs-hint" id="vc-yt-imp-note" aria-live="polite">${esc(t("vid.f.ytImportHint"))}</p>
+            </div>
+            <!-- Or the member's own video file: it uploads to the Streamtape
+                 Videos folder of their account and becomes this video's link. -->
+            <button class="btn btn-sm btn-ghost" type="button" id="vc-up-toggle" style="margin-top:8px">${esc(t("vid.f.orUpload"))}</button>
+            <div id="vc-up-box" hidden style="margin-top:8px">
+              <input id="vc-file" type="file" accept="video/*" />
+              <p class="vs-hint">${esc(t("vid.f.uploadHint"))}</p>
+              <div class="up-prog" id="vc-up-prog" hidden>
+                <div class="up-prog-bar" id="vc-up-bar"></div>
+                <span class="up-prog-n" id="vc-up-n">0%</span>
+              </div>
+            </div>
             <div id="vc-thumb-wrap" hidden>
               <label class="field-label" for="vc-thumb">${esc(t("vid.f.thumb"))} <small class="muted">${esc(t("dash.dev.optional"))}</small></label>
               <input id="vc-thumb" type="url" inputmode="url" maxlength="1000" dir="ltr" placeholder="https://…/picture.jpg" value="${esc(d.thumb)}" />
               <p class="vs-hint">${esc(t("vid.f.thumbHint"))}</p>
             </div>
+            <!-- A vertical video is shown centered on video.html with the up/down
+                 flip buttons; a Shorts or TikTok link checks this automatically. -->
+            <label class="lang-chip" for="vc-portrait"><input type="checkbox" id="vc-portrait" ${d.portrait ? "checked" : ""} /> ${esc(t("vid.f.portrait"))}</label>
+            <p class="vs-hint">${esc(t("vid.f.portraitHint"))}</p>
+
+            <label class="lang-chip" for="vc-dl"><input type="checkbox" id="vc-dl" ${d.downloads ? "checked" : ""} /> ${esc(t("vid.f.downloads"))}</label>
+            <p class="vs-hint">${esc(t("vid.f.downloadsHint"))}</p>
 
             <label class="field-label" for="vc-title">${esc(t("vid.f.title"))}</label>
             <input id="vc-title" maxlength="150" value="${esc(d.title)}" placeholder="${esc(t("vid.f.titlePh"))}" />
@@ -261,6 +421,7 @@
         <div class="vs-submit" id="vc-submit"></div>
       </form>`;
     wireCreate(pane);
+    if (importUrl) toast(t("vid.yt.importedToast"));
   }
 
   function readDraft(pane) {
@@ -280,6 +441,8 @@
     d.people = val("#vc-people");
     d.when = pane.querySelector('input[name="vc-when"]:checked')?.value || "now";
     d.later = val("#vc-later");
+    d.portrait = Boolean(pane.querySelector("#vc-portrait")?.checked);
+    d.downloads = Boolean(pane.querySelector("#vc-dl")?.checked);
     return d;
   }
 
@@ -298,6 +461,11 @@
     const $ = (sel) => pane.querySelector(sel);
     const info = () => V.parseVideo(d.url);
 
+    $("#vc-up-toggle")?.addEventListener("click", () => {
+      const box = $("#vc-up-box");
+      if (box) box.hidden = !box.hidden;
+    });
+
     // --- link: what it is, and the optional picture when the provider has none
     const syncUrl = () => {
       readDraft(pane);
@@ -312,10 +480,65 @@
       } else {
         hint.textContent = t("vid.f.urlOk", { provider: V.provLabel(v.provider) });
         hint.classList.add("is-ok");
+        // a Shorts / TikTok link is a vertical video by definition
+        if (v.provider === "tiktok" || v.shorts) {
+          const cb = $("#vc-portrait");
+          if (cb) cb.checked = true;
+        }
+      }
+      // the import offer belongs to YouTube links only — and standing by it,
+      // the same video can never be published twice on the site
+      const impBox = $("#vc-yt-imp");
+      if (impBox) {
+        const showImp = Boolean(v && v.provider === "youtube");
+        impBox.hidden = !showImp;
+        if (!showImp) {
+          const note = $("#vc-yt-imp-note");
+          note.classList.remove("is-ok", "is-bad");
+          note.textContent = t("vid.f.ytImportHint");
+        }
       }
       $("#vc-thumb-wrap").hidden = !ownThumbAllowed(v);
       preview();
     };
+
+    // --- YouTube import: the video's own title + description into the form.
+    // The member may still write everything by hand — the link stays either way.
+    let ytImportSeq = 0;
+    const impBtn = $("#vc-yt-import");
+    impBtn?.addEventListener("click", async () => {
+      readDraft(pane);
+      const v = info();
+      const note = $("#vc-yt-imp-note");
+      if (!v || v.provider !== "youtube" || !note) return;
+      const seq = ++ytImportSeq;
+      impBtn.disabled = true;
+      note.classList.remove("is-ok", "is-bad");
+      note.textContent = t("vid.f.ytImportBusy");
+      const res = await V.fetchYouTubeMeta(v.id);
+      if (seq !== ytImportSeq) return; // a newer click took over
+      impBtn.disabled = false;
+      if (!res.ok) {
+        note.classList.add("is-bad");
+        note.textContent = t(
+          res.reason === "not_configured" ? "vid.yt.noKey"
+          : res.reason === "quota" ? "vid.yt.quota"
+          : res.reason === "not_found" || res.reason === "missing" ? "vid.yt.notFound"
+          : "vid.yt.upstream",
+        );
+        return;
+      }
+      const titleEl = $("#vc-title");
+      const descEl = $("#vc-desc");
+      const title = String(res.video.title || "").trim().slice(0, 150);
+      const descr = String(res.video.description || "").trim().slice(0, 5000);
+      if (title) titleEl.value = title;
+      if (descr) descEl.value = descr;
+      readDraft(pane); // the draft follows the form, upload or publish reads it
+      note.classList.add("is-ok");
+      note.textContent = t("vid.f.ytImportDone");
+      preview();
+    });
 
     // --- tags
     const chips = $("#vc-chips");
@@ -594,16 +817,47 @@
     people: "vid.err.people",
     publish_at: "vid.err.when",
     playlist: "vid.err.playlist",
+    // one YouTube video, one page on the site — whoever published it first
+    dup_link: "vid.err.dupLink",
+    not_found: "vid.err.generic",
+    thumb: "vid.err.thumb",
     busy: "vid.err.generic",
   };
 
   async function publish(pane) {
     const d = readDraft(pane);
     alertMsg(pane, "");
-    const v = V.parseVideo(d.url);
+    /* A picked file beats the URL field: it uploads to the member's Streamtape
+       Videos folder with a temporary name; once content_create hands out the
+       video id, the file is renamed to "Video - {id}" and registered. */
+    const stFile = pane.querySelector("#vc-file")?.files?.[0] || null;
+    let v = null;
+    let pendingUp = null;
+    if (stFile) {
+      const ST = window.Streamtape;
+      if (!ST) return alertMsg(pane, t("up.fail"));
+      const prog = pane.querySelector("#vc-up-prog");
+      const bar = pane.querySelector("#vc-up-bar");
+      const nEl = pane.querySelector("#vc-up-n");
+      if (prog) prog.hidden = false;
+      const paint = (n) => {
+        if (bar) bar.style.width = `${n}%`;
+        if (nEl) nEl.textContent = `${n}%`;
+      };
+      paint(0);
+      const up = await ST.uploadNamed(me(), "videos", stFile, `Video - pending - ${Date.now()}`, paint);
+      if (prog) prog.hidden = true;
+      if (!up.ok) {
+        return alertMsg(pane, t(up.reason === "toobig" ? "up.tooBig" : "up.fail"));
+      }
+      v = V.parseVideo(up.pageUrl);
+      pendingUp = { up, file: stFile, ST };
+    } else {
+      v = V.parseVideo(d.url);
+    }
     if (!v) {
       pane.querySelector("#vc-url").focus();
-      return alertMsg(pane, t("vid.f.urlBad"));
+      return alertMsg(pane, t(stFile ? "up.fail" : "vid.f.urlBad"));
     }
     if (!d.title.trim()) {
       pane.querySelector("#vc-title").focus();
@@ -639,6 +893,8 @@
     const body = {
       url: v.url,
       provider: v.provider,
+      portrait: Boolean(d.portrait),
+      downloads: Boolean(d.downloads),
       thumb,
       title: d.title.trim(),
       description: d.description.trim(),
@@ -656,10 +912,33 @@
     };
     const res = await V.call("content_create", { p_member: me(), d: body });
     if (!res.ok || res.data?.ok === false) {
+      // A failed publish after an upload drops the temporary file again.
+      if (pendingUp) {
+        try { await pendingUp.ST.deleteFile(pendingUp.up.fileId); } catch { /* best effort */ }
+      }
       btn.disabled = false;
       btn.textContent = t("vid.requestPublish");
       if (res.setup) return alertMsg(pane, t("vid.setup"));
       return alertMsg(pane, t(REASONS[res.data?.reason] || "vid.err.generic"));
+    }
+    if (pendingUp) {
+      const cid = res.data.id;
+      const ext = (String(pendingUp.up.name).match(/\.[A-Za-z0-9]{2,5}$/) || [".mp4"])[0];
+      const finalName = `${pendingUp.ST.names.video(cid)}${ext}`;
+      try {
+        await pendingUp.ST.renameFile(pendingUp.up.fileId, finalName);
+        await pendingUp.ST.registerUpload({
+          owner_id: me(),
+          owner_username: String(C.getSession()?.username || ""),
+          folder: "videos",
+          name: finalName,
+          file_id: pendingUp.up.fileId,
+          page_url: pendingUp.up.pageUrl,
+          embed_url: pendingUp.up.embedUrl,
+          ref_id: String(cid),
+          size_bytes: pendingUp.file.size || 0,
+        });
+      } catch { /* the video itself is published; the file stays linked by url */ }
     }
     state.published = { id: res.data.id, publish_at: res.data.publish_at };
     if (body.playlist_name) state.playlists = null;
@@ -684,6 +963,7 @@
       countries: String(row.countries || "").split(",").map((x) => x.trim()).filter(Boolean),
       people: (row.people || []).join(", "),
       playlist: row.playlists?.[0]?.id || "",
+      downloads: Boolean(row.downloads),
     });
     return d;
   }
@@ -731,6 +1011,45 @@
     </tr>`;
   }
 
+  // Manage › Video playlists: the lists the member owns, with their item counts.
+  async function drawPlaylistManage(box, sort) {
+    box.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
+    const p = await loadPlaylists(true);
+    if (state.tab !== "manage") return;
+    if (!p.length) {
+      box.innerHTML = `<div class="vs-empty"><p class="empty">${esc(t("dash.noLists"))}</p>
+        <button class="btn btn-sm btn-primary" type="button" data-pl-new>${esc(t("dash.createList"))}</button></div>`;
+      box.querySelector("[data-pl-new]").onclick = () => ((state.createKind = "playlist"), show("create"));
+      return;
+    }
+    let counts = {};
+    try {
+      const ids = p.map((x) => encodeURIComponent(x.playlist_id)).join(",");
+      const ci = ids ? await C.supabaseRequest(`/rest/v1/playlist_items?playlist_id=in.(${ids})&select=playlist_id`) : null;
+      (ci?.ok && Array.isArray(ci.data) ? ci.data : []).forEach((r) => {
+        counts[r.playlist_id] = (counts[r.playlist_id] || 0) + 1;
+      });
+    } catch {
+      /* counts stay empty, the list still works */
+    }
+    const rows = p.slice().sort((a, b) => {
+      if (sort === "oldest") return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+      if (sort === "views") return Number(b.viewers || 0) - Number(a.viewers || 0);
+      return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    });
+    box.innerHTML = rows
+      .map(
+        (pl) => `<article class="glass vs-mrow">
+          <span class="vs-mrow-main">
+            <strong>${esc(pl.name || pl.playlist_id)}</strong>
+            <span class="muted">${esc(pl.media_type === "tv" ? t("common.series") : t("common.movies"))} · ${esc(t("pm.vis." + (pl.visibility || "public")))} · ${counts[pl.playlist_id] || 0} ${esc(t("dash.colItems"))}</span>
+          </span>
+          <a class="btn btn-sm btn-ghost" href="./playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${esc(t("manage.open"))}</a>
+        </article>`
+      )
+      .join("");
+  }
+
   async function drawManage(pane) {
     clearTimers();
     pane.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
@@ -741,13 +1060,62 @@
       return;
     }
     const rows = Array.isArray(res.data) ? res.data : [];
+    const kind = MGMT.includes(state.mgmtKind) ? state.mgmtKind : "videos";
+    const sort = SORTS.includes(state.mgmtSort) ? state.mgmtSort : "newest";
+    const counts = await countMine();
+    counts.videos = rows.length;
+    const head = `
+      <div class="vs-mgmt-head">
+        <div class="vs-kindbar" role="tablist" aria-label="${esc(t("vid.manageKind"))}">
+          ${[
+            ["videos", t("vid.kind.videos"), counts.videos],
+            ["documents", t("doc.tab"), counts.documents],
+            ["playlists", t("vid.kind.playlists"), counts.playlists],
+          ]
+            .map(
+              ([k, label, n]) =>
+                `<button type="button" role="tab" class="follow-tab${k === kind ? " active" : ""}" data-mk="${k}">${esc(label)}<span class="vs-count-pill">${V.fmtNum(n)}</span></button>`
+            )
+            .join("")}
+        </div>
+        <label class="vs-sort"><span class="muted">${esc(t("vid.sortBy"))}</span>
+          <select id="vs-sort">
+            ${SORTS.map((k) => `<option value="${k}"${k === sort ? " selected" : ""}>${esc(t("vid.sort." + k))}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div id="vs-mgmt-body"></div>`;
+    const wireHead = () => {
+      pane.querySelectorAll("[data-mk]").forEach(
+        (b) => (b.onclick = () => ((state.mgmtKind = b.dataset.mk), drawManage(pane)))
+      );
+      const sel = pane.querySelector("#vs-sort");
+      if (sel) sel.onchange = () => ((state.mgmtSort = sel.value), drawManage(pane));
+    };
+    if (kind === "documents") {
+      pane.innerHTML = head;
+      wireHead();
+      const body = pane.querySelector("#vs-mgmt-body");
+      if (window.CineAuraDocs) window.CineAuraDocs.renderManage(body, me(), { sort });
+      else body.innerHTML = `<p class="empty">⚠ ${esc(t("doc.loadFail"))}</p>`;
+      return;
+    }
+    if (kind === "playlists") {
+      pane.innerHTML = head;
+      wireHead();
+      drawPlaylistManage(pane.querySelector("#vs-mgmt-body"), sort);
+      return;
+    }
     if (!rows.length) {
-      pane.innerHTML = `<div class="vs-empty"><p class="empty">${esc(t("vid.noneYet"))}</p>
+      pane.innerHTML =
+        head +
+        `<div class="vs-empty" id="vs-mgmt-body"><p class="empty">${esc(t("vid.noneYet"))}</p>
         <button class="btn btn-sm btn-primary" type="button" data-go-create>${esc(t("vid.createFirst"))}</button></div>`;
+      wireHead();
       pane.querySelector("[data-go-create]").onclick = () => show("create");
       return;
     }
-    pane.innerHTML = `
+    const vTable = `
       <p class="muted vs-count">${esc(t("vid.mgCount", { n: V.fmtNum(rows.length) }))}</p>
       <div class="vs-table-wrap">
         <table class="table vs-table vs-table--manage">
@@ -765,6 +1133,8 @@
           <tbody>${rows.map(manageRow).join("")}</tbody>
         </table>
       </div>`;
+    pane.innerHTML = head + vTable;
+    wireHead();
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
     // scheduled videos count down in the list too
     if (rows.some((r) => r.scheduled)) {
@@ -836,6 +1206,7 @@
     menu.setAttribute("role", "menu");
     menu.dataset.menuFor = row.id;
     menu.innerHTML = `
+      <button type="button" role="menuitem" data-act="edit">${icon("edit")}<span>${esc(t("vid.act.edit"))}</span></button>
       <button type="button" role="menuitem" data-act="link">${icon("link")}<span>${esc(t("vid.act.link"))}</span></button>
       <button type="button" role="menuitem" data-act="dup">${icon("dup")}<span>${esc(t("vid.act.dup"))}</span></button>
       <button type="button" role="menuitem" data-act="pl">${icon("pl")}<span>${esc(t("vid.act.pl"))}</span></button>
@@ -866,7 +1237,100 @@
     menu.querySelector("button")?.focus();
   }
 
+  /* ---------------------------------------------------------------- edit
+     The row's pen (Round 57): the custom picture — a Streamtape-hosted video
+     takes any https picture too — who may watch (public for everyone /
+     exclusive / private), the age rating (6+ 13+ 16+ 18+ and below), and the
+     Download switch. The link and the text stay untouched here — publishing
+     answers those (and the one-link-once ban with them). */
+  function openEdit(row, pane) {
+    const cty = String(row.countries || "").trim();
+    const dlg = V.openDialog(
+      `<h2>${esc(t("vid.edit.title"))}</h2>
+       <p class="muted"><b>${esc(row.title)}</b></p>
+       <p class="vs-hint">${esc(t("vid.edit.note"))}</p>
+       <label class="field-label" for="ve-thumb">${esc(t("vid.f.thumb"))}</label>
+       <input id="ve-thumb" type="url" inputmode="url" maxlength="1000" dir="ltr" placeholder="https://…/picture.jpg" value="${esc(row.thumb || "")}" />
+       <p class="vs-hint">${esc(t("vid.f.thumbHint"))}</p>
+       <span class="field-label" id="ve-vis-l">${esc(t("pm.visibility"))}</span>
+       <div class="vs-vis" role="radiogroup" aria-labelledby="ve-vis-l">
+         ${V.VISIBILITIES.map(
+           (x) => `<label class="vs-vis-opt"><input type="radio" name="ve-vis" value="${x}" ${x === row.visibility ? "checked" : ""} />
+             <span><b>${icon(x)}${esc(V.visLabel(x))}</b><small>${esc(t(`vid.visHint.${x}`))}</small></span></label>`,
+         ).join("")}
+       </div>
+       <div id="ve-excl" ${row.visibility === "exclusive" ? "" : "hidden"}>
+         <label class="lang-chip"><input type="checkbox" id="ve-fol" ${row.followers ? "checked" : ""} /> ${esc(t("vid.f.exclFollowers"))}</label>
+         <label class="lang-chip"><input type="checkbox" id="ve-prem" ${row.premium ? "checked" : ""} /> ${esc(t("vid.f.exclPremium"))}</label>
+         ${cty ? `<p class="vs-hint">${esc(t("vid.edit.countriesKept", { countries: cty }))}</p>` : ""}
+       </div>
+       <div id="ve-priv" ${row.visibility === "private" ? "" : "hidden"}>
+         <label class="field-label" for="ve-people">${esc(t("vid.f.people"))}</label>
+         <input id="ve-people" maxlength="2000" placeholder="${esc(t("dash.peoplePh"))}" value="${esc((row.people || []).join(", "))}" />
+       </div>
+       <span class="field-label" id="ve-age-l">${esc(t("vid.f.age"))}</span>
+       <div class="vs-seg vs-seg--wrap" role="radiogroup" aria-labelledby="ve-age-l">
+         ${V.AGES.map((a) => `<label class="vs-seg-opt"><input type="radio" name="ve-age" value="${a}" ${a === Number(row.age) ? "checked" : ""} /><span>${a}+</span></label>`).join("")}
+       </div>
+       <label class="lang-chip"><input type="checkbox" id="ve-dl" ${row.downloads ? "checked" : ""} /> ${esc(t("vid.f.downloads"))}</label>
+       <p class="vs-hint">${esc(t("vid.f.downloadsHint"))}</p>
+       <div class="form-alert" id="ve-alert" role="alert"></div>
+       <div class="vdlg-actions">
+         <button class="btn btn-sm btn-primary" type="button" id="ve-save">${esc(t("common.save"))}</button>
+         <button class="btn btn-sm btn-ghost" type="button" data-close>${esc(t("common.cancel"))}</button>
+       </div>`,
+      { label: t("vid.edit.title") },
+    );
+    const q = (sel) => dlg.el.querySelector(sel);
+    const alert = (text) => {
+      const el = q("#ve-alert");
+      el.className = text ? "form-alert show error" : "form-alert";
+      el.textContent = text || "";
+    };
+    const syncVis = () => {
+      const v = dlg.el.querySelector('input[name="ve-vis"]:checked')?.value || "public";
+      q("#ve-excl").hidden = v !== "exclusive";
+      q("#ve-priv").hidden = v !== "private";
+    };
+    dlg.el.querySelectorAll('input[name="ve-vis"]').forEach((r) => r.addEventListener("change", syncVis));
+    q("#ve-save").addEventListener("click", async () => {
+      alert("");
+      const vis = dlg.el.querySelector('input[name="ve-vis"]:checked')?.value || "public";
+      const age = Number(dlg.el.querySelector('input[name="ve-age"]:checked')?.value || 3);
+      const thumb = q("#ve-thumb").value.trim();
+      if (thumb && !/^https:\/\/[^/?#\s]+/i.test(thumb)) return alert(t("vid.err.thumb"));
+      const people = q("#ve-people").value.split(/[,;\s]+/).map((x) => x.trim().replace(/^@+/, "")).filter(Boolean);
+      if (vis === "private" && !people.length) return alert(t("vid.err.people"));
+      const btn = q("#ve-save");
+      btn.disabled = true;
+      const res = await V.call("content_update", {
+        p_member: me(),
+        p_id: row.id,
+        d: {
+          thumb,
+          downloads: Boolean(q("#ve-dl")?.checked),
+          age,
+          visibility: vis,
+          followers: Boolean(q("#ve-fol")?.checked),
+          premium: Boolean(q("#ve-prem")?.checked),
+          // the excluded countries are not edited here — the current list goes back as it stands
+          countries: String(row.countries || ""),
+          people,
+        },
+      });
+      btn.disabled = false;
+      if (!res.ok || res.data?.ok === false) {
+        if (res.setup) return alert(t("vid.setup"));
+        return alert(t(REASONS[res.data?.reason] || "vid.err.generic"));
+      }
+      dlg.close();
+      toast(t("vid.edit.saved"));
+      if (state.tab === "manage") drawManage(pane);
+    });
+  }
+
   async function runAction(kind, row, pane) {
+    if (kind === "edit") return openEdit(row, pane);
     if (kind === "link") {
       const url = C.absoluteUrl(V.contentHref(row.id));
       const dlg = V.openDialog(
@@ -922,6 +1386,10 @@
       if (!yes) return;
       const res = await V.call("content_delete", { p_member: me(), p_id: row.id });
       if (!res.ok || res.data?.ok === false) return toast(t("vid.actFail"));
+      // An uploaded video of this content goes with it (Videos folder).
+      if (row.provider === "streamtape" && window.Streamtape) {
+        window.Streamtape.dropRefUploads("videos", String(row.id)).catch(() => {});
+      }
       toast(t("vid.deleted"));
       drawManage(pane);
       return;
