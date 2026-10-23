@@ -5389,5 +5389,16 @@
  "Report sent to the moderators.": "Report sent to the moderators.",
  "You have not uploaded a document yet.": "You have not uploaded a document yet.",
  "Upload a document": "Upload a document",
- "{n} of {max} documents used. Deleting removes the row and the file.": "{n} of {max} documents used. Deleting removes the row and the file."
+ "{n} of {max} documents used. Deleting removes the row and the file.": "{n} of {max} documents used. Deleting removes the row and the file.",
+ "vid.createKind": "What do you want to create?",
+ "vid.manageKind": "Content type",
+ "vid.kind.video": "Video",
+ "vid.kind.videos": "Videos",
+ "vid.kind.playlist": "Video playlist",
+ "vid.kind.playlists": "Video playlists",
+ "vid.sortBy": "Sort by",
+ "vid.sort.newest": "Newest",
+ "vid.sort.oldest": "Oldest",
+ "vid.sort.views": "Most viewed",
+ "What do you want to create?": "What do you want to create?"
 };

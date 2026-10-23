@@ -5389,5 +5389,16 @@
  "Report sent to the moderators.": "Meldung an die Moderatoren gesendet.",
  "You have not uploaded a document yet.": "Sie haben noch kein Dokument hochgeladen.",
  "Upload a document": "Dokument hochladen",
- "{n} of {max} documents used. Deleting removes the row and the file.": "{n} von {max} Dokumenten belegt. Löschen entfernt Datensatz und Datei."
+ "{n} of {max} documents used. Deleting removes the row and the file.": "{n} von {max} Dokumenten belegt. Löschen entfernt Datensatz und Datei.",
+ "vid.createKind": "Was möchten Sie erstellen?",
+ "vid.manageKind": "Inhaltstyp",
+ "vid.kind.video": "Video",
+ "vid.kind.videos": "Videos",
+ "vid.kind.playlist": "Wiedergabeliste",
+ "vid.kind.playlists": "Wiedergabelisten",
+ "vid.sortBy": "Sortieren nach",
+ "vid.sort.newest": "Neueste",
+ "vid.sort.oldest": "Älteste",
+ "vid.sort.views": "Meistgesehen",
+ "What do you want to create?": "Was möchten Sie erstellen?"
 };

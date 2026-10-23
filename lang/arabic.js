@@ -5425,5 +5425,16 @@
  "Report sent to the moderators.": "أُرسل البلاغ إلى المشرفين.",
  "You have not uploaded a document yet.": "لم ترفع أي مستند بعد.",
  "Upload a document": "رفع مستند",
- "{n} of {max} documents used. Deleting removes the row and the file.": "استُخدم {n} من {max} مستنداً. الحذف يزيل السجل والملف."
+ "{n} of {max} documents used. Deleting removes the row and the file.": "استُخدم {n} من {max} مستنداً. الحذف يزيل السجل والملف.",
+ "vid.createKind": "ماذا تريد أن تنشئ؟",
+ "vid.manageKind": "نوع المحتوى",
+ "vid.kind.video": "فيديو",
+ "vid.kind.videos": "الفيديوهات",
+ "vid.kind.playlist": "قائمة تشغيل",
+ "vid.kind.playlists": "قوائم التشغيل",
+ "vid.sortBy": "الفرز",
+ "vid.sort.newest": "الأحدث",
+ "vid.sort.oldest": "الأقدم",
+ "vid.sort.views": "الأكثر مشاهدة",
+ "What do you want to create?": "ماذا تريد أن تنشئ؟"
 };

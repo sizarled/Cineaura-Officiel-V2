@@ -56,7 +56,13 @@
     period: "today",
     timers: [],
     playlists: null,
+    // Manage content: which type is on screen, and how the list is ordered.
+    mgmtKind: "videos",
+    mgmtSort: "newest",
+    createKind: "video",
   };
+  const MGMT = ["videos", "documents", "playlists"];
+  const SORTS = ["newest", "oldest", "views"];
 
   function clearTimers() {
     state.timers.forEach((id) => clearInterval(id));
@@ -171,7 +177,105 @@
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
+  // Create content now covers the three kinds the studio manages: a video, a
+  // playlist, or a document. The video form below is untouched — it is simply
+  // the "video" branch.
   async function drawCreate(pane) {
+    const kind = ["video", "playlist", "document"].includes(state.createKind) ? state.createKind : "video";
+    const counts = await countMine();
+    pane.innerHTML = `
+      <div class="vs-kindbar" role="tablist" aria-label="${esc(t("vid.createKind"))}">
+        ${[
+          ["video", t("vid.kind.video"), counts.videos],
+          ["playlist", t("vid.kind.playlist"), counts.playlists],
+          ["document", t("doc.tab"), counts.documents],
+        ]
+          .map(
+            ([k, label, n]) =>
+              `<button type="button" role="tab" class="follow-tab${k === kind ? " active" : ""}" data-ck="${k}">${esc(label)}<span class="vs-count-pill">${V.fmtNum(n)}</span></button>`
+          )
+          .join("")}
+      </div>
+      <div id="vs-create-body"></div>`;
+    pane.querySelectorAll("[data-ck]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          state.createKind = b.dataset.ck;
+          drawCreate(pane);
+        })
+    );
+    const body = pane.querySelector("#vs-create-body");
+    if (kind === "document") {
+      if (window.CineAuraDocs) window.CineAuraDocs.renderUpload(body, { member: state.member });
+      else body.innerHTML = `<p class="empty">⚠ ${esc(t("doc.loadFail"))}</p>`;
+      return;
+    }
+    if (kind === "playlist") return drawPlaylistCreate(body);
+    body.id = "vs-pane-inner";
+    return drawVideoCreate(body);
+  }
+
+  // Counts for the kind bars — the same numbers in Create and Manage.
+  async function countMine() {
+    const id = encodeURIComponent(me());
+    const [vids, docs, pls] = await Promise.all([
+      C.supabaseRequest(`/rest/v1/content?owner_id=eq.${id}&select=content_id`),
+      C.supabaseRequest(`/rest/v1/community_documents?member_id=eq.${id}&select=id`),
+      C.supabaseRequest(`/rest/v1/playlists?owner_id=eq.${id}&select=playlist_id`),
+    ]);
+    return {
+      videos: vids.ok && Array.isArray(vids.data) ? vids.data.length : 0,
+      documents: docs.ok && Array.isArray(docs.data) ? docs.data.length : 0,
+      playlists: pls.ok && Array.isArray(pls.data) ? pls.data.length : 0,
+    };
+  }
+
+  // A playlist straight from the studio: name, description, type, visibility.
+  function drawPlaylistCreate(box) {
+    box.innerHTML = `
+      <form class="vs-create stack" id="vs-pl-form" novalidate>
+        <label class="field-label" for="vs-pl-name">${esc(t("dash.listName"))}</label>
+        <input id="vs-pl-name" maxlength="120" required />
+        <label class="field-label" for="vs-pl-desc">${esc(t("dash.descReq"))}</label>
+        <textarea id="vs-pl-desc" rows="3" maxlength="600" required></textarea>
+        <label class="field-label" for="vs-pl-type">${esc(t("common.type"))}</label>
+        <select id="vs-pl-type"><option value="movie">${esc(t("common.movies"))}</option><option value="tv">${esc(t("common.series"))}</option></select>
+        <label class="field-label" for="vs-pl-vis">${esc(t("pm.visibility"))}</label>
+        <select id="vs-pl-vis">
+          <option value="public">${esc(t("pm.vis.public"))}</option>
+          <option value="exclusive">${esc(t("pm.vis.exclusive"))}</option>
+          <option value="private">${esc(t("pm.vis.private"))}</option>
+        </select>
+        <button class="btn btn-primary" id="vs-pl-save" type="submit">${esc(t("dash.createList"))}</button>
+      </form>`;
+    box.querySelector("#vs-pl-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const name = box.querySelector("#vs-pl-name").value.trim();
+      const description = box.querySelector("#vs-pl-desc").value.trim();
+      if (!name) return C.toast(t("dash.nameList"));
+      if (!description) return C.toast(t("dash.writeDesc"));
+      const btn = box.querySelector("#vs-pl-save");
+      btn.disabled = true;
+      const payload = {
+        playlist_id: `IDP${Math.floor(100000000 + Math.random() * 900000000)}`,
+        name,
+        description,
+        owner_username: state.member?.username || "",
+        owner_id: me(),
+        media_type: box.querySelector("#vs-pl-type").value,
+        kind: "custom",
+        visibility: box.querySelector("#vs-pl-vis").value,
+      };
+      const res = await C.supabaseRequest("/rest/v1/playlists", { method: "POST", body: JSON.stringify(payload) });
+      btn.disabled = false;
+      if (!res.ok) return C.toast(t("dash.listFail"));
+      C.toast(t("dash.listCreated"));
+      state.playlists = null; // the manage bar reads it again
+      drawCreate(box.closest("#vs-pane") || box);
+    };
+  }
+
+  async function drawVideoCreate(pane) {
     const d = state.draft || (state.draft = blankDraft());
     /* Landing from content.html?yt=… — its "Import this video" button left the
        link for the form: the import offer stands by it, one click fills the
@@ -907,6 +1011,45 @@
     </tr>`;
   }
 
+  // Manage › Video playlists: the lists the member owns, with their item counts.
+  async function drawPlaylistManage(box, sort) {
+    box.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
+    const p = await loadPlaylists(true);
+    if (state.tab !== "manage") return;
+    if (!p.length) {
+      box.innerHTML = `<div class="vs-empty"><p class="empty">${esc(t("dash.noLists"))}</p>
+        <button class="btn btn-sm btn-primary" type="button" data-pl-new>${esc(t("dash.createList"))}</button></div>`;
+      box.querySelector("[data-pl-new]").onclick = () => ((state.createKind = "playlist"), show("create"));
+      return;
+    }
+    let counts = {};
+    try {
+      const ids = p.map((x) => encodeURIComponent(x.playlist_id)).join(",");
+      const ci = ids ? await C.supabaseRequest(`/rest/v1/playlist_items?playlist_id=in.(${ids})&select=playlist_id`) : null;
+      (ci?.ok && Array.isArray(ci.data) ? ci.data : []).forEach((r) => {
+        counts[r.playlist_id] = (counts[r.playlist_id] || 0) + 1;
+      });
+    } catch {
+      /* counts stay empty, the list still works */
+    }
+    const rows = p.slice().sort((a, b) => {
+      if (sort === "oldest") return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+      if (sort === "views") return Number(b.viewers || 0) - Number(a.viewers || 0);
+      return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    });
+    box.innerHTML = rows
+      .map(
+        (pl) => `<article class="glass vs-mrow">
+          <span class="vs-mrow-main">
+            <strong>${esc(pl.name || pl.playlist_id)}</strong>
+            <span class="muted">${esc(pl.media_type === "tv" ? t("common.series") : t("common.movies"))} · ${esc(t("pm.vis." + (pl.visibility || "public")))} · ${counts[pl.playlist_id] || 0} ${esc(t("dash.colItems"))}</span>
+          </span>
+          <a class="btn btn-sm btn-ghost" href="./playlist.html?ID=${encodeURIComponent(pl.playlist_id)}">${esc(t("manage.open"))}</a>
+        </article>`
+      )
+      .join("");
+  }
+
   async function drawManage(pane) {
     clearTimers();
     pane.innerHTML = `<p class="muted">${esc(t("common.loading"))}</p>`;
@@ -917,13 +1060,62 @@
       return;
     }
     const rows = Array.isArray(res.data) ? res.data : [];
+    const kind = MGMT.includes(state.mgmtKind) ? state.mgmtKind : "videos";
+    const sort = SORTS.includes(state.mgmtSort) ? state.mgmtSort : "newest";
+    const counts = await countMine();
+    counts.videos = rows.length;
+    const head = `
+      <div class="vs-mgmt-head">
+        <div class="vs-kindbar" role="tablist" aria-label="${esc(t("vid.manageKind"))}">
+          ${[
+            ["videos", t("vid.kind.videos"), counts.videos],
+            ["documents", t("doc.tab"), counts.documents],
+            ["playlists", t("vid.kind.playlists"), counts.playlists],
+          ]
+            .map(
+              ([k, label, n]) =>
+                `<button type="button" role="tab" class="follow-tab${k === kind ? " active" : ""}" data-mk="${k}">${esc(label)}<span class="vs-count-pill">${V.fmtNum(n)}</span></button>`
+            )
+            .join("")}
+        </div>
+        <label class="vs-sort"><span class="muted">${esc(t("vid.sortBy"))}</span>
+          <select id="vs-sort">
+            ${SORTS.map((k) => `<option value="${k}"${k === sort ? " selected" : ""}>${esc(t("vid.sort." + k))}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div id="vs-mgmt-body"></div>`;
+    const wireHead = () => {
+      pane.querySelectorAll("[data-mk]").forEach(
+        (b) => (b.onclick = () => ((state.mgmtKind = b.dataset.mk), drawManage(pane)))
+      );
+      const sel = pane.querySelector("#vs-sort");
+      if (sel) sel.onchange = () => ((state.mgmtSort = sel.value), drawManage(pane));
+    };
+    if (kind === "documents") {
+      pane.innerHTML = head;
+      wireHead();
+      const body = pane.querySelector("#vs-mgmt-body");
+      if (window.CineAuraDocs) window.CineAuraDocs.renderManage(body, me(), { sort });
+      else body.innerHTML = `<p class="empty">⚠ ${esc(t("doc.loadFail"))}</p>`;
+      return;
+    }
+    if (kind === "playlists") {
+      pane.innerHTML = head;
+      wireHead();
+      drawPlaylistManage(pane.querySelector("#vs-mgmt-body"), sort);
+      return;
+    }
     if (!rows.length) {
-      pane.innerHTML = `<div class="vs-empty"><p class="empty">${esc(t("vid.noneYet"))}</p>
+      pane.innerHTML =
+        head +
+        `<div class="vs-empty" id="vs-mgmt-body"><p class="empty">${esc(t("vid.noneYet"))}</p>
         <button class="btn btn-sm btn-primary" type="button" data-go-create>${esc(t("vid.createFirst"))}</button></div>`;
+      wireHead();
       pane.querySelector("[data-go-create]").onclick = () => show("create");
       return;
     }
-    pane.innerHTML = `
+    const vTable = `
       <p class="muted vs-count">${esc(t("vid.mgCount", { n: V.fmtNum(rows.length) }))}</p>
       <div class="vs-table-wrap">
         <table class="table vs-table vs-table--manage">
@@ -941,6 +1133,8 @@
           <tbody>${rows.map(manageRow).join("")}</tbody>
         </table>
       </div>`;
+    pane.innerHTML = head + vTable;
+    wireHead();
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
     // scheduled videos count down in the list too
     if (rows.some((r) => r.scheduled)) {

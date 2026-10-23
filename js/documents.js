@@ -456,13 +456,16 @@
   }
 
   /* ---------- Studio › Manage content › Documents --------------------------- */
-  async function renderManage(box, memberId) {
+  async function renderManage(box, memberId, opts = {}) {
     const me = meId();
     const res = await req(
       `/rest/v1/community_documents?member_id=eq.${encodeURIComponent(memberId)}&select=*&order=created_at.desc&limit=200`
     );
     if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${esc(t("doc.loadFail"))}</p>`);
-    const rows = Array.isArray(res.data) ? res.data : [];
+    let rows = Array.isArray(res.data) ? res.data : [];
+    // the studio's Sort by drives this list too (newest / oldest / views)
+    if (opts.sort === "oldest") rows = rows.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    if (opts.sort === "views") rows = rows.slice().sort((a, b) => Number(b.views || 0) - Number(a.views || 0));
     if (!rows.length) {
       box.innerHTML = `<p class="empty">${esc(t("doc.noneMine"))}
         <button class="btn btn-sm btn-primary" type="button" id="doc-goto-create">${esc(t("doc.createOne"))}</button></p>`;
@@ -505,7 +508,7 @@
           }
           await removeFile(row.storage_path || b.dataset.path);
           C().toast(t("manage.delOk"));
-          renderManage(box, memberId);
+          renderManage(box, memberId, opts);
         })
     );
   }

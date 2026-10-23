@@ -5389,5 +5389,16 @@
  "Report sent to the moderators.": "Signalement envoyé aux modérateurs.",
  "You have not uploaded a document yet.": "Vous n'avez encore envoyé aucun document.",
  "Upload a document": "Envoyer un document",
- "{n} of {max} documents used. Deleting removes the row and the file.": "{n} sur {max} documents utilisés. La suppression retire la ligne et le fichier."
+ "{n} of {max} documents used. Deleting removes the row and the file.": "{n} sur {max} documents utilisés. La suppression retire la ligne et le fichier.",
+ "vid.createKind": "Que voulez-vous créer ?",
+ "vid.manageKind": "Type de contenu",
+ "vid.kind.video": "Vidéo",
+ "vid.kind.videos": "Vidéos",
+ "vid.kind.playlist": "Liste de lecture",
+ "vid.kind.playlists": "Listes de lecture",
+ "vid.sortBy": "Trier par",
+ "vid.sort.newest": "Plus récent",
+ "vid.sort.oldest": "Plus ancien",
+ "vid.sort.views": "Plus vus",
+ "What do you want to create?": "Que voulez-vous créer ?"
 };

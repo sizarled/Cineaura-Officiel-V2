@@ -5794,6 +5794,13 @@
     "doc.noneMine": "You have not uploaded a document yet.",
     "doc.createOne": "Upload a document",
     "doc.manageNote": "{n} of {max} documents used. Deleting removes the row and the file.",
+    "vid.createKind": "What do you want to create?",
+    "vid.manageKind": "Content type",
+    "vid.kind.video": "Video",
+    "vid.kind.playlist": "Video playlist",
+    "vid.kind.playlists": "Video playlists",
+    "vid.sort.newest": "Newest",
+    "vid.sort.oldest": "Oldest",
 
   };
 

@@ -270,6 +270,19 @@ has("documents: Your content tab", pfd, '"all", "videos", "articles", "documents
 has("documents: scripts and styles shipped", read("content.html") + read("profile.html"), "js/documents.js");
 has("documents: night styles", read("css/documents.css"), ".doc-frame");
 
+// ---------------- Studio: videos + playlists + documents together (2026-10-23) ---
+const cs2 = read("js/content-studio.js");
+has("studio: three kinds in create", cs2, '["video", "playlist", "document"]');
+has("studio: three kinds in manage", cs2, 'const MGMT = ["videos", "documents", "playlists"];');
+has("studio: sort options", cs2, 'const SORTS = ["newest", "oldest", "views"];');
+has("studio: counts come from real rows", cs2, "const [vids, docs, pls] = await Promise.all([");
+has("studio: document upload embedded in create", cs2, "window.CineAuraDocs.renderUpload(body, { member: state.member })");
+has("studio: document manager embedded with the sort", cs2, "window.CineAuraDocs.renderManage(body, me(), { sort })");
+has("studio: playlists are created in place", cs2, 'playlist_id: `IDP${Math.floor(100000000 + Math.random() * 900000000)}`');
+has("studio: playlist manager lists owned lists", cs2, "async function drawPlaylistManage(box, sort)");
+has("studio: videos table kept as-is", cs2, 'class="table vs-table vs-table--manage"');
+has("documents: manager honours the studio sort", dcm, 'if (opts.sort === "views") rows = rows.slice().sort((a, b) => Number(b.views || 0) - Number(a.views || 0));');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

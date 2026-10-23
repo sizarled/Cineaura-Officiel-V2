@@ -1149,3 +1149,44 @@ html[dir="rtl"] .pc-back svg { transform: scaleX(-1); }
 .vw-ad .vw-ad-txt { margin: 0; flex: 1 1 260px; color: var(--muted); font-size: 13.5px; }
 .vw-ad .vw-ad-btn { flex: none; margin-inline-start: auto; }
 section.glass.vw-desc + .vw-ad { margin-top: 14px; }
+
+/* Studio › Create & Manage: the type bars with live counts, and Sort by */
+.vs-kindbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.vs-count-pill {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 17px;
+  background: rgba(255, 255, 255, .12);
+}
+.follow-tab.active .vs-count-pill { background: rgba(0, 0, 0, .22); }
+.vs-mgmt-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.vs-sort { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.vs-sort select { padding: 6px 10px; border-radius: 8px; }
+.vs-mrow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.vs-mrow-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+@media (max-width: 640px) {
+  .vs-mgmt-head { align-items: stretch; }
+  .vs-sort { justify-content: space-between; }
+}

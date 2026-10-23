@@ -5389,5 +5389,16 @@
  "Report sent to the moderators.": "Melding naar de moderators verzonden.",
  "You have not uploaded a document yet.": "Je hebt nog geen document geüpload.",
  "Upload a document": "Document uploaden",
- "{n} of {max} documents used. Deleting removes the row and the file.": "{n} van {max} documenten gebruikt. Verwijderen wist de rij en het bestand."
+ "{n} of {max} documents used. Deleting removes the row and the file.": "{n} van {max} documenten gebruikt. Verwijderen wist de rij en het bestand.",
+ "vid.createKind": "Wat wil je maken?",
+ "vid.manageKind": "Inhoudstype",
+ "vid.kind.video": "Video",
+ "vid.kind.videos": "Video's",
+ "vid.kind.playlist": "Afspeellijst",
+ "vid.kind.playlists": "Afspeellijsten",
+ "vid.sortBy": "Sorteren op",
+ "vid.sort.newest": "Nieuwste",
+ "vid.sort.oldest": "Oudste",
+ "vid.sort.views": "Meest bekeken",
+ "What do you want to create?": "Wat wil je maken?"
 };
