@@ -253,12 +253,12 @@ has("documents: extension allow-list covers office + archives", dcm, '["epub", "
 has("documents: real bytes are sniffed, not just the name", dcm, "if (!agrees(ext, sig)) return C().toast(t(\"doc.fakeFile\", { ext }));");
 has("documents: magic signatures (PDF / ZIP / OLE)", dcm, 'ascii(head, 0, 4) === "%PDF"');
 has("documents: size and per-member caps", dcm, "const MAX_BYTES = 25 * 1024 * 1024;");
-has("documents: private bucket, signed links only", dcm, 'const BUCKET = "documents";');
+has("documents: private bucket, signed links only", dcm, 'const PRIVATE_BUCKET = "documents";');
 has("documents: signed link expires", dcm, "const SIGN_SECONDS = 60;");
 has("documents: pdf previews, nothing else executes", dcm, 'const CAN_PREVIEW = (kind) => Boolean((FORMATS.find((f) => f.kind === kind) || {}).preview);');
 has("documents: private rows gated at read time", dcm, "if (!canSee(row, me))");
 has("documents: delete re-reads the owner", dcm, "if (!row || row.member_id !== me) {");
-has("documents: orphan file removed when the row fails", dcm, "await removeFile(path); // never leave an orphan file behind");
+has("documents: orphan file removed when the row fails", dcm, "await removeFile(path, bucket); // never leave an orphan file behind");
 const cjd = read("js/community.js");
 has("documents: content.html router accepts ?document=", cjd, 'const routes = ["video", "article", "question", "answer", "document"];');
 has("documents: library tab added", cjd, '["documents", t("doc.tab")]');
@@ -307,6 +307,28 @@ has("article editor: panel has an Articles tab", pna, '["articles", t("pa.ct.art
 has("article editor: panel writes with the same editor", pna, '<a class="btn btn-sm btn-primary" href="./article.html">${esc(t("pa.ct.newArticle"))}</a>');
 has("article editor: panel approval leaves a trace", pna, 'body: JSON.stringify({ article_id: Number(id), reviewer_id: ctx.state.staff?.member_id || "", decision: approve ? "approved" : "rejected" })');
 has("article editor: page ships the module and styles", read("article.html"), "js/article-editor.js");
+
+// ---------------- Documents are scanned before they are stored (2026-10-23) ----
+const vtfn = read("supabase/functions/vt-scan/index.ts");
+has("scan: the key comes from the function environment", vtfn, 'Deno.env.get("VIRUSTOTAL_API_KEY")');
+has("scan: hash lookup first, upload only when unknown", vtfn, "const known = await hashLookup(sha256);");
+has("scan: malicious and suspicious block", vtfn, 'if (Number(stats.malicious || 0) > 0) return "malicious";');
+has("scan: a new file is uploaded and polled", vtfn, "async function uploadAndAnalyse(file: File)");
+has("scan: the endpoint answers with a verdict", vtfn, "return json({\n    verdict: scan.stats ? verdictOf(scan.stats) : \"unknown\",");
+ok("scan: no key is written into the site or the function", !/[a-f0-9]{64}/.test(dcm) && !/[a-f0-9]{64}/.test(vtfn));
+has("scan: the browser asks the function, never VirusTotal", dcm, "`${C().SUPABASE_URL}/functions/v1/${SCAN_FN}`");
+has("scan: upload waits for a clean verdict", dcm, "if (!scanClean(scan)) {");
+{
+  const atScan = dcm.indexOf("const scan = await vtScan(file, sha256);");
+  const atPut = dcm.indexOf("const okPut = await putFile(");
+  ok("scan: the scan runs before putFile", atScan > 0 && atPut > atScan);
+}
+has("scan: fail-closed wording for an undeployed scanner", dcm, 'if (r.verdict === "not_deployed") return t("doc.scan.notDeployed");');
+has("scan: public documents go to the public Documents folder", dcm, 'const folder = bucket === PUBLIC_BUCKET ? `${PUBLIC_FOLDER}/${me.member_id}` : me.member_id;');
+has("scan: private and exclusive stay in the private bucket", dcm, 'const bucket = vis === "public" ? PUBLIC_BUCKET : PRIVATE_BUCKET;');
+has("scan: the verdict is stored with the document", dcm, "scan_status: scan.verdict,");
+has("scan: sql refuses anything that is not clean", read("sql/community_documents_scan.sql"), "check (scan_status = 'clean')");
+has("scan: deployment note ships with the function", read("supabase/functions/vt-scan/DEPLOY.md"), "supabase secrets set VIRUSTOTAL_API_KEY");
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");

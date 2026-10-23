@@ -19,10 +19,17 @@
   const req = (...args) => C().supabaseRequest(...args);
   const meId = () => (C() && C().getSession ? C().getSession()?.member_id || "" : "");
 
-  const BUCKET = "documents";
-  const MAX_BYTES = 25 * 1024 * 1024; // one document
+  // Public documents live in the public `source` bucket under Documents/ (where
+  // the project keeps them). Private and exclusive ones go to the private
+  // `documents` bucket, because a public URL cannot be un-shared.
+  const PUBLIC_BUCKET = "source";
+  const PRIVATE_BUCKET = "documents";
+  const PUBLIC_FOLDER = "Documents";
+  const BUCKET = (rowOrName) => (typeof rowOrName === "string" ? rowOrName : rowOrName?.bucket) || PRIVATE_BUCKET;
+  const MAX_BYTES = 25 * 1024 * 1024; // one document (VirusTotal accepts 32 MB)
   const MAX_PER_MEMBER = 100; // documents a member may hold
   const SIGN_SECONDS = 60; // link lifetime for a download / preview
+  const SCAN_FN = "vt-scan"; // the edge function that holds the VirusTotal key
 
   // One catalogue for the picker, the validator and the badges. `exts` is the
   // allow-list; `kind` decides the badge and whether a preview makes sense.
@@ -82,8 +89,10 @@
   }
 
   /* ---------- storage ------------------------------------------------------- */
-  const objectUrl = (path) => `${C().SUPABASE_URL}/storage/v1/object/${BUCKET}/${String(path).split("/").map(encodeURIComponent).join("/")}`;
-  const signUrl = () => `${C().SUPABASE_URL}/storage/v1/object/sign/${BUCKET}`;
+  const encPath = (path) => String(path).split("/").map(encodeURIComponent).join("/");
+  const objectUrl = (path, bucket = PRIVATE_BUCKET) => `${C().SUPABASE_URL}/storage/v1/object/${bucket}/${encPath(path)}`;
+  const publicUrl = (path, bucket = PUBLIC_BUCKET) => `${C().SUPABASE_URL}/storage/v1/object/public/${bucket}/${encPath(path)}`;
+  const signUrl = (bucket = PRIVATE_BUCKET) => `${C().SUPABASE_URL}/storage/v1/object/sign/${bucket}`;
   const authHeaders = (extra) => ({
     apikey: C().SUPABASE_KEY,
     Authorization: `Bearer ${C().SUPABASE_KEY}`,
@@ -91,8 +100,11 @@
   });
 
   // A one-minute link, minted only after the caller was allowed to see the row.
+  // A public-bucket document is already public by design, so it needs no mint.
   async function signedLink(row) {
-    const res = await fetch(`${signUrl()}/${String(row.storage_path).split("/").map(encodeURIComponent).join("/")}`, {
+    const bucket = BUCKET(row);
+    if (bucket === PUBLIC_BUCKET) return publicUrl(row.storage_path, bucket);
+    const res = await fetch(`${signUrl(bucket)}/${encPath(row.storage_path)}`, {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ expiresIn: SIGN_SECONDS }),
@@ -109,8 +121,8 @@
     return signed.startsWith("http") ? signed : `${C().SUPABASE_URL}/storage/v1${signed}`;
   }
 
-  async function putFile(path, file, mime) {
-    const res = await fetch(objectUrl(path), {
+  async function putFile(path, file, mime, bucket = PRIVATE_BUCKET) {
+    const res = await fetch(objectUrl(path, bucket), {
       method: "POST",
       headers: authHeaders({
         "Content-Type": mime || "application/octet-stream",
@@ -123,12 +135,67 @@
     return res.ok;
   }
 
-  async function removeFile(path) {
+  async function removeFile(path, bucket = PRIVATE_BUCKET) {
     try {
-      await fetch(objectUrl(path), { method: "DELETE", headers: authHeaders() });
+      await fetch(objectUrl(path, bucket), { method: "DELETE", headers: authHeaders() });
     } catch {
       /* the row is gone either way */
     }
+  }
+
+  /* ---------- VirusTotal gate ----------------------------------------------
+     The key never reaches the browser: it lives as a Supabase secret and the
+     `vt-scan` function calls the API (see supabase/functions/vt-scan/DEPLOY.md).
+
+     Fail-closed on purpose — a file that could not be proven clean is not
+     stored. That is the whole point of scanning before an upload. */
+  async function sha256Of(file) {
+    try {
+      const buf = await file.arrayBuffer();
+      const digest = await crypto.subtle.digest("SHA-256", buf);
+      return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+      return "";
+    }
+  }
+
+  // -> { verdict, stats, sha256, reason }
+  async function vtScan(file, sha256) {
+    const form = new FormData();
+    form.append("file", file, file.name || "document");
+    if (sha256) form.append("sha256", sha256);
+    let res;
+    try {
+      res = await fetch(`${C().SUPABASE_URL}/functions/v1/${SCAN_FN}`, {
+        method: "POST",
+        headers: { apikey: C().SUPABASE_KEY, Authorization: `Bearer ${C().SUPABASE_KEY}` },
+        body: form,
+      });
+    } catch {
+      return { verdict: "unreachable", sha256 };
+    }
+    let body = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    // An undeployed function answers 404 with no JSON: say so plainly.
+    if (!body) return { verdict: res.status === 404 ? "not_deployed" : "unreachable", sha256 };
+    return { verdict: String(body.verdict || "error"), stats: body.stats || {}, sha256: body.sha256 || sha256, reason: body.reason };
+  }
+
+  const scanClean = (r) => r && r.verdict === "clean";
+  function scanMessage(r) {
+    if (!r) return t("doc.scan.unreachable");
+    if (r.verdict === "malicious" || r.verdict === "suspicious") {
+      const n = Number(r.stats?.malicious || 0) + Number(r.stats?.suspicious || 0);
+      return t("doc.scan.bad", { n });
+    }
+    if (r.verdict === "rate_limited") return t("doc.scan.busy");
+    if (r.verdict === "not_deployed") return t("doc.scan.notDeployed");
+    if (r.verdict === "unknown") return t("doc.scan.unknown");
+    return t("doc.scan.unreachable");
   }
 
   /* ---------- shared bits --------------------------------------------------- */
@@ -231,12 +298,28 @@
       const fill = host.querySelector("#doc-bar");
       const num = host.querySelector("#doc-n");
       bar.hidden = false;
-      fill.style.width = "35%";
-      num.textContent = "35%";
+      fill.style.width = "8%";
+      num.textContent = t("doc.scan.running");
+
+      // ── VirusTotal BEFORE anything is stored ─────────────────────────────
+      const sha256 = await sha256Of(file);
+      const scan = await vtScan(file, sha256);
+      if (!scanClean(scan)) {
+        // fail-closed: a file that cannot be proven clean is never uploaded
+        btn.disabled = false;
+        bar.hidden = true;
+        return C().toast(scanMessage(scan));
+      }
+      fill.style.width = "45%";
+      num.textContent = "45%";
 
       const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-      const path = `${me.member_id}/${stamp}.${ext}`;
-      const okPut = await putFile(path, file, file.type || "");
+      // public → the public bucket (Documents/…, as the project keeps them);
+      // private / exclusive → the private bucket, so only signed links open them
+      const bucket = vis === "public" ? PUBLIC_BUCKET : PRIVATE_BUCKET;
+      const folder = bucket === PUBLIC_BUCKET ? `${PUBLIC_FOLDER}/${me.member_id}` : me.member_id;
+      const path = `${folder}/${stamp}.${ext}`;
+      const okPut = await putFile(path, file, file.type || "", bucket);
       if (!okPut) {
         btn.disabled = false;
         bar.hidden = true;
@@ -257,11 +340,17 @@
           mime: file.type || "",
           size_bytes: file.size,
           storage_path: path,
+          bucket,
           visibility: vis,
+          sha256: scan.sha256 || sha256,
+          scan_status: scan.verdict,
+          scan_engine: "virustotal",
+          scan_stats: scan.stats || {},
+          scanned_at: new Date().toISOString(),
         }),
       });
       if (!row.ok) {
-        await removeFile(path); // never leave an orphan file behind
+        await removeFile(path, bucket); // never leave an orphan file behind
         btn.disabled = false;
         bar.hidden = true;
         return C().toast(t("doc.saveFail"));
@@ -361,6 +450,7 @@
           ${badge(row.kind)}
           <h2 class="doc-title">${esc(row.title)}</h2>
           <p class="muted">${esc(t("doc.meta", { kind: KIND_LABEL(row.kind), size: sizeText(row.size_bytes), ext: (row.ext || "").toUpperCase(), vis: visLabel(row.visibility) }))}</p>
+          ${row.scan_status ? `<p class="doc-scan ${row.scan_status === "clean" ? "ok" : "warn"}">🛡 ${esc(t("doc.scan.label", { status: t("doc.scan." + row.scan_status), engine: row.scan_engine || "VirusTotal" }))}</p>` : ""}
           <div class="doc-author">
             <img class="doc-avatar" src="" alt="" loading="lazy"
                  data-avatar-for="${esc(row.member_id)}"
@@ -495,7 +585,7 @@
           if (!confirm(t("manage.confirm"))) return;
           b.disabled = true;
           // ownership re-read at execution time, from the row itself
-          const chk = await req(`/rest/v1/community_documents?id=eq.${encodeURIComponent(b.dataset.docdel)}&select=member_id,storage_path`);
+          const chk = await req(`/rest/v1/community_documents?id=eq.${encodeURIComponent(b.dataset.docdel)}&select=member_id,storage_path,bucket`);
           const row = chk.ok && Array.isArray(chk.data) ? chk.data[0] : null;
           if (!row || row.member_id !== me) {
             b.disabled = false;
@@ -506,7 +596,7 @@
             b.disabled = false;
             return C().toast(t("manage.delFail"));
           }
-          await removeFile(row.storage_path || b.dataset.path);
+          await removeFile(row.storage_path || b.dataset.path, BUCKET(row));
           C().toast(t("manage.delOk"));
           renderManage(box, memberId, opts);
         })

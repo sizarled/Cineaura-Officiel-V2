@@ -5928,6 +5928,18 @@
     "pa.ct.reviewFail": "The decision could not be saved.",
     "pa.ct.approved": "Article approved.",
     "pa.ct.rejected": "Article returned to the author.",
+    "doc.scan.running": "Scanning with VirusTotal…",
+    "doc.scan.bad": "VirusTotal found {n} detection(s): the file was not uploaded.",
+    "doc.scan.busy": "The scanning service is busy right now. Try again in a minute.",
+    "doc.scan.notDeployed": "The file scanner is not deployed yet, so nothing was uploaded.",
+    "doc.scan.unknown": "VirusTotal has no verdict for this file yet. Try again shortly.",
+    "doc.scan.unreachable": "The file could not be verified. Nothing was uploaded.",
+    "doc.scan.clean": "clean",
+    "doc.scan.pending": "pending",
+    "doc.scan.malicious": "malicious",
+    "doc.scan.suspicious": "suspicious",
+    "doc.scan.unknownStatus": "unverified",
+    "doc.scan.label": "{engine}: {status}",
 
   };
 
