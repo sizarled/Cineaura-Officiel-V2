@@ -89,7 +89,7 @@ has("dashboard nav: views->analytics->reports->history", dj, '["dash.grp.perf", 
 has("dashboard nav: earnings group", dj, '["dash.grp.earn", ["withdraw", "prizes"]]');
 has("dashboard settings: profile-pointer note", dj, 'dash.settings.profNote');
 has("dashboard settings: links profile settings deep", dj, './profile.html?section=settings');
-has("dashboard nav: account group last", dj, '["dash.grp.account", ["settings"]]');
+has("dashboard nav: account group last", dj, '["dash.grp.account", ["customize", "settings"]]');
 has("dashboard nav: SECTIONS derived from groups", dj, "SECTIONS = NAV_GROUPS.flatMap((g) => g[1])");
 has("dashboard nav: group headings render", dj, '<p class="side-grp" role="presentation">');
 has("dashboard nav: heading styling", read("css/dashboard.css"), ".side-nav .side-grp {");
@@ -344,6 +344,29 @@ has("dashboard: overview counts what was published", dj, 'ovc("docok", docs ? do
 has("dashboard: page ships the documents module", read("dashboard.html"), '<script src="js/documents.js"></script>');
 has("dashboard: page ships the documents styles", read("dashboard.html"), '<link rel="stylesheet" href="css/documents.css" />');
 has("documents: the host can refresh after an upload", dcm, "ctx.onDone?.(created);");
+
+// ---------------- Site customization follows the new sections (2026-10-23) ---
+const lay = read("js/layouts.js");
+has("customize: the dashboard order knows the new sections", lay, '["overview","level","points","upload","articles","documents","links","codes","playlists","iptv","views","analytics","reports","history","withdraw","prizes","customize","settings"]');
+has("customize: the profile order knows market and community", lay, '["home","market","community","create","content","posts","messages","search","following","blocked","settings"]');
+has("customize: a saved order gains missing sections beside their neighbours", lay, "function normalizeOrder(page, arr)");
+has("customize: old configs are upgraded on load", lay, "cfg.pages[page]=normalizeOrder(page, cfg.pages[page]);");
+has("customize: pins stay on the homepage", lay, 'if(detectPage()!=="home") return;');
+has("customize: the engine exposes the bases and the normaliser", lay, "BASES, normalizeOrder, getStyle, loadConfig");
+const cus = read("js/customizer.js");
+has("customize: saved colours survive a reload", cus, "function applySavedStyle(){");
+has("customize: it opens on the tab that was asked for", cus, "if(opts && PAGE_DEFS[opts.page]) activePage=opts.page;");
+has("customize: the reorder list speaks the sidebar's language", cus, 'if(page==="dashboard") tries.push("dash.nav."+id);');
+has("customize: icons reach the sidebars", cus, 'document.querySelectorAll(`#dash-root .side-nav [data-section="${sec}"], #prof-root nav [data-sec="${sec}"]`)');
+has("customize: icons are re-applied when a sidebar re-renders", cus, "function watchNavIcons(){");
+has("customize: the icon list includes the new sections", cus, 'labelFor("dashboard", id)');
+has("customize: and the profile ones", cus, 'labelFor("profile", id)');
+ok("customize: the old settings observer is gone", !cus.includes("attachDashboardButtons"));
+has("dashboard: customization has its own section", read("js/dashboard.js"), 'customize: viewCustomize,');
+has("dashboard: the four doors open the one panel", read("js/dashboard.js"), 'window.CineAuraCustomizer.open({ page: page || "dashboard", tab: tab || "templates" });');
+has("dashboard: reset goes through the engine", read("js/dashboard.js"), "const c = L.resetToDefault();");
+has("nav icons: the new sections have their own", read("js/common.js"), "articles: '<path d=\"M5 3.5h9.5L19 8v12.5H5z\"/>");
+has("nav icons: customization too", read("js/common.js"), "customize: '<path d=\"M4 6.5h6M14 6.5h6M4 12h10M18 12h2M4 17.5h3M11 17.5h9\"/>");
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");

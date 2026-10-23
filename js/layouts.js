@@ -18,8 +18,30 @@
   const CONTENT_BASE = ["vw-search","vw-main","vw-side"];
   // market: mkt-hero, mkt-layout (contains mkt-side + mkt-main)
   const MARKET_BASE = ["mkt-hero","mkt-layout"];
-  const DASH_BASE = ["overview","points","withdraw","playlists","links","reports","codes","iptv","views","analytics","prizes","history","settings"];
-  const PROFILE_BASE = ["home","create","posts","content","messages","search","following","blocked","settings"];
+  // dashboard: the sidebar order equals NAV_GROUPS in js/dashboard.js — including
+  // the sections added with the article editor and the documents (2026-10-23)
+  const DASH_BASE = ["overview","level","points","upload","articles","documents","links","codes","playlists","iptv","views","analytics","reports","history","withdraw","prizes","customize","settings"];
+  // profile: NAV_SECTIONS in js/profile.js (Market and Community joined the column)
+  const PROFILE_BASE = ["home","market","community","create","content","posts","messages","search","following","blocked","settings"];
+
+  const BASES = { home:HOME_BASE, watch:WATCH_BASE, content:CONTENT_BASE, market:MARKET_BASE, dashboard:DASH_BASE, profile:PROFILE_BASE };
+
+  /* Insert the sections a saved order is missing, next to the neighbours the
+     site gives them — not at the end. A config saved before Articles and
+     Documents existed therefore keeps its taste and gains them where they
+     belong, and the same rule keeps every style preset complete. */
+  function normalizeOrder(page, arr){
+    const base=BASES[page]||[];
+    const list=Array.isArray(arr)? arr.slice() : [];
+    const kept=list.filter((id)=> base.includes(id) || (typeof id==="string" && id.startsWith("shortcut-")));
+    base.forEach((id, i)=>{
+      if(kept.includes(id)) return;
+      let pos=-1;
+      for(let j=i-1;j>=0;j--){ const at=kept.indexOf(base[j]); if(at>=0){ pos=at; break; } }
+      if(pos<0) kept.unshift(id); else kept.splice(pos+1,0,id);
+    });
+    return kept;
+  }
 
   // Presets per style — each "mimics" that platform/system's section priority
   const PRESETS = {
@@ -41,24 +63,11 @@
 
   function getStyle(){ try{const s=localStorage.getItem("cineaura_style"); if(VALID_STYLES.includes(s)) return s;}catch{} return "default"; }
   function mergeMissing(cfg){
-    // Auto-upgrade saved config when new sections (e.g. live-updates) are added
-    const bases={ home:HOME_BASE, watch:WATCH_BASE, content:CONTENT_BASE, market:MARKET_BASE, dashboard:DASH_BASE, profile:PROFILE_BASE };
-    for(const page of Object.keys(bases)){
+    // Auto-upgrade saved config when new sections (Articles, Documents, …) appear
+    if(!cfg || !cfg.pages) return cfg;
+    for(const page of Object.keys(BASES)){
       if(!cfg.pages[page] || !Array.isArray(cfg.pages[page])) continue;
-      const base=bases[page];
-      const missing=base.filter(id=> !cfg.pages[page].includes(id));
-      if(missing.length){
-        // insert new sections after first known position: trust for home, otherwise append
-        for(const mid of missing){
-          if(page==='home'){
-            const trustIdx=cfg.pages.home.indexOf('trust');
-            const pos= trustIdx>=0 ? trustIdx+1 : 1;
-            cfg.pages.home.splice(pos,0,mid);
-          } else {
-            cfg.pages[page].push(mid);
-          }
-        }
-      }
+      cfg.pages[page]=normalizeOrder(page, cfg.pages[page]);
     }
     return cfg;
   }
@@ -82,7 +91,7 @@
     // fallback to preset for current style
     const st=getStyle();
     const preset=PRESETS[st]||PRESETS.default;
-    return { preset:st, pages:{ home:preset.home.slice(), watch:preset.watch.slice(), content:preset.content.slice(), market:preset.market.slice(), dashboard:preset.dashboard.slice(), profile:preset.profile.slice() }, shortcuts:{}, pins:[] };
+    return mergeMissing({ preset:st, pages:{ home:preset.home.slice(), watch:preset.watch.slice(), content:preset.content.slice(), market:preset.market.slice(), dashboard:preset.dashboard.slice(), profile:preset.profile.slice() }, shortcuts:{}, pins:[] });
   }
   function saveConfig(cfg){
     try{ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }catch{}
@@ -96,7 +105,7 @@
   function resetToPreset(styleId){
     styleId = VALID_STYLES.includes(styleId)? styleId : getStyle();
     const p=PRESETS[styleId]||PRESETS.default;
-    const cfg={ preset:styleId, pages:{ home:p.home.slice(), watch:p.watch.slice(), content:p.content.slice(), market:p.market.slice(), dashboard:p.dashboard.slice(), profile:p.profile.slice() }, shortcuts:{}, pins:[] };
+    const cfg=mergeMissing({ preset:styleId, pages:{ home:p.home.slice(), watch:p.watch.slice(), content:p.content.slice(), market:p.market.slice(), dashboard:p.dashboard.slice(), profile:p.profile.slice() }, shortcuts:{}, pins:[] });
     saveConfig(cfg);
     return cfg;
   }
@@ -479,6 +488,8 @@
   function removePin(tmdbId){ let a=getPins().filter(x=>x!==tmdbId); setPins(a); }
 
   function applyPins(pins){
+    // homepage rails only: main.page-main is also #dash-root and #prof-root
+    if(detectPage()!=="home") return;
     const main=document.querySelector("main.page-main");
     if(!main || !pins || !pins.length) return;
     let rail=document.getElementById("home-pins-rail");
@@ -574,6 +585,6 @@
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 
-  window.CineAuraLayouts={ PRESETS, HOME_BASE, WATCH_BASE, DASH_BASE, PROFILE_BASE, getStyle, loadConfig, saveConfig, resetToPreset, resetToDefault, applyAll, detectPage, getPins, setPins, addPin, removePin, VALID_STYLES };
+  window.CineAuraLayouts={ PRESETS, HOME_BASE, WATCH_BASE, CONTENT_BASE, MARKET_BASE, DASH_BASE, PROFILE_BASE, BASES, normalizeOrder, getStyle, loadConfig, saveConfig, resetToPreset, resetToDefault, applyAll, detectPage, getPins, setPins, addPin, removePin, VALID_STYLES };
 
 })();

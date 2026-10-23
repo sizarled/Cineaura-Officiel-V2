@@ -3917,6 +3917,10 @@
     accounts: '<circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
     apps: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
     staff: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><circle cx="12" cy="10.5" r="2.3"/><path d="M8.3 16.2a4.2 4.2 0 0 1 7.4 0"/>',
+    // the sections the article editor and the documents brought (2026-10-23)
+    articles: '<path d="M5 3.5h9.5L19 8v12.5H5z"/><path d="M14.5 3.5V8H19"/><path d="M8 12h8M8 15.5h8M8 8.5h3"/>',
+    documents: '<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 16h5"/>',
+    customize: '<path d="M4 6.5h6M14 6.5h6M4 12h10M18 12h2M4 17.5h3M11 17.5h9"/><circle cx="12" cy="6.5" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="17.5" r="2"/>',
   };
   NAV_ICONS.content = '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.5 9.3v5.4l4.5-2.7z"/>';
   NAV_ICONS.notifications = '<path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>';

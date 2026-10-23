@@ -374,6 +374,7 @@
       analytics: viewAnalytics,
       prizes: viewPrizes,
       history: viewHistory,
+      customize: viewCustomize,
       settings: viewSettings,
     };
     await (map[state.section] || viewOverview)(main);
@@ -3505,6 +3506,108 @@
     await load();
   }
 
+  /* ---------- Site customization: one panel, four surfaces ---------------
+     The engine is js/customizer.js + js/layouts.js (loaded by prefs.js). This
+     section is the dashboard's door to it: it shows what is customized right
+     now and opens the very same panel on the tab that was asked for — it does
+     not re-implement ordering, colours or pins. */
+  function whenCustomizer(timeout = 2500) {
+    return new Promise((resolve) => {
+      const t0 = Date.now();
+      const tick = () => {
+        if (window.CineAuraLayouts && window.CineAuraCustomizer) return resolve(true);
+        if (Date.now() - t0 > timeout) return resolve(false);
+        setTimeout(tick, 80);
+      };
+      tick();
+    });
+  }
+
+  async function viewCustomize(main) {
+    const styleName = {
+      default: "Cineaura", facebook: "Facebook", youtube: "YouTube", instagram: "Instagram",
+      netflix: "Netflix", prime: "Prime Video", appletv: "Apple TV+", win7: "Windows 7",
+      win8: "Windows 8", win10: "Windows 10", win11: "Windows 11", macos: "macOS",
+      android: "Android", ios: "iOS",
+    };
+    const card = (key, tab, icon, title, lead) => `
+      <button class="glass dash-cust-card" type="button" data-cust="${key}" data-cust-tab="${tab}">
+        <span class="dash-cust-ic" aria-hidden="true">${icon}</span>
+        <strong>${title}</strong>
+        <span class="muted">${lead}</span>
+      </button>`;
+
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.cust.eyebrow")}</p>
+      <h1>${t("dash.cust.title")}</h1>
+      <p class="muted">${t("dash.cust.lead")}</p>
+      <div class="stat-row">
+        <div class="stat"><b data-cust-stat="style">…</b><span>${t("dash.cust.style")}</span></div>
+        <div class="stat"><b data-cust-stat="preset">…</b><span>${t("dash.cust.preset")}</span></div>
+        <div class="stat"><b data-cust-stat="pins">…</b><span>${t("dash.cust.pins")}</span></div>
+        <div class="stat"><b data-cust-stat="icons">…</b><span>${t("dash.cust.icons")}</span></div>
+      </div>
+      <div class="dash-cust-grid">
+        ${card("sections", "templates", "≡", t("dash.cust.sections"), t("dash.cust.sectionsLead"))}
+        ${card("colors", "styles", "◐", t("dash.cust.colors"), t("dash.cust.colorsLead"))}
+        ${card("icons", "icons", "★", t("dash.cust.iconSet"), t("dash.cust.iconsLead"))}
+        ${card("pins", "pins", "📌", t("dash.cust.pinsTitle"), t("dash.cust.pinsLead"))}
+      </div>
+      <div class="dash-acts">
+        <button class="btn btn-primary" type="button" data-cust-open="dashboard">${t("dash.cust.open")}</button>
+        <button class="btn btn-ghost" type="button" data-cust-reset>${t("dash.cust.reset")}</button>
+      </div>
+      <p class="muted dash-cust-note" id="dash-cust-note"></p>`;
+
+    const ready = await whenCustomizer();
+    if (!main.isConnected || state.section !== "customize") return;
+    const note = main.querySelector("#dash-cust-note");
+    const set = (k, v) => {
+      const el = main.querySelector(`[data-cust-stat="${k}"]`);
+      if (el) el.textContent = String(v);
+    };
+
+    if (!ready) {
+      note.textContent = t("dash.cust.needEngine");
+      main.querySelectorAll("[data-cust], [data-cust-open], [data-cust-reset]").forEach((b) => (b.disabled = true));
+      return;
+    }
+
+    const L = window.CineAuraLayouts;
+    const cfg = L.loadConfig() || {};
+    const style = window.CineAuraCustomizer.getActiveStyle ? window.CineAuraCustomizer.getActiveStyle() : "default";
+    const pins = (L.getPins ? L.getPins() : []).length;
+    let icons = 0;
+    try {
+      icons = (JSON.parse(localStorage.getItem("cineaura_icons") || "[]") || []).length;
+    } catch {
+      icons = 0;
+    }
+    set("style", styleName[style] || style);
+    set("preset", styleName[cfg.preset] || cfg.preset || "—");
+    set("pins", pins);
+    set("icons", icons);
+
+    const open = (page, tab) => {
+      try {
+        window.CineAuraCustomizer.open({ page: page || "dashboard", tab: tab || "templates" });
+      } catch {
+        toast(t("dash.cust.needEngine"));
+      }
+    };
+    main.querySelectorAll("[data-cust]").forEach((b) => {
+      b.onclick = () => open(b.dataset.cust === "pins" ? "home" : "dashboard", b.dataset.custTab);
+    });
+    main.querySelector("[data-cust-open]").onclick = () => open("dashboard", "templates");
+    main.querySelector("[data-cust-reset]").onclick = () => {
+      const c = L.resetToDefault();
+      L.applyAll(c);
+      toast(t("dash.cust.resetDone"));
+      renderSection(); // the sidebar order may have just changed
+    };
+    note.textContent = t("dash.cust.note", { colors: cfg.customStyle ? t("dash.cust.on") : t("dash.cust.off") });
+  }
+
   async function viewHistory(main) {
     const res = await supabaseRequest(
       `/rest/v1/hestory?visitor_id=eq.${restValue(state.member.member_id)}&select=*&order=visited_at.desc`
@@ -4111,6 +4214,11 @@
             </select>
           </div>
           <div class="set-site stack">
+            <span class="sset-lbl">${t("dash.nav.customize")}</span>
+            <p class="sset-hint">${t("dash.cust.lead")}</p>
+            <button class="btn btn-sm btn-ghost" type="button" data-section="customize">${t("dash.cust.open")} →</button>
+          </div>
+          <div class="set-site stack">
             <span class="sset-lbl" id="s-style-lbl">${t("set.style")}</span>
             <p class="sset-hint">${t("set.styleHint")}</p>
             <select id="s-style">
@@ -4254,7 +4362,7 @@
     ["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]],
     ["dash.grp.perf", ["views", "analytics", "reports", "history"]],
     ["dash.grp.earn", ["withdraw", "prizes"]],
-    ["dash.grp.account", ["settings"]],
+    ["dash.grp.account", ["customize", "settings"]],
   ];
   const SECTIONS = NAV_GROUPS.flatMap((g) => g[1]);
   // dashboard.html#claims: Prizes > Prize claims (where the claim notifications lead)
