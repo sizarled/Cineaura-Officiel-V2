@@ -270,16 +270,18 @@
     return map[pl.list_key] || pl.name;
   }
 
-  // The sidebar nav: the section buttons in one order, the Panel link of the
-  // members who see it afterwards.
+  // The sidebar nav: the section buttons under their journey-group headings,
+  // the Panel link of the members who see it afterwards (end of the last group).
   function dashNavHtml() {
-    const sections = SECTIONS;
-    return [
-      ...sections.map((s) =>
-        `<button type="button" data-section="${s}" class="${state.section===s?"active":""}">${C.navIcon(s)}<span>${t("dash.nav."+s)}</span></button>`
-      ),
-      ...(state.panelVisible ? [`<a href="./panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`] : []),
-    ].join("\n            ");
+    const btn = (s) =>
+      `<button type="button" data-section="${s}" class="${state.section===s?"active":""}">${C.navIcon(s)}<span>${t("dash.nav."+s)}</span></button>`;
+    const parts = [];
+    NAV_GROUPS.forEach(([grp, list]) => {
+      parts.push(`<p class="side-grp" role="presentation">${t(grp)}</p>`);
+      list.forEach((s) => parts.push(btn(s)));
+    });
+    if (state.panelVisible) parts.push(`<a href="./panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`);
+    return parts.join("\n            ");
   }
 
   function renderShell() {
@@ -4048,7 +4050,19 @@
 
   // "points" (Earn points / Buy points / Earn prizes / Shop now, the sources and the spends) moved here from the profile;
   // "withdraw": points exchanged for money (js/withdraw.js, sql/withdrawals.sql)
-  const SECTIONS = ["overview","level","points","withdraw","playlists","links","upload","reports","codes","iptv","views","analytics","prizes","history","settings"];
+  // The sidebar groups the member journey: Main (account summary) → Content
+  // (the tools) → Performance (the numbers) → Earnings (rewards & payouts) →
+  // Account (settings, then the staff-only Panel link). Group headings render
+  // between them (hidden in the phone strip). SECTIONS is their flat union and
+  // feeds the router (dashboard.html#codes, #iptv-lists …).
+  const NAV_GROUPS = [
+    ["dash.grp.main", ["overview", "level", "points"]],
+    ["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]],
+    ["dash.grp.perf", ["views", "analytics", "reports"]],
+    ["dash.grp.earn", ["withdraw", "prizes", "history"]],
+    ["dash.grp.account", ["settings"]],
+  ];
+  const SECTIONS = NAV_GROUPS.flatMap((g) => g[1]);
   // dashboard.html#claims: Prizes > Prize claims (where the claim notifications lead)
   // dashboard.html#devices: Codes > Linked devices (named by the watch page)
   // dashboard.html#iptv-lists: IPTV > Your lists

@@ -195,6 +195,11 @@ select {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* the group headings only make sense in the stacked sidebar, not this strip */
+  .dash-side .side-nav .side-grp {
+    display: none;
+  }
+
   .dash-side .side-nav::-webkit-scrollbar,
   .dash-side .side-lists::-webkit-scrollbar {
     display: none;

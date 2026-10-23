@@ -5610,6 +5610,11 @@
     "help.retry": "Retry",
     "help.goManage": "Manage sections from the Panel → Categories tab",
     "help.tabArticles": "Articles",
+    "dash.grp.main": "Main",
+    "dash.grp.content": "Content",
+    "dash.grp.perf": "Performance",
+    "dash.grp.earn": "Earnings",
+    "dash.grp.account": "Account",
 
   };
 

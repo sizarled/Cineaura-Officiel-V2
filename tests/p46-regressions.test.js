@@ -81,6 +81,19 @@ has("helpcats: engine articles-tab label", read("js/i18n.js"), '"help.tabArticle
 has("profile nav: new member order", read("js/profile.js"), 'NAV_SECTIONS = ["home", "content", "messages", "following", "market", "create", "posts", "search", "blocked", "settings"]');
 has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "Profile"');
 
+// ---------------- Dashboard sidebar journey groups (2026-10-22)
+const dj = read("js/dashboard.js");
+has("dashboard nav: Main group first", dj, '["dash.grp.main", ["overview", "level", "points"]]');
+has("dashboard nav: content tools group", dj, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
+has("dashboard nav: views->analytics->reports", dj, '["dash.grp.perf", ["views", "analytics", "reports"]]');
+has("dashboard nav: earnings group", dj, '["dash.grp.earn", ["withdraw", "prizes", "history"]]');
+has("dashboard nav: account group last", dj, '["dash.grp.account", ["settings"]]');
+has("dashboard nav: SECTIONS derived from groups", dj, "SECTIONS = NAV_GROUPS.flatMap((g) => g[1])");
+has("dashboard nav: group headings render", dj, '<p class="side-grp" role="presentation">');
+has("dashboard nav: heading styling", read("css/dashboard.css"), ".side-nav .side-grp {");
+has("dashboard nav: headings hidden in phone strip", read("css/mobile.css"), ".dash-side .side-nav .side-grp");
+has("dashboard nav: engine group label", read("js/i18n.js"), '"dash.grp.main": "Main"');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

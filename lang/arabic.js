@@ -5109,5 +5109,13 @@
  "Run sql/help.sql in the Supabase SQL editor, then retry.": "شغّل sql/help.sql في محرر SQL في Supabase ثم أعد المحاولة.",
  "Articles": "مقالات",
  "Categories could not be loaded ({err}) — retry, or run sql/help.sql in the SQL editor.": "تعذّر تحميل التصنيفات ({err}) — أعد المحاولة أو شغّل sql/help.sql في محرر SQL.",
- "Manage sections from the Panel → Categories tab": "أدر الأقسام من لوحة التحكم ← تبويب التصنيفات"
+ "Manage sections from the Panel → Categories tab": "أدر الأقسام من لوحة التحكم ← تبويب التصنيفات",
+ "dash.grp.main": "الرئيسية",
+ "dash.grp.content": "المحتوى",
+ "dash.grp.perf": "الأداء",
+ "dash.grp.earn": "الأرباح",
+ "dash.grp.account": "الحساب",
+ "Main": "الرئيسية",
+ "Performance": "الأداء",
+ "Earnings": "الأرباح"
 };

@@ -100,6 +100,19 @@
   color: var(--cyan);
 }
 
+/* Dashboard sidebar: journey-group headings between the nav sections */
+.side-nav .side-grp {
+  margin: 14px 6px 2px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.side-nav .side-grp:first-child {
+  margin-top: 0;
+}
+
 .dash-main {
   padding: 22px;
   border-radius: 24px;

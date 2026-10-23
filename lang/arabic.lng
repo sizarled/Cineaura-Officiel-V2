@@ -4825,3 +4825,6 @@ Run sql/help.sql in the Supabase SQL editor, then retry. = شغّل sql/help.sql
 Articles = مقالات
 Categories could not be loaded ({err}) — retry, or run sql/help.sql in the SQL editor. = تعذّر تحميل التصنيفات ({err}) — أعد المحاولة أو شغّل sql/help.sql في محرر SQL.
 Manage sections from the Panel → Categories tab = أدر الأقسام من لوحة التحكم ← تبويب التصنيفات
+Main = الرئيسية
+Performance = الأداء
+Earnings = الأرباح

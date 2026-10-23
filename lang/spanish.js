@@ -5073,5 +5073,13 @@
  "Run sql/help.sql in the Supabase SQL editor, then retry.": "Ejecuta sql/help.sql en el editor SQL de Supabase y reintenta.",
  "Articles": "Artículos",
  "Categories could not be loaded ({err}) — retry, or run sql/help.sql in the SQL editor.": "No se pudieron cargar las categorías ({err}) — reintenta o ejecuta sql/help.sql en el editor SQL.",
- "Manage sections from the Panel → Categories tab": "Gestiona las secciones desde el Panel → pestaña Categorías"
+ "Manage sections from the Panel → Categories tab": "Gestiona las secciones desde el Panel → pestaña Categorías",
+ "dash.grp.main": "Principal",
+ "dash.grp.content": "Contenido",
+ "dash.grp.perf": "Rendimiento",
+ "dash.grp.earn": "Ganancias",
+ "dash.grp.account": "Cuenta",
+ "Main": "Principal",
+ "Performance": "Rendimiento",
+ "Earnings": "Ganancias"
 };
