@@ -27,6 +27,8 @@
   const when = (iso) => String(iso || "").slice(0, 16).replace("T", " ");
   // Question/article links: relative #… on the hub itself, absolute ./community.html#…
   // when the same renderer is embedded on another page (Content tabs, the profile).
+  // Small view state that must survive a re-render (?type=documents picks a tab).
+  const ui = { ctTab: "" };
   const base = () => (document.getElementById("com-root") ? "" : "./community.html");
   const loginNote = () =>
     meId() ? "" : `<p class="com-note muted">${esc(t("com.login"))} <a class="btn btn-sm btn-primary" href="./login.html">${esc(t("nav.signin"))}</a></p>`;
@@ -671,8 +673,13 @@
       ["videos", t("nav.videos")],
       ["articles", t("com.tab.articles")],
       ["questions", t("com.tab.questions")],
+      ["documents", t("doc.tab")],
     ];
     tabs.innerHTML = TABS.map(([k, label], i) => `<button type="button" role="tab" class="follow-tab${i === 0 ? " active" : ""}" data-ct="${k}">${esc(label)}</button>`).join("");
+    if (ui.ctTab) {
+      const wanted = tabs.querySelector(`[data-ct="${ui.ctTab}"]`);
+      if (wanted) setTimeout(() => wanted.click(), 0);
+    }
     tabs.querySelectorAll("[data-ct]").forEach((b) => {
       b.onclick = () => {
         tabs.querySelectorAll("[data-ct]").forEach((x) => x.classList.toggle("active", x === b));
@@ -684,6 +691,12 @@
         }
         originals.forEach((el) => (el.hidden = true));
         other.hidden = false;
+        if (k === "documents") {
+          other.innerHTML = `<div id="ct-body"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
+          if (window.CineAuraDocs) window.CineAuraDocs.list(other.querySelector("#ct-body"));
+          else other.querySelector("#ct-body").innerHTML = `<p class="com-note">⚠ ${esc(t("doc.loadFail"))}</p>`;
+          return;
+        }
         other.innerHTML = `<div id="com-acts" style="margin-bottom:10px">${
           k === "questions"
             ? `<a class="btn btn-sm btn-primary" href="./community.html#ask">❓ ${esc(t("com.ask"))}</a>`
@@ -714,9 +727,14 @@
     const root = document.getElementById("vw-root");
     if (!root) return false;
     const params = new URLSearchParams(window.location.search);
-    const routes = ["video", "article", "question", "answer"];
+    const routes = ["video", "article", "question", "answer", "document"];
     const selected = routes.filter((key) => params.has(key));
-    if (!selected.length) return false; // the library + its type tabs
+    if (!selected.length) {
+      // content.html?type=documents opens the library already on that tab
+      const only = String(params.get("type") || "").trim();
+      if (only === "documents") ui.ctTab = "documents";
+      return false; // the library + its type tabs
+    }
     if (selected[0] === "video") return false; // js/content.js plays the video itself
     const hide = () => {
       [...root.children].forEach((el) => (el.hidden = true));
@@ -735,6 +753,17 @@
     if (!id || !/^\d+$/.test(id)) return invalid();
     const box = hide();
     box.innerHTML = `<p class="com-note muted">${esc(t("common.loading"))}</p>`;
+    if (type === "document") {
+      // js/documents.js may still be parsing when this page boots, so wait a
+      // tick instead of declaring the link broken.
+      const draw = () => {
+        if (window.CineAuraDocs) window.CineAuraDocs.documentView(box, id);
+        else box.innerHTML = `<p class="com-note">⚠ ${esc(t("doc.loadFail"))}</p>`;
+      };
+      if (window.CineAuraDocs) draw();
+      else setTimeout(draw, 120);
+      return true;
+    }
     if (type === "article") articleView(box, Number(id));
     else if (type === "question") questionView(box, Number(id));
     else answerView(box, Number(id));

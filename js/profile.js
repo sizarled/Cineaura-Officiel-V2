@@ -2561,12 +2561,13 @@
   // "Your content" stays the visitor-facing shelf; publishing and governing
   // happen here (never two copies of the same editor).
   const STUDIO_TABS = ["create", "manage", "stats"];
-  const STUDIO_KINDS = ["video", "post", "article", "question", "playlist", "recommendation", "reclist", "review"];
-  const MANAGE_TABS = ["videos", "articles", "qa", "posts", "recs"];
+  const STUDIO_KINDS = ["video", "post", "document", "article", "question", "playlist", "recommendation", "reclist", "review"];
+  const MANAGE_TABS = ["videos", "documents", "articles", "qa", "posts", "recs"];
 
   function studioKindLabel(k) {
     if (k === "video") return t("prof.cr.video");
     if (k === "post") return t("prof.plainPost");
+    if (k === "document") return t("doc.tab");
     if (k === "article") return t("com.newArticle");
     if (k === "question") return t("com.ask");
     if (k === "playlist") return t("dash.nav.playlists");
@@ -2606,6 +2607,11 @@
     if (kind === "video") {
       if (!window.CineAuraStudio) return (host.innerHTML = `<p class="empty">${escapeHtml(t("vid.setup"))}</p>`);
       window.CineAuraStudio.render(host, { member: state.me.member, solo: true, tab: "create" });
+      return;
+    }
+    if (kind === "document") {
+      if (!window.CineAuraDocs) return (host.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("doc.loadFail"))}</p>`);
+      window.CineAuraDocs.renderUpload(host, { member: state.me.member });
       return;
     }
     if (kind === "article" || kind === "question") {
@@ -2674,6 +2680,10 @@
       );
     const me = state.me.member.member_id;
     if (tab === "videos") return manageVideos(list, me);
+    if (tab === "documents") {
+      if (!window.CineAuraDocs) return (list.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("doc.loadFail"))}</p>`);
+      return window.CineAuraDocs.renderManage(list, me);
+    }
     if (tab === "articles") return manageArticles(list, me);
     if (tab === "qa") return manageQA(list, me);
     return manageSocial(list, me, tab === "posts" ? ["post"] : ["review", "recommendation", "reclist"]);
@@ -4713,7 +4723,7 @@
 
   // Type filter: All - Videos (content studio) - Articles - Questions - Answers
   // (community contributions, js/community.js, sql/community.sql).
-  const CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers", "posts", "reviews", "recs"];
+  const CONTENT_TYPES = ["all", "videos", "articles", "documents", "questions", "answers", "posts", "reviews", "recs"];
   // The social side of "Your content": rows of `posts` grouped by their kind.
   const POST_TYPES = { posts: ["post"], reviews: ["review"], recs: ["recommendation", "reclist"] };
   // Your content > Posts / Reviews / Recommendations: the member's own rows with
@@ -4747,6 +4757,10 @@
     const member = state.me.member;
     const hostId = state.hostMember?.member_id || member.member_id;
     if (POST_TYPES[vt]) return memberPosts(body, hostId, vt);
+    if (vt === "documents") {
+      if (!window.CineAuraDocs) return (body.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("doc.loadFail"))}</p>`);
+      return window.CineAuraDocs.memberDocuments(body, hostId, state.isOwner);
+    }
     if (vt === "videos" || vt === "all") {
       // Read-only shelf: the Studio owns creating and managing videos.
       const videos = document.createElement("div");
