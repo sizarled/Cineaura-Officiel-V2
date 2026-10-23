@@ -227,3 +227,15 @@
 .ct-tabs::-webkit-scrollbar {
   display: none;
 }
+
+/* Group page: members tab rows */
+.com-mem-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}

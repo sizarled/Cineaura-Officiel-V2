@@ -31,7 +31,17 @@
   const loginNote = () =>
     meId() ? "" : `<p class="com-note muted">${esc(t("com.login"))} <a class="btn btn-sm btn-primary" href="./login.html">${esc(t("nav.signin"))}</a></p>`;
 
+  const gLink = (id) => (base() ? `${base()}?group=${id}` : `?group=${id}`);
+  const groupParam = () => new URLSearchParams(location.search).get("group");
+  // Community.html?group=12345 picks the group page; plain Community.html picks
+  // the list. #g/123 stays as a legacy alias so old links never break.
+  const gTab = () => {
+    const h = String(location.hash || "").replace(/^#/, "");
+    return ["about", "members"].includes(h) ? h : "posts";
+  };
   const hashRoute = () => {
+    const gp = groupParam();
+    if (gp) return { view: "group", id: Number(gp) };
     const h = String(location.hash || "").replace(/^#/, "");
     const m = h.match(/^(q|a|g)\/(\d+)$/);
     if (m) return { view: m[1] === "q" ? "question" : m[1] === "a" ? "article" : "group", id: Number(m[2]) };
@@ -250,7 +260,7 @@
     const names = await nameMap(rows.map((g) => g.owner_id));
     box.innerHTML = rows
       .map(
-        (g) => `<a class="com-row glass" href="#g/${g.id}">
+        (g) => `<a class="com-row glass" href="${gLink(g.id)}">
           ${g.cover ? `<img class="com-grp-cover" src="${esc(g.cover)}" alt="" loading="lazy" />` : `<span class="com-grp-cover com-grp-ph">👥</span>`}
           <span class="com-row-main"><strong>${esc(g.name)}</strong>
           <span class="muted">${esc(String(g.description || "").slice(0, 90))}</span>
@@ -261,28 +271,42 @@
       .join("");
   }
 
-  function groupForm(box) {
+  // Create (no arg) or edit (an existing group row). Edits verify ownership when
+  // the Save actually runs — hiding the button would not be a permission system.
+  function groupForm(box, existing) {
     if (!meId()) return (box.innerHTML = loginNote());
+    const g = existing || {};
     box.innerHTML = `<form id="com-grp" class="com-form glass">
-      <input name="name" maxlength="120" required placeholder="${esc(t("grp.namePh"))}" />
-      <textarea name="description" rows="3" placeholder="${esc(t("grp.descPh"))}"></textarea>
-      <textarea name="rules" rows="3" placeholder="${esc(t("grp.rulesPh"))}"></textarea>
-      <input name="cover" maxlength="300" placeholder="${esc(t("grp.coverPh"))}" />
-      <label class="lang-chip"><input type="checkbox" name="is_public" checked /> ${esc(t("grp.public"))}</label>
-      <div><button class="btn btn-primary" type="submit">${esc(t("grp.createBtn"))}</button>
-      <button class="btn btn-ghost" type="button" onclick="location.hash=''">${esc(t("common.cancel"))}</button></div>
+      <input name="name" maxlength="120" required value="${esc(g.name || "")}" placeholder="${esc(t("grp.namePh"))}" />
+      <textarea name="description" rows="3" placeholder="${esc(t("grp.descPh"))}">${esc(g.description || "")}</textarea>
+      <textarea name="rules" rows="3" placeholder="${esc(t("grp.rulesPh"))}">${esc(g.rules || "")}</textarea>
+      <input name="cover" maxlength="300" value="${esc(g.cover || "")}" placeholder="${esc(t("grp.coverPh"))}" />
+      <label class="lang-chip"><input type="checkbox" name="is_public" ${g.is_public === false ? "" : "checked"} /> ${esc(t("grp.public"))}</label>
+      <div><button class="btn btn-primary" type="submit">${esc(existing ? t("grp.update") : t("grp.createBtn"))}</button>
+      <button class="btn btn-ghost" type="button" onclick="history.back()">${esc(t("common.cancel"))}</button></div>
     </form>`;
     box.querySelector("#com-grp").onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const row = await insertRow("/rest/v1/community_groups", {
-        owner_id: meId(),
+      const patch = {
         name: String(fd.get("name") || "").trim(),
         description: String(fd.get("description") || "").trim(),
         rules: String(fd.get("rules") || "").trim(),
         cover: String(fd.get("cover") || "").trim(),
         is_public: fd.get("is_public") === "on",
-      });
+      };
+      if (existing) {
+        // ownership is re-read from the row at execution time, not from the UI
+        const fresh = await req(`/rest/v1/community_groups?id=eq.${existing.id}&select=owner_id`);
+        const owner = fresh.ok && Array.isArray(fresh.data) && fresh.data[0] ? fresh.data[0].owner_id : "";
+        if (owner !== meId()) return toast(t("grp.notOwner"));
+        const r = await req(`/rest/v1/community_groups?id=eq.${existing.id}`, { method: "PATCH", body: JSON.stringify(patch) });
+        if (!r.ok) return toast(t("grp.saveFail"));
+        toast(t("grp.saved"));
+        location.href = gLink(existing.id);
+        return;
+      }
+      const row = await insertRow("/rest/v1/community_groups", { owner_id: meId(), ...patch });
       if (!row) return;
       // seat the owner (so the member count and My Groups include it) then open the group
       req("/rest/v1/community_group_members?select=group_id,member_id", {
@@ -292,7 +316,7 @@
         .catch(() => {})
         .finally(() => {
           toast(t("grp.saved"));
-          location.hash = `#g/${row.id}`;
+          location.href = gLink(row.id);
         });
     };
   }
@@ -300,40 +324,172 @@
   async function groupView(box, id) {
     const res = await req(`/rest/v1/community_groups?id=eq.${id}&select=*`);
     const g = res.ok && Array.isArray(res.data) ? res.data[0] : null;
-    if (!g) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("grp.loadFail"))} <a href="#">${esc(t("com.backList"))}</a></p>`);
-    const names = await nameMap([g.owner_id]);
+    if (!g) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("grp.loadFail"))} <a href="${base() || "community.html"}">${esc(t("com.backList"))}</a></p>`);
     const me = meId();
-    let joined = false;
+    let role = "";
     if (me) {
       const mr = await req(`/rest/v1/community_group_members?group_id=eq.${id}&member_id=eq.${encodeURIComponent(me)}&select=role`);
-      joined = mr.ok && Array.isArray(mr.data) && !!mr.data.length;
+      role = mr.ok && Array.isArray(mr.data) && mr.data[0] ? mr.data[0].role || "member" : "";
     }
-    box.innerHTML = `<a class="com-back" href="#">← ${esc(t("com.backList"))}</a>
+    const joined = !!role;
+    const isOwner = g.owner_id === me || role === "owner";
+    const names = await nameMap([g.owner_id]);
+    const back = `<a class="com-back" href="${base() || "community.html"}">← ${esc(t("grp.backList"))}</a>`;
+    // Private group, non-member: the gate is decided here, not by hiding buttons.
+    if (!g.is_public && !joined) {
+      box.innerHTML = `${back}
+        ${g.cover ? `<img class="com-grp-hero" src="${esc(g.cover)}" alt="" loading="lazy" />` : ""}
+        <h2>${esc(g.name)} 🔒</h2><p class="com-note">${esc(t("grp.privateText"))}</p>`;
+      return;
+    }
+    const tab = gTab();
+    const header = `${back}
       <article class="com-q com-grp glass">
         ${g.cover ? `<img class="com-grp-hero" src="${esc(g.cover)}" alt="" loading="lazy" />` : ""}
         <h2>${esc(g.name)} ${g.is_public ? "" : "🔒"}</h2>
-        <p class="muted">${esc(t("grp.byOwner", { name: who(names, g.owner_id) }))} · 👥 ${g.members_count || 0} ${esc(t("grp.members"))}</p>
-        ${g.description ? `<p class="com-body">${esc(g.description)}</p>` : ""}
-        ${g.rules ? `<h3 class="com-h3">${esc(t("grp.rulesTitle"))}</h3><p class="com-body">${esc(g.rules)}</p>` : ""}
+        <p class="muted">${esc(t("grp.byOwner", { name: who(names, g.owner_id) }))} · 👥 ${g.members_count || 0} ${esc(t("grp.members"))} · 💬 ${g.posts_count || 0} ${esc(t("grp.postsN"))}</p>
         <div class="com-acts" style="margin-top:12px">
-          ${me ? `<button type="button" class="btn btn-sm ${joined ? "btn-ghost" : "btn-primary"}" id="com-join">${joined ? esc(t("grp.leave")) : esc(t("grp.join"))}</button>` : loginNote()}
+          ${me ? `<button type="button" class="btn btn-sm ${joined ? "btn-ghost" : "btn-primary"}" id="com-join">${joined ? esc(t("grp.leave")) : esc(t("grp.join"))}</button>` : ""}
+          ${isOwner ? `<button type="button" class="btn btn-sm btn-ghost" id="com-gedit">✎ ${esc(t("grp.edit"))}</button>` : ""}
+          ${me && !isOwner ? `<button type="button" class="btn btn-sm btn-ghost" id="com-greport">🚩 ${esc(t("grp.report"))}</button>` : ""}
+          ${!me ? loginNote() : ""}
         </div>
-      </article>`;
+        <div class="com-tabs" role="tablist" style="margin-top:14px">
+          <button type="button" role="tab" class="follow-tab${tab === "posts" ? " active" : ""}" data-gviewtab="posts">💬 ${esc(t("grp.tab.posts"))}</button>
+          <button type="button" role="tab" class="follow-tab${tab === "about" ? " active" : ""}" data-gviewtab="about">ℹ️ ${esc(t("grp.tab.about"))}</button>
+          <button type="button" role="tab" class="follow-tab${tab === "members" ? " active" : ""}" data-gviewtab="members">👥 ${esc(t("grp.tab.members"))}</button>
+        </div>
+      </article>
+      <div id="com-gbody"></div>`;
+    box.innerHTML = header;
+    box.querySelectorAll("[data-gviewtab]").forEach((b) => (b.onclick = () => (location.hash = b.dataset.gviewtab === "posts" ? "" : `#${b.dataset.gviewtab}`)));
     const jb = box.querySelector("#com-join");
     if (jb)
       jb.onclick = async () => {
         jb.disabled = true;
+        // membership is re-checked from the row at execution time
+        const chk = await req(`/rest/v1/community_group_members?group_id=eq.${id}&member_id=eq.${encodeURIComponent(me)}&select=role`);
+        const has = chk.ok && Array.isArray(chk.data) && chk.data.length > 0;
         const r = await req(
-          joined
-            ? `/rest/v1/community_group_members?group_id=eq.${id}&member_id=eq.${encodeURIComponent(meId())}`
+          has
+            ? `/rest/v1/community_group_members?group_id=eq.${id}&member_id=eq.${encodeURIComponent(me)}`
             : `/rest/v1/community_group_members?select=group_id,member_id`,
-          joined
-            ? { method: "DELETE" }
-            : { method: "POST", body: JSON.stringify({ group_id: id, member_id: meId() }) }
+          has ? { method: "DELETE" } : { method: "POST", body: JSON.stringify({ group_id: id, member_id: me }) }
         );
         if (!r.ok) toast(t("grp.saveFail"));
         groupView(box, id);
       };
+    const ed = box.querySelector("#com-gedit");
+    if (ed) ed.onclick = () => groupViewEdit(box, id);
+    const rp = box.querySelector("#com-greport");
+    if (rp)
+      rp.onclick = async () => {
+        rp.disabled = true;
+        const note = prompt(t("grp.reportPh") || "");
+        if (note === null) return (rp.disabled = false);
+        const r = await req("/rest/v1/community_group_reports?select=group_id,reporter_id", {
+          method: "POST",
+          body: JSON.stringify({ group_id: id, reporter_id: me, note: String(note || "").trim() }),
+        });
+        if (r.ok) toast(t("grp.reported"));
+        else if (String(r.status) === "409") toast(t("grp.reported"));
+        else toast(t("grp.saveFail"));
+      };
+    const body = box.querySelector("#com-gbody");
+    if (tab === "about") return drawGroupAbout(body, g);
+    if (tab === "members") return drawGroupMembers(body, g, isOwner, me);
+    return drawGroupPosts(body, g, joined, isOwner, me);
+  }
+
+  function drawGroupAbout(body, g) {
+    body.innerHTML = `<div class="com-grp glass" style="padding:18px;border-radius:18px">
+      ${g.description ? `<p class="com-body">${esc(g.description)}</p>` : `<p class="muted">${esc(t("grp.noDesc"))}</p>`}
+      ${g.rules ? `<h3 class="com-h3">${esc(t("grp.rulesTitle"))}</h3><p class="com-body">${esc(g.rules)}</p>` : ""}
+      <p class="muted" style="margin-top:10px">${esc(when(g.created_at))}</p>
+    </div>`;
+  }
+
+  async function drawGroupMembers(body, g, isOwner, me) {
+    const res = await req(`/rest/v1/community_group_members?group_id=eq.${g.id}&select=*&order=created_at.asc&limit=200`);
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    const names = await nameMap(rows.map((r) => r.member_id));
+    body.innerHTML = rows.length
+      ? rows
+          .map(
+            (r) => `<div class="com-mem-row glass">
+              <span><strong>${esc(who(names, r.member_id) || r.member_id)}</strong>${r.role === "owner" ? ` <span class="com-chip">${esc(t("grp.ownerTag"))}</span>` : ""}</span>
+              <span class="muted">${esc(when(r.created_at))}</span>
+              ${isOwner && r.role !== "owner" ? `<button type="button" class="btn btn-sm btn-danger" data-mdel="${esc(r.member_id)}">🗑 ${esc(t("grp.remove"))}</button>` : ""}
+            </div>`
+          )
+          .join("")
+      : `<p class="com-empty muted">${esc(t("grp.noMembers"))}</p>`;
+    body.querySelectorAll("[data-mdel]").forEach((b) => {
+      b.onclick = async () => {
+        // only the group owner may remove; the group row is the authority here
+        if (g.owner_id !== me) return toast(t("grp.notOwner"));
+        const r = await req(`/rest/v1/community_group_members?group_id=eq.${g.id}&member_id=eq.${encodeURIComponent(b.dataset.mdel)}`, { method: "DELETE" });
+        if (!r.ok) return toast(t("grp.saveFail"));
+        drawGroupMembers(body, g, isOwner, me);
+      };
+    });
+  }
+
+  async function drawGroupPosts(body, g, joined, isOwner, me) {
+    const res = await req(`/rest/v1/community_group_posts?group_id=eq.${g.id}&select=*&order=created_at.desc&limit=100`);
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    const names = await nameMap(rows.map((r) => r.member_id));
+    body.innerHTML = `
+      ${joined ? `<form id="com-gpost" class="com-form glass">
+        <textarea name="body" rows="3" required placeholder="${esc(t("grp.postPh"))}"></textarea>
+        <div><button class="btn btn-primary" type="submit">${esc(t("grp.postBtn"))}</button></div>
+      </form>` : `<p class="com-note muted">${esc(t(me ? "grp.notMember" : "com.login"))}</p>`}
+      ${rows.length
+        ? rows
+            .map(
+              (p) => `<div class="com-answer glass">
+                <p class="com-body">${esc(p.body)}</p>
+                <div class="com-a-foot">
+                  <span class="muted">${esc(who(names, p.member_id))} · ${esc(when(p.created_at))}</span>
+                  ${(isOwner || p.member_id === me) ? `<button type="button" class="btn btn-sm btn-danger" data-pdel="${p.id}">🗑</button>` : ""}
+                </div>
+              </div>`
+            )
+            .join("")
+        : `<p class="com-empty muted">${esc(t("grp.noPosts"))}</p>`}`;
+    const f = body.querySelector("#com-gpost");
+    if (f)
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        // posting is members-only and the check happens now, at execution time
+        const chk = await req(`/rest/v1/community_group_members?group_id=eq.${g.id}&member_id=eq.${encodeURIComponent(me)}&select=role`);
+        if (!(chk.ok && Array.isArray(chk.data) && chk.data.length)) return toast(t("grp.notMember"));
+        const txt = String(new FormData(f).get("body") || "").trim();
+        if (!txt) return;
+        const row = await insertRow("/rest/v1/community_group_posts", { group_id: g.id, member_id: me, body: txt });
+        if (row) drawGroupPosts(body, g, joined, isOwner, me);
+      };
+    body.querySelectorAll("[data-pdel]").forEach((b) => {
+      b.onclick = async () => {
+        const pid = Number(b.dataset.pdel);
+        // author or group owner — read the post from the row, then delete
+        const pr = await req(`/rest/v1/community_group_posts?id=eq.${pid}&select=member_id`);
+        const owner = pr.ok && Array.isArray(pr.data) && pr.data[0] ? pr.data[0].member_id : "";
+        if (owner !== me && g.owner_id !== me) return toast(t("grp.notOwner"));
+        const r = await req(`/rest/v1/community_group_posts?id=eq.${pid}`, { method: "DELETE" });
+        if (!r.ok) return toast(t("grp.saveFail"));
+        drawGroupPosts(body, g, joined, isOwner, me);
+      };
+    });
+  }
+
+  function groupViewEdit(box, id) {
+    req(`/rest/v1/community_groups?id=eq.${id}&select=*`).then((res) => {
+      const g = res.ok && Array.isArray(res.data) ? res.data[0] : null;
+      if (!g) return toast(t("grp.loadFail"));
+      box.innerHTML = `<a class="com-back" href="${gLink(id)}">← ${esc(g.name)}</a>`;
+      groupForm(box, g);
+    });
   }
 
   // ─────────────────────────── hub shell ───────────────────────────
@@ -479,6 +635,12 @@
   }
 
   window.addEventListener("hashchange", () => {
+    const root = document.getElementById("com-root");
+    if (root) paint(root);
+  });
+  // ?group= lives in the query string, so back/forward between a group and the
+  // list travels through popstate, not hashchange.
+  window.addEventListener("popstate", () => {
     const root = document.getElementById("com-root");
     if (root) paint(root);
   });

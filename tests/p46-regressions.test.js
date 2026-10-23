@@ -165,6 +165,28 @@ has("groups: content page tabs wiring", cj2, "function wireContentTabs()");
 has("groups: content.html loads community module", read("content.html"), 'src="js/community.js"');
 has("groups: engine discover label", read("js/i18n.js"), '"grp.discover": "Discover Groups"');
 
+// ---------------- Group page v2: ?group= routing + tabs + exec-time permission (2026-10-22)
+const ps2 = read("sql/community_group_posts.sql");
+ok("group posts: sql exists", fs.existsSync(path.join(ROOT, "sql/community_group_posts.sql")));
+has("group posts: posts table", ps2, "create table if not exists public.community_group_posts");
+has("group posts: reports table", ps2, "create table if not exists public.community_group_reports");
+has("group posts: counter on groups", ps2, "add column if not exists posts_count");
+has("group posts: posts trigger", ps2, "_com_grp_posts_count");
+const cj3 = read("js/community.js");
+has("group v2: query-param router", cj3, 'new URLSearchParams(location.search).get("group")');
+has("group v2: legacy #g alias kept", cj3, 'h.match(/^(q|a|g)\\/(\\d+)$/)');
+has("group v2: group tab switch", cj3, "const gTab = ()");
+has("group v2: popstate repaints for ?group=", cj3, 'window.addEventListener("popstate", () => {');
+has("group v2: posts tab", cj3, "async function drawGroupPosts(body, g, joined, isOwner, me)");
+has("group v2: members tab", cj3, "async function drawGroupMembers(body, g, isOwner, me)");
+has("group v2: about tab", cj3, "function drawGroupAbout(body, g)");
+has("group v2: private gate at render", cj3, "if (!g.is_public && !joined)");
+has("group v2: join re-checks membership at execution", cj3, "membership is re-checked from the row at execution time");
+has("group v2: post is members-only at execution", cj3, "posting is members-only and the check happens now");
+has("group v2: edit re-reads ownership at execution", cj3, "ownership is re-read from the row at execution time");
+has("group v2: rows link with ?group=", cj3, 'href="${gLink(g.id)}"');
+has("group v2: engine posts tab label", read("js/i18n.js"), '"grp.tab.posts": "Posts"');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');
