@@ -590,7 +590,7 @@
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-share-btn" aria-expanded="false" aria-controls="vw-share">${icon("share", 16)}<span>${esc(t("share.title"))}</span></button>
           <button class="btn btn-sm btn-ghost vw-btn" type="button" id="vw-pl-btn">${icon("pl", 16)}<span>${esc(t("vid.addToPl"))}</span></button>
           ${c.downloads && state.info && ["file", "hls"].includes(state.info.provider) && c.url ? `<a class="btn btn-sm btn-ghost vw-btn" id="vw-dl" href="${esc(c.url)}" download target="_blank" rel="noopener">${icon("dl", 16)}<span>${esc(t("vid.download"))}</span></a>` : ""}
-          ${mine ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html#content/manage">${icon("edit", 16)}<span>${esc(t("vid.manage"))}</span></a>` : ""}
+          ${mine ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html?section=create">${icon("edit", 16)}<span>${esc(t("vid.manage"))}</span></a>` : ""}
         </div>
       </div>
       <div class="glass vw-share" id="vw-share" hidden>${C.shareRowHtml(href, c.title, { label: t("vid.shareLabel") })}</div>
@@ -1051,7 +1051,7 @@
       grid.innerHTML = `<li class="glass vs-none vh-none">
           <p><b>${esc(t("vid.hub.none"))}</b></p>
           <p class="muted">${esc(t("vid.hub.noneText"))}</p>
-          <a class="btn btn-lg btn-primary" href="./profile.html#content">${esc(t("vid.hub.create"))}</a>
+          <a class="btn btn-lg btn-primary" href="./profile.html?section=create">${esc(t("vid.hub.create"))}</a>
         </li>`;
       return;
     }
@@ -1207,7 +1207,7 @@
           </span>
         ${chUrl ? `</a>` : `</div>`}
         <div class="vw-actions">
-          ${V.memberId() ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html#content" data-yt-import="${esc(watchUrl)}">${icon("pl", 16)}<span>${esc(t("vid.yt.importSelf"))}</span></a>` : ""}
+          ${V.memberId() ? `<a class="btn btn-sm btn-ghost vw-btn" href="./profile.html?section=create" data-yt-import="${esc(watchUrl)}">${icon("pl", 16)}<span>${esc(t("vid.yt.importSelf"))}</span></a>` : ""}
           <a class="btn btn-sm btn-ghost vw-btn" href="${esc(watchUrl)}" target="_blank" rel="noopener">${icon("ext", 16)}<span>${esc(t("vid.yt.openVideo"))}</span></a>
         </div>
       </div>

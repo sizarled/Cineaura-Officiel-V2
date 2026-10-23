@@ -10,9 +10,9 @@ has("A1: drops the old constraint first", sqlPl, "drop constraint if exists post
 has("A1: pgrst reload", sqlPl, "notify pgrst, 'reload schema';");
 
 const js = read("js/profile.js");
-has("A2: Post tab first & primary", js, '<button class="btn btn-sm btn-primary" data-ck="post" type="button">${t("prof.plainPost")}</button>');
-has("A3: playlist tab no longer default", js, '<button class="btn btn-sm btn-ghost" data-ck="playlist" type="button">${t("dash.nav.playlists")}</button>');
-has("A4: Post is the initial composer", js, '    draw("post");\n  }\n\n  async function savePlaylistPost()');
+has("A2: Post is the default Studio kind", js, ': "post";\n    box.innerHTML = `');
+has("A3: every kind is one chip (no hidden default)", js, 'data-sk="${k}">${studioKindLabel(k)}</button>');
+has("A4: plain posts open the rich composer", js, "drawRichComposer(host, kind);");
 has("A5: picker optional for posts", js, 'kind === "post" ? t("cr.attachOpt")');
 has("A6: posts skip the items check", js, 'if (kind !== "post" && !d.items.length) return toast(kind === "review" ? t("rev.needTitle") : t("rich.needItem"));');
 has("A7: posts need only body", js, 'if (!body) return toast(t("prof.needPostText"));');

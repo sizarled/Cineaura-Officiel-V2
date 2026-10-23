@@ -644,7 +644,13 @@
       .join("");
   }
 
-  window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups };
+  // One composer entry for pages that are not the hub (Create > Studio draws the
+  // same forms instead of linking away, so there is exactly one implementation).
+  function openComposer(box, kind) {
+    return kind === "article" ? articleForm(box) : askForm(box);
+  }
+
+  window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer };
 
   // Content page (content.html): a type bar above the videos — Videos stay with
   // their own page code; Articles / Questions & Answers embed the hub lists.

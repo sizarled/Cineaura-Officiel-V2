@@ -84,7 +84,7 @@ has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "P
 // ---------------- Dashboard sidebar journey groups (2026-10-22)
 const dj = read("js/dashboard.js");
 has("dashboard nav: Main group first", dj, '["dash.grp.main", ["overview", "level", "points"]]');
-has("dashboard nav: content tools group", dj, '["dash.grp.content", ["upload", "manage", "links", "codes", "playlists", "iptv"]]');
+has("dashboard nav: content tools group (management lives in Studio)", dj, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
 has("dashboard nav: views->analytics->reports->history", dj, '["dash.grp.perf", ["views", "analytics", "reports", "history"]]');
 has("dashboard nav: earnings group", dj, '["dash.grp.earn", ["withdraw", "prizes"]]');
 has("dashboard settings: profile-pointer note", dj, 'dash.settings.profNote');
@@ -124,7 +124,7 @@ has("community: votes counter trigger", cs, "_com_answer_votes");
 has("community: public read policies", cs, 'com_q_read      on public.community_questions    for select using (true)');
 has("community: pgrst reload", cs, "notify pgrst, 'reload schema';");
 const cj = read("js/community.js");
-has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups };");
+has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer };");
 has("community: question route", cj, '#q/${row.id}');
 has("community: deep-link router", cj, "const hashRoute = ()");
 has("community: helpful vote toggle", cj, "community_answer_votes");
@@ -134,12 +134,12 @@ has("community: page loads module", read("community.html"), 'src="js/community.j
 has("community: page styling", fs.existsSync(path.join(ROOT, "css/community.css")) ? read("css/community.css") : "", ".com-tabs .follow-tab.active");
 const pf2 = read("js/profile.js");
 has("content hub: type filter tabs", pf2, 'CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers", "posts", "reviews", "recs"]');
-has("content hub: videos delegate to studio", pf2, "window.CineAuraStudio.render(body.querySelector(\"#ct-videos\"), { member })");
-has("content hub: community blocks by memberBlocks", pf2, "window.CineAuraCommunity.memberBlocks(body, hostId, vt)");
+has("content hub: videos are a read-only shelf", pf2, "memberVideos(videos, hostId);");
+has("content hub: community blocks by memberBlocks", pf2, "window.CineAuraCommunity.memberBlocks(community, hostId)");
 has("content hub: engine tab all", read("js/i18n.js"), '"prof.ct.all": "All content"');
 has("community: profile deep-link whitelist", pf2, '"home","market","community","create","content","posts","messages","search","following","blocked","settings"');
-has("community: Create offers Article + Question", pf2, './community.html#new-article');
-has("community: Create offers Question", pf2, './community.html#ask');
+has("community: Create draws the Article composer inline", pf2, 'window.CineAuraCommunity.openComposer(host, kind)');
+has("community: Create keeps Question in the studio kinds", pf2, 'const STUDIO_KINDS = ["video", "post", "article", "question"');
 has("community: profile.html loads module", read("profile.html"), 'src="js/community.js"');
 has("community: header nav link", read("js/common.js"), '["./community.html", "nav.community"],');
 has("community: nav icon key", read("js/common.js"), '"nav.community": "users"');
@@ -202,12 +202,13 @@ has("deep: answer highlight anchor", cj4, 'data-ans="${a.id}"');
 
 // ---------------- Create menu: one launcher for every content type (2026-10-23)
 const pj3 = read("js/profile.js");
-has("create: post stays first", pj3, '<button class="btn btn-sm btn-primary" data-ck="post" type="button">${t("prof.plainPost")}</button>');
-const crOrder = ["data-ck=\"post\"", "prof.cr.video", "community.html#new-article", "community.html#ask", "data-ck=\"playlist\"", "data-ck=\"recommendation\"", "data-ck=\"reclist\"", "data-ck=\"review\""];
-let crAt = -1; let crOk = true;
-for (const tok of crOrder) { const at = pj3.indexOf(tok, crAt + 1); if (at === -1) { crOk = false; break; } crAt = at; }
-ok("create: tab order post > video > article > question > playlist > rec > reclist > review", crOk);
-has("create: video enters the studio section", pj3, 'href="?section=content">🎬 ${t("prof.cr.video")}</a>');
+has("create: studio has three tabs", pj3, 'const STUDIO_TABS = ["create", "manage", "stats"];');
+const kindsLine = pj3.slice(pj3.indexOf("const STUDIO_KINDS"), pj3.indexOf("const STUDIO_KINDS") + 200);
+const crOrder = ["video", "post", "article", "question", "playlist", "recommendation", "reclist", "review"];
+let crOk = crOrder.every((k, n) => kindsLine.indexOf(`"${k}"`) > (n === 0 ? -1 : kindsLine.indexOf(`"${crOrder[n - 1]}"`)));
+ok("studio: kind order video > post > article > question > playlist > rec > reclist > review", crOk);
+has("create: video form embedded solo (no nested tabs)", pj3, 'window.CineAuraStudio.render(host, { member: state.me.member, solo: true, tab: "create" });');
+has("create: articles/questions reuse the hub composers", pj3, 'window.CineAuraCommunity.openComposer(host, kind)');
 has("create: guidance note (answers from the question page)", pj3, "${t(\"prof.cr.note\")}");
 { const head = pj3.slice(pj3.indexOf("async function viewCreate"), pj3.indexOf("async function viewCreate") + 2600);
   ok("create: no standalone Answer or Group tab", !/data-ck="answer"/.test(head) && !/#new-group/.test(head)); }
@@ -224,15 +225,25 @@ has("profile: social tabs map to post kinds", pfr, 'POST_TYPES = { posts: ["post
 has("profile: social tabs render own rows only", pfr, "owner_id=eq.${restValue(memberId)}&select=*&order=created_at.desc&limit=80");
 has("profile: real status chips are visibility-based", pfr, "escapeHtml(visLabel(p.visibility))");
 const cjr = read("js/community.js");
-has("community: memberGroups exported", cjr, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups };");
+has("community: memberGroups exported", cjr, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups, openComposer };");
 has("community: memberGroups covers created + joined", cjr, "community_groups?owner_id=eq.${id}");
 has("community: memberGroups links groups by query id", cjr, 'href="${gLink(g.id)}"');
 const djm = read("js/dashboard.js");
-has("dashboard: Content Management in the content group", djm, '["dash.grp.content", ["upload", "manage", "links", "codes", "playlists", "iptv"]]');
-has("dashboard: five management tabs", djm, 'const MANAGE_TABS = ["videos", "articles", "qa", "posts", "recs"];');
-has("dashboard: videos stay in Upload (no duplicate editor)", djm, 'data-section="upload">${t("dash.nav.upload")}');
-has("dashboard: delete re-reads the row owner", djm, "if (!row || String(row[ownerCol]) !== String(state.member.member_id)) return toast(t(\"manage.forbidden\"));");
-has("dashboard: delete listener bound once", djm, 'if (!main.dataset.mgBound)');
+has("dashboard: content management left for the Studio", djm, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
+has("studio: five management tabs", pj3, 'const MANAGE_TABS = ["videos", "articles", "qa", "posts", "recs"];');
+has("studio: videos stay in Dashboard Upload", pj3, 'href="./dashboard.html#upload">${t("dash.nav.upload")}</a>');
+has("studio: delete re-reads the row owner", pj3, "if (!row || String(row[ownerCol]) !== String(state.me.member.member_id)) return toast(t(\"manage.forbidden\"));");
+has("studio: delete listener bound once", pj3, 'if (!main.dataset.mgBound)');
+
+// ---------------- Create > Studio: create / manage / stats (2026-10-23) ----------
+has("studio: content statistics tab counts real rows", pfr, 'const [vids, arts, qs, as, posts, mp] = await Promise.all([');
+has("studio: stats reuse the points engine", pfr, "await window.CineAura.memberPoints(me, {})");
+has("studio: stats cover views, likes, votes, comments, recs, points", pfr, '${tile(views, t("prof.stats.views"))}');
+has("studio: Your content videos are view-only", pfr, 'href="./content.html?video=${encodeURIComponent(r.content_id)}"');
+has("studio: posts hand off to Manage posts", pfr, '${t("manage.postsDeep")} <a class="btn btn-sm btn-ghost" href="?section=posts">');
+has("studio: video studio embedded without its own URL hash", read("js/content-studio.js"), "if (!state.solo && location.hash !== hash)");
+has("studio: hub composers shared, not copied", read("js/community.js"), "return kind === \"article\" ? articleForm(box) : askForm(box);");
+has("studio: dashboard keeps no second manager", djm, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");

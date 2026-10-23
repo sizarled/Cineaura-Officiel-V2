@@ -97,6 +97,16 @@
   function render(main, ctx = {}) {
     state.main = main;
     state.member = ctx.member || null;
+    // solo: embedded inside Create > Studio, which owns the tab bar. Only the
+    // requested pane is drawn, so the studio's own tabs are never nested.
+    state.solo = Boolean(ctx.solo);
+    if (ctx.solo) {
+      clearTimers();
+      main.innerHTML = `<div id="vs-pane" class="vs-pane" role="tabpanel"></div>`;
+      state.tab = TABS.includes(ctx.tab) ? ctx.tab : "create";
+      show(state.tab);
+      return;
+    }
     const m = /^#content\/(manage|stats)$/.exec(location.hash || "");
     if (m) state.tab = m[1];
     else if (location.hash === "#content") state.tab = state.tab || "create";
@@ -127,8 +137,11 @@
       b.classList.toggle("active", on);
       b.setAttribute("aria-selected", String(on));
     });
+    // Embedded in Create > Studio the host owns the URL: never write the video
+    // studio's own #content hash there (it would switch the profile section).
     const hash = state.tab === "create" ? "#content" : `#content/${state.tab}`;
-    if (location.hash !== hash) history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+    if (!state.solo && location.hash !== hash)
+      history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
     const pane = state.main.querySelector("#vs-pane");
     pane.setAttribute("aria-labelledby", `vs-tab-${state.tab}`);
     if (state.tab === "create") drawCreate(pane);
