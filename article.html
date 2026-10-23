@@ -87,6 +87,10 @@
     document.addEventListener("DOMContentLoaded", () => {
       const boot = () => {
         if (!window.CineAura?.getSession) return setTimeout(boot, 60);
+        // Every other page boots the chrome (header state, language, theme,
+        // notifications). Without this call the header kept showing Sign In /
+        // Sign Up to a member who was signed in.
+        window.CineAura.setupChrome?.();
         window.CineAuraArticles.mount(document.getElementById("ae-root"));
       };
       boot();

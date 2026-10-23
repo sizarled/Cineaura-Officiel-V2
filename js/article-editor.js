@@ -94,6 +94,8 @@
     ],
   };
   const LANG_NAME = { ar: "العربية", en: "English", fr: "Français", es: "Español", de: "Deutsch", tr: "Türkçe" };
+  // the languages an article can be written in (the language pickers below)
+  const LANGS = Object.keys(LANG_NAME);
   const TIERS = "N1 N2 N3 K1 K2 K3 M1 M2 M3 B1 B2 B3".split(" ");
   const COUNTRIES = ["MA", "DZ", "TN", "LY", "EG", "SD", "SA", "AE", "QA", "KW", "BH", "OM", "YE", "IQ", "SY", "LB", "JO", "PS", "MR", "TR", "FR", "DE", "ES", "GB", "US", "CA"];
 
@@ -253,7 +255,7 @@
     boot();
   }
 
-  const state = { me: null, root: null, editId: "", sel: null, media: "", thumb: "", existing: null };
+  const state = { me: null, root: null, editId: "", sel: null, media: "", thumb: "", existing: null, pvRun: 0, reminded: false };
 
   function shell() {
     return `
@@ -377,6 +379,14 @@
 
         <dialog id="ae-pv" class="ae-dialog ae-pv">
           <div class="ae-pv-bar"><strong>${esc(t("ae.preview"))}</strong><button class="btn btn-sm" type="button" id="ae-pv-close">${esc(t("common.close"))}</button></div>
+          <div class="ae-sim" id="ae-sim">
+            <label>${esc(t("ae.sim.name"))}<input type="text" id="ae-s-user" value="@sara" dir="ltr" /></label>
+            <label>${esc(t("ae.sim.country"))}<select id="ae-s-country"></select></label>
+            <label>${esc(t("ae.sim.lang"))}<select id="ae-s-lang"></select></label>
+            <label>${esc(t("ae.sim.lv"))}<input type="number" id="ae-s-lv" min="0" max="10" value="3" /></label>
+            <label>${esc(t("ae.sim.tier"))}<select id="ae-s-tier"></select></label>
+            <label>${esc(t("ae.sim.follows"))}<select id="ae-s-fol"><option value="1">${esc(t("ae.yes"))}</option><option value="0">${esc(t("ae.no"))}</option></select></label>
+          </div>
           <div class="ae-read" id="ae-read"></div>
         </dialog>
       </div>`;
@@ -404,6 +414,7 @@
     buildSelects($);
     state.staff = await isStaff(state.me);
     state.me.staff = state.staff;
+    syncPublishLabel();
 
     // load an existing article (member edit, or staff editing any article)
     if (state.editId) {
@@ -488,6 +499,13 @@
     fill(root.querySelector("#ae-lang"), LANGS, t("ae.add"));
     root.querySelector("#ae-language").innerHTML = LANGS.map((l) => `<option value="${esc(l)}">${esc(LANG_NAME[l])}</option>`).join("");
     root.querySelector("#ae-tier").innerHTML = `<option value="">${esc(t("ae.noTier"))}</option>` + TIERS.map((x) => `<option value="${x}">${x}</option>`).join("");
+    // the preview's reader simulator speaks the same vocabulary
+    const simC = root.querySelector("#ae-s-country");
+    const simL = root.querySelector("#ae-s-lang");
+    if (simC) simC.innerHTML = `<option value="">${esc(t("ae.sim.none"))}</option>` + COUNTRIES.map((c) => `<option>${esc(c)}</option>`).join("");
+    if (simL) simL.innerHTML = `<option value="">${esc(t("ae.sim.none"))}</option>` + LANGS.map((l) => `<option value="${l}">${esc(LANG_NAME[l])}</option>`).join("");
+    const simT = root.querySelector("#ae-s-tier");
+    if (simT) simT.innerHTML = `<option value="">${esc(t("ae.noTier"))}</option>` + TIERS.map((x) => `<option value="${x}">${x}</option>`).join("");
     root.querySelector("#ae-help-tree").innerHTML = Object.keys(HELP)
       .map(
         (sec) =>
@@ -529,6 +547,34 @@
     return `<video src="${esc(url)}" controls></video>`;
   }
 
+  // <dialog>.showModal() is missing in older Safari/WebViews: fall back to the
+  // open attribute instead of throwing inside the click handler (the editor
+  // used to die silently on those browsers).
+  function openDialog(dlg) {
+    if (!dlg) return;
+    if (typeof dlg.showModal === "function") {
+      try {
+        dlg.showModal();
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
+    dlg.setAttribute("open", "");
+  }
+  function closeDialog(dlg) {
+    if (!dlg) return;
+    if (typeof dlg.close === "function") {
+      try {
+        dlg.close();
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
+    dlg.removeAttribute("open");
+  }
+
   function openMedia(kind) {
     const root = state.root;
     state.media = kind;
@@ -536,7 +582,7 @@
     root.querySelector("#ae-dlg-hint").textContent = kind === "image" ? t("ae.imageHint") : t("ae.videoHint");
     root.querySelector("#ae-dlg-input").accept = kind + "/*";
     root.querySelector("#ae-dlg-url").value = "";
-    root.querySelector("#ae-dlg").showModal();
+    openDialog(root.querySelector("#ae-dlg"));
   }
 
   /* ---------- chips -------------------------------------------------------- */
@@ -610,6 +656,7 @@
     $("ae-in-content").onchange = (e) => {
       state.data.inContent = e.target.checked;
       $("ae-content-sub").classList.toggle("show", e.target.checked);
+      syncPublishLabel();
     };
     $("ae-in-help").onchange = (e) => {
       state.data.inHelp = e.target.checked;
@@ -630,6 +677,7 @@
         $("ae-vis-hint").textContent = t(`ae.vis.${state.data.vis}Hint`);
       }
       updateState();
+      syncPublishLabel();
     };
 
     $("ae-micro").oninput = (e) => {
@@ -695,20 +743,20 @@
     $("ae-dlg-ok").onclick = () => {
       const u = $("ae-dlg-url").value.trim();
       if (!SAFE_URL.test(u)) return C().toast(t("ae.badUrl"));
-      $("ae-dlg").close();
+      closeDialog($("ae-dlg"));
       insertHtml(state.media === "image" ? `<img src="${esc(u)}" alt="">` : videoHtml(u));
       if (state.media === "image" && !state.thumb) {
         state.thumb = u;
         syncThumb();
       }
     };
-    $("ae-dlg-no").onclick = () => $("ae-dlg").close();
+    $("ae-dlg-no").onclick = () => closeDialog($("ae-dlg"));
     $("ae-dlg-file").onclick = () => $("ae-dlg-input").click();
     $("ae-dlg-input").onchange = async (e) => {
       const f = e.target.files?.[0];
       e.target.value = "";
       if (!f) return;
-      $("ae-dlg").close();
+      closeDialog($("ae-dlg"));
       if (state.media === "video") return insertHtml(videoHtml(URL.createObjectURL(f)));
       C().toast(t("ae.uploading"));
       const url = await putImage(f, `Articles/${state.me.member_id}`);
@@ -750,10 +798,16 @@
     };
 
     $("ae-preview").onclick = () => {
-      root.querySelector("#ae-read").innerHTML = readerHtml();
-      root.querySelector("#ae-pv").showModal();
+      renderPreview();
+      openDialog(root.querySelector("#ae-pv"));
     };
-    $("ae-pv-close").onclick = () => root.querySelector("#ae-pv").close();
+    // the simulator answers as the author types
+    const sim = root.querySelector("#ae-sim");
+    if (sim) {
+      sim.addEventListener("input", () => renderPreview());
+      sim.addEventListener("change", () => renderPreview());
+    }
+    $("ae-pv-close").onclick = () => closeDialog(root.querySelector("#ae-pv"));
 
     $("ae-publish").onclick = () => save();
 
@@ -803,6 +857,16 @@
     state.cur = null;
     state.root.querySelector("#ae-imgbar")?.classList.remove("on");
   }
+  // Help-only from a member waits for the moderators, so the button says so.
+  function syncPublishLabel() {
+    const $ = state.$;
+    const btn = $("ae-publish");
+    if (!btn) return;
+    const helpOnly = state.data.inHelp && !state.data.inContent && !state.staff;
+    btn.textContent = helpOnly ? t("ae.sendReview") : t("ae.publish");
+    btn.dataset.helpOnly = helpOnly ? "1" : "";
+  }
+
   function syncImgBar() {
     const bar = state.root.querySelector("#ae-imgbar");
     if (!bar || !state.cur) return;
@@ -813,6 +877,170 @@
   }
 
   /* ---------- reader html (preview + the public page) ---------------------- */
+  const TIER_AT = (tier) => (tier ? TIERS.indexOf(tier) : -1);
+
+  // The viewer sitting in the preview dialog (never authenticated: it is a
+  // simulator, so nothing here is a permission check).
+  function simViewer() {
+    const $ = state.$;
+    const user = ($("ae-s-user").value || "").trim().replace(/^@?/, "@");
+    return {
+      username: user,
+      country: $("ae-s-country").value,
+      language: $("ae-s-lang").value,
+      level: Number($("ae-s-lv").value || 0),
+      tier: $("ae-s-tier").value,
+      follows: $("ae-s-fol").value === "1",
+    };
+  }
+
+  // The criteria the author actually set, as [label, met, required-text] rows.
+  function simChecks(v) {
+    const $ = state.$;
+    const d = state.data;
+    const rows = [];
+    if ($("ae-fol").checked) rows.push([t("ae.sim.followers"), v.follows, t("ae.followersOnly")]);
+    if (d.countries.length) rows.push([t("ae.country"), d.countries.includes(v.country), d.countries.join(" · ")]);
+    if (d.languages.length) rows.push([t("ae.language"), d.languages.includes(v.language), d.languages.map((l) => LANG_NAME[l] || l).join(" · ")]);
+    const a = Number($("ae-lvmin").value || 0);
+    const b = Number($("ae-lvmax").value || 10);
+    if (a > 0 || b < 10) rows.push([t("ae.sim.lv"), v.level >= a && v.level <= b, `${a} – ${b}`]);
+    if ($("ae-tier").value) rows.push([t("ae.tier"), TIER_AT(v.tier) >= TIER_AT($("ae-tier").value), `${$("ae-tier").value}+`]);
+    return rows;
+  }
+
+  function simArticle() {
+    const $ = state.$;
+    const title = $("ae-title").value.trim() || t("ae.untitled");
+    const desc = $("ae-desc").value.trim();
+    const when = state.data.when === "later" && $("ae-when-at").value
+      ? new Date($("ae-when-at").value).toLocaleString()
+      : t("ae.now");
+    const body = sanitize(state.root.querySelector("#ae-body").innerHTML) || `<p class="ae-hint">${esc(t("ae.sim.noContent"))}</p>`;
+    const cover = state.thumb ? `<img class="ae-cover" src="${esc(state.thumb)}" alt="" />` : "";
+    const chips = state.data.cats.map((c) => `<span class="ae-chip">${esc(c)}</span>`).join("");
+    return {
+      head: `${cover}<h1>${esc(title)}</h1>
+        <div class="ae-meta"><span>${esc(LANG_NAME[$("ae-language").value] || $("ae-language").value)}</span><span>${esc(when)}</span>${chips}</div>
+        ${desc ? `<p class="ae-lead">${esc(desc)}</p>` : ""}`,
+      body,
+    };
+  }
+
+  const CHECK_OK = '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12l5 5L20 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const CHECK_NO = '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+
+  /* The preview: public shows the page, private asks for a password, exclusive
+     runs the same checks the reader page runs — step by step, so the author can
+     see exactly which criterion keeps a reader out. */
+  function renderPreview() {
+    const $ = state.$;
+    const out = state.root.querySelector("#ae-read");
+    if (!out) return;
+    const run = ++state.pvRun;
+    const v = simViewer();
+    const d = state.data;
+    const { head, body } = simArticle();
+
+    if (d.vis === "public") {
+      out.innerHTML = head + body;
+      return;
+    }
+
+    if (d.vis === "private") {
+      if (v.username && d.users.includes(v.username)) {
+        out.innerHTML = head + body;
+        return;
+      }
+      const gate = `<div class="ae-gate">
+        <h2>${esc(t("ae.privateGate"))}</h2>
+        <p class="ae-hint">${esc(t("ae.privateGateText"))}</p>
+        ${d.passes.length
+          ? `<div class="ae-row"><input type="text" id="ae-g-pass" dir="ltr" placeholder="${esc(t("ae.joinPass"))}" autocomplete="off" /><button class="btn btn-sm btn-primary" type="button" id="ae-g-join">${esc(t("ae.join"))}</button></div>
+             <p class="ae-hint" id="ae-g-err" role="status"></p>`
+          : ""}
+      </div>`;
+      out.innerHTML = head + gate;
+      const join = $("ae-g-join");
+      if (!join) return;
+      const go = () => {
+        const pass = $("ae-g-pass").value.trim();
+        if (!pass || !d.passes.includes(pass)) {
+          $("ae-g-err").textContent = t("ae.wrongPass");
+          return;
+        }
+        // a reader who enters a password joins the list the author is building
+        if (!d.users.includes(v.username)) {
+          d.users.push(v.username);
+          renderPreview();
+        }
+      };
+      join.onclick = go;
+      $("ae-g-pass").onkeydown = (e) => {
+        if (e.key === "Enter") go();
+      };
+      return;
+    }
+
+    // exclusive
+    const checks = simChecks(v);
+    if (!checks.length) {
+      out.innerHTML = head + body;
+      return;
+    }
+    out.innerHTML = head + `<div class="ae-gate">
+      <h2>${esc(t("ae.exclusiveGate"))}</h2>
+      <p class="ae-hint" id="ae-v-msg">${esc(t("ae.chk.intro"))}</p>
+      <ul class="ae-checks">${checks
+        .map(
+          (c, i) => `<li id="ae-ck-${i}" class="ae-check-row"><span class="ae-mk"><i class="ae-spin"></i></span>
+            <span class="ae-tx"><b>${esc(t("ae.chk.checking", { what: c[0] }))}</b><small>${esc(t("ae.chk.required", { what: c[2] }))}</small></span>
+            <em class="ae-st">…</em></li>`
+        )
+        .join("")}</ul>
+      <div id="ae-v-end"></div>
+    </div>`;
+
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    (async () => {
+      let ok = true;
+      for (let i = 0; i < checks.length; i += 1) {
+        await wait(520);
+        if (run !== state.pvRun) return;
+        const li = state.root.querySelector(`#ae-ck-${i}`);
+        if (!li) return;
+        const met = checks[i][1];
+        ok = ok && met;
+        li.classList.toggle("ok", met);
+        li.classList.toggle("no", !met);
+        li.querySelector(".ae-mk").innerHTML = met ? CHECK_OK : CHECK_NO;
+        li.querySelector(".ae-tx b").textContent = met ? t("ae.chk.ok", { what: checks[i][0] }) : t("ae.chk.fail", { what: checks[i][0] });
+        li.querySelector(".ae-st").textContent = met ? t("ae.chk.match") : t("ae.chk.no");
+      }
+      await wait(420);
+      if (run !== state.pvRun) return;
+      const msg = state.root.querySelector("#ae-v-msg");
+      if (ok) {
+        if (msg) msg.textContent = t("ae.chk.all");
+        await wait(700);
+        if (run !== state.pvRun) return;
+        out.innerHTML = head + body;
+        return;
+      }
+      if (msg) msg.textContent = t("ae.chk.failLead");
+      const end = state.root.querySelector("#ae-v-end");
+      if (end) {
+        end.innerHTML = `<button class="btn btn-sm btn-primary" type="button" id="ae-remind">${esc(t("ae.remind"))}</button>`;
+        const btn = state.root.querySelector("#ae-remind");
+        btn.onclick = () => {
+          state.reminded = !state.reminded;
+          btn.textContent = state.reminded ? t("ae.reminded") : t("ae.remind");
+          C().toast(state.reminded ? t("ae.remindOn") : t("ae.remindOff"));
+        };
+      }
+    })();
+  }
+
   function readerHtml(row) {
     const $ = state.$;
     const root = state.root;

@@ -384,6 +384,19 @@ has("customize groups: a whole group moves with the arrows", cus, 'if(down && bl
 has("customize groups: the save keeps both orders", cus, 'c.groups[page]=readGroups();');
 has("customize groups: the dashboard shows the headings order", dj, 'groupsEl.textContent = `${t("dash.cust.groups")}: ${L.groupOrder(cfg)');
 
+// ---------------- The article page actually boots (2026-10-23) ---------------
+has("article page: the chrome is booted, so a signed-in member stays signed in", read("article.html"), "window.CineAura.setupChrome?.();");
+has("article editor: the language list exists (it was deleted and broke boot)", aem, "const LANGS = Object.keys(LANG_NAME);");
+has("article editor: <dialog> falls back where showModal is missing", aem, "if (typeof dlg.showModal === \"function\") {");
+has("article editor: the preview carries the reader simulator", aem, 'id="ae-sim"');
+has("article editor: the simulator drives the render", aem, 'sim.addEventListener("input", () => renderPreview());');
+has("article editor: exclusive articles check every criterion step by step", aem, "async () => {\n      let ok = true;");
+has("article editor: a met criterion is labelled verified", aem, 't("ae.chk.ok", { what: checks[i][0] })');
+has("article editor: private articles open with a join password", aem, 'if (!pass || !d.passes.includes(pass)) {');
+has("article editor: joining adds the reader to the list", aem, "d.users.push(v.username);");
+has("article editor: remind-me is offered when a reader does not match", aem, 'id="ae-remind"');
+has("article editor: Help-only from a member says send for review", aem, 'btn.textContent = helpOnly ? t("ae.sendReview") : t("ae.publish");');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

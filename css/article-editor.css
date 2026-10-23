@@ -271,3 +271,60 @@
 @media (max-width: 900px) {
   .ae-layout { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- preview: the reader simulator --------------------------------- */
+.ae-sim {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, .12));
+  background: color-mix(in srgb, var(--cyan, #01b4e4) 5%, transparent);
+}
+.ae-sim label { display: grid; gap: 3px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.ae-sim input, .ae-sim select { min-height: 32px; font-size: 12.5px; }
+
+.ae-read .ae-cover { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; margin-bottom: 12px; }
+.ae-read .ae-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); margin: 4px 0 10px; }
+.ae-read .ae-lead { font-size: 15px; opacity: .9; }
+.ae-read .ae-chip { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); }
+
+.ae-gate {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px dashed color-mix(in srgb, var(--cyan, #01b4e4) 40%, transparent);
+  border-radius: 14px;
+  text-align: center;
+}
+.ae-gate h2 { margin: 0 0 6px; font-size: 16px; }
+.ae-gate .ae-row { display: flex; gap: 8px; max-width: 340px; margin: 14px auto 0; }
+.ae-gate .ae-row input { flex: 1; }
+
+.ae-checks { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; text-align: start; }
+.ae-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line, rgba(255, 255, 255, .12));
+  background: rgba(255, 255, 255, .02);
+  transition: border-color .2s ease, background .2s ease;
+}
+.ae-check-row .ae-mk { width: 20px; height: 20px; display: grid; place-items: center; flex: none; }
+.ae-check-row .ae-tx { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.ae-check-row .ae-tx b { font-size: 13px; font-weight: 600; }
+.ae-check-row .ae-tx small { font-size: 11.5px; color: var(--muted); }
+.ae-check-row .ae-st { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.ae-check-row.ok { border-color: rgba(144, 206, 161, .45); background: rgba(144, 206, 161, .08); }
+.ae-check-row.ok .ae-mk, .ae-check-row.ok .ae-st { color: #90cea1; }
+.ae-check-row.no { border-color: rgba(255, 180, 137, .45); background: rgba(255, 180, 137, .07); }
+.ae-check-row.no .ae-mk, .ae-check-row.no .ae-st { color: #ffb489; }
+.ae-spin {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--cyan, #01b4e4) 35%, transparent);
+  border-top-color: var(--cyan, #01b4e4);
+  animation: ae-spin .7s linear infinite;
+}
+@keyframes ae-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ae-spin { animation: none; } }
