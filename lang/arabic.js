@@ -5263,5 +5263,8 @@
  "ct.library": "عودة إلى المكتبة",
  "Invalid or mixed content link — open one item at a time.": "رابط محتوى غير صالح أو مدمج — افتح عنصراً واحداً في كل مرة.",
  "This content is not available or was removed.": "هذا المحتوى غير متوفر أو أُزيل.",
- "Back to the library": "عودة إلى المكتبة"
+ "Back to the library": "عودة إلى المكتبة",
+ "prof.cr.video": "فيديو",
+ "prof.cr.note": "الإجابة تُنشر من صفحة السؤال، والمجموعات تُنشأ من صفحة المجتمع.",
+ "Answers go from the question page; groups are created from the Community page.": "الإجابة تُنشر من صفحة السؤال، والمجموعات تُنشأ من صفحة المجتمع."
 };

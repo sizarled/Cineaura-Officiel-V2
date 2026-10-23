@@ -5697,6 +5697,8 @@
     "ct.invalid": "Invalid or mixed content link — open one item at a time.",
     "ct.missing": "This content is not available or was removed.",
     "ct.library": "Back to the library",
+    "prof.cr.video": "Video",
+    "prof.cr.note": "Answers go from the question page; groups are created from the Community page.",
 
   };
 

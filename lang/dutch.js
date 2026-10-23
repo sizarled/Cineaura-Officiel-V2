@@ -5227,5 +5227,8 @@
  "ct.library": "Terug naar de bibliotheek",
  "Invalid or mixed content link — open one item at a time.": "Ongeldige of gemengde inhoudslink — open één item tegelijk.",
  "This content is not available or was removed.": "Deze inhoud is niet beschikbaar of is verwijderd.",
- "Back to the library": "Terug naar de bibliotheek"
+ "Back to the library": "Terug naar de bibliotheek",
+ "prof.cr.video": "Video",
+ "prof.cr.note": "Antwoorden plaats je op de vraagpagina; groepen maak je op de Community-pagina.",
+ "Answers go from the question page; groups are created from the Community page.": "Antwoorden plaats je op de vraagpagina; groepen maak je op de Community-pagina."
 };

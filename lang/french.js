@@ -5227,5 +5227,8 @@
  "ct.library": "Retour à la bibliothèque",
  "Invalid or mixed content link — open one item at a time.": "Lien de contenu invalide ou mixte — ouvrez un élément à la fois.",
  "This content is not available or was removed.": "Ce contenu n'est pas disponible ou a été supprimé.",
- "Back to the library": "Retour à la bibliothèque"
+ "Back to the library": "Retour à la bibliothèque",
+ "prof.cr.video": "Vidéo",
+ "prof.cr.note": "Les réponses se publient depuis la page de la question ; les groupes se créent depuis la page Communauté.",
+ "Answers go from the question page; groups are created from the Community page.": "Les réponses se publient depuis la page de la question ; les groupes se créent depuis la page Communauté."
 };

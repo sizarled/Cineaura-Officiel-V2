@@ -200,6 +200,20 @@ has("deep: boot gives the router priority", cj4, "if (!contentDeepView()) wireCo
 has("deep: answer view with parent question", cj4, "questionView(box, a.question_id, a.id);");
 has("deep: answer highlight anchor", cj4, 'data-ans="${a.id}"');
 
+// ---------------- Create menu: one launcher for every content type (2026-10-23)
+const pj3 = read("js/profile.js");
+has("create: post stays first", pj3, '<button class="btn btn-sm btn-primary" data-ck="post" type="button">${t("prof.plainPost")}</button>');
+const crOrder = ["data-ck=\"post\"", "prof.cr.video", "community.html#new-article", "community.html#ask", "data-ck=\"playlist\"", "data-ck=\"recommendation\"", "data-ck=\"reclist\"", "data-ck=\"review\""];
+let crAt = -1; let crOk = true;
+for (const tok of crOrder) { const at = pj3.indexOf(tok, crAt + 1); if (at === -1) { crOk = false; break; } crAt = at; }
+ok("create: tab order post > video > article > question > playlist > rec > reclist > review", crOk);
+has("create: video enters the studio section", pj3, 'href="?section=content">🎬 ${t("prof.cr.video")}</a>');
+has("create: guidance note (answers from the question page)", pj3, "${t(\"prof.cr.note\")}");
+{ const head = pj3.slice(pj3.indexOf("async function viewCreate"), pj3.indexOf("async function viewCreate") + 2600);
+  ok("create: no standalone Answer or Group tab", !/data-ck="answer"/.test(head) && !/#new-group/.test(head)); }
+const fe = read("js/i18n.js");
+has("create: engine video key", fe, '"prof.cr.video": "Video"');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

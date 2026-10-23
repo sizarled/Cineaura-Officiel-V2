@@ -5227,5 +5227,8 @@
  "ct.library": "Zurück zur Bibliothek",
  "Invalid or mixed content link — open one item at a time.": "Ungültiger oder gemischter Inhaltslink — öffnen Sie jeweils ein Element.",
  "This content is not available or was removed.": "Dieser Inhalt ist nicht verfügbar oder wurde entfernt.",
- "Back to the library": "Zurück zur Bibliothek"
+ "Back to the library": "Zurück zur Bibliothek",
+ "prof.cr.video": "Video",
+ "prof.cr.note": "Antworten werden auf der Fragenseite gepostet; Gruppen werden auf der Community-Seite erstellt.",
+ "Answers go from the question page; groups are created from the Community page.": "Antworten werden auf der Fragenseite gepostet; Gruppen werden auf der Community-Seite erstellt."
 };

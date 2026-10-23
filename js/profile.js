@@ -2555,13 +2555,15 @@
       <h1>${t("prof.newPost")}</h1>
       <div class="tabs">
         <button class="btn btn-sm btn-primary" data-ck="post" type="button">${t("prof.plainPost")}</button>
+        <a class="btn btn-sm btn-ghost" href="?section=content">🎬 ${t("prof.cr.video")}</a>
+        <a class="btn btn-sm btn-ghost" href="./community.html#new-article">✍ ${t("com.newArticle")}</a>
+        <a class="btn btn-sm btn-ghost" href="./community.html#ask">❓ ${t("com.ask")}</a>
         <button class="btn btn-sm btn-ghost" data-ck="playlist" type="button">${t("dash.nav.playlists")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="recommendation" type="button">${t("prof.recs")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="reclist" type="button">${t("prof.recList")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="review" type="button">${t("rev.review")}</button>
-        <a class="btn btn-sm btn-ghost" href="./community.html#new-article">✍ ${t("com.newArticle")}</a>
-        <a class="btn btn-sm btn-ghost" href="./community.html#ask">❓ ${t("com.ask")}</a>
       </div>
+      <p class="muted" style="margin:6px 0 12px">${t("prof.cr.note")}</p>
       <div id="create-box"></div>`;
     const draw = (kind) => {
       main.querySelectorAll("[data-ck]").forEach((b) => {

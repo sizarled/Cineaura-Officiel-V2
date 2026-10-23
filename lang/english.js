@@ -5227,5 +5227,8 @@
  "ct.library": "Back to the library",
  "Invalid or mixed content link — open one item at a time.": "Invalid or mixed content link — open one item at a time.",
  "This content is not available or was removed.": "This content is not available or was removed.",
- "Back to the library": "Back to the library"
+ "Back to the library": "Back to the library",
+ "prof.cr.video": "Video",
+ "prof.cr.note": "Answers go from the question page; groups are created from the Community page.",
+ "Answers go from the question page; groups are created from the Community page.": "Answers go from the question page; groups are created from the Community page."
 };
