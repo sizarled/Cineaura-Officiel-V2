@@ -173,29 +173,91 @@
       location.href=(page==="home"?"index.html":page==="watch"?"watch.html":page==="content"?"content.html":page==="market"?"market.html":page==="dashboard"?"dashboard.html":"profile.html");
     };
     const panel=document.createElement("div"); panel.className="lz-panel";
-    panel.innerHTML=`<h4>ترتيب أقسام — ${PAGE_DEFS[page].label}</h4><p class="lz-hint">اسحب لإعادة الترتيب، ثم اضغط <b>معاينة قبل التطبيق</b> لمشاهدة التغيير مباشرة دون حفظ. إن أعجبتك المعاينة اضغط <b>تطبيق</b> أو <b>حفظ التعديلات</b>.</p>`;
+    const grouped = page==="dashboard" && !!(L && Array.isArray(L.DASH_GROUPS));
+    panel.innerHTML=`<h4>ترتيب أقسام — ${PAGE_DEFS[page].label}</h4><p class="lz-hint">${
+      grouped
+        ? "الأقسام موزّعة على مجموعات: اسحب القسم داخل مجموعته، واستخدم ↑ ↓ لنقل المجموعة كاملة (العنوان مع ما تحته)."
+        : "اسحب لإعادة الترتيب"
+    } ثم اضغط <b>معاينة قبل التطبيق</b> لمشاهدة التغيير مباشرة دون حفظ.</p>`;
     const list=document.createElement("div"); list.className="lz-list"; list.id="lz-order-list";
-    order.forEach(id=>{
+
+    const makeRow=(id)=>{
       const row=document.createElement("div"); row.className="lz-item"; row.draggable=true; row.dataset.id=id;
-      const isOn = true; // all on by default; could store enabled map
-      row.innerHTML=`<span class="lz-handle">↕</span><span class="lz-name">${labelFor(page, id)}</span><label class="lz-toggle"><input type="checkbox" ${isOn?"checked":""} /> ظاهر</label>`;
-      // drag
-      row.addEventListener("dragstart", e=>{ row.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", id); });
+      row.innerHTML=`<span class="lz-handle">↕</span><span class="lz-name">${labelFor(page, id)}</span><label class="lz-toggle"><input type="checkbox" checked /> ظاهر</label>`;
+      row.addEventListener("dragstart", (e)=>{ row.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", id); });
       row.addEventListener("dragend", ()=> row.classList.remove("dragging"));
-      list.appendChild(row);
-    });
-    // drop handling
-    list.addEventListener("dragover", e=>{ e.preventDefault(); const dragging=list.querySelector(".dragging"); const after=getDragAfter(list, e.clientY); if(!dragging) return; if(after==null) list.appendChild(dragging); else list.insertBefore(dragging, after); });
+      return row;
+    };
+
+    if(grouped){
+      const gOrder=L.groupOrder? L.groupOrder(cfg) : L.DASH_GROUPS.map((g)=>g.key);
+      gOrder.forEach((key)=>{
+        const def=L.DASH_GROUPS.find((g)=>g.key===key);
+        if(!def) return;
+        const block=document.createElement("div"); block.className="lz-grp"; block.dataset.grp=key;
+        const head=document.createElement("div"); head.className="lz-grp-head";
+        head.innerHTML=`<span class="lz-grp-name">${t("dash.grp."+key, key)}</span>
+          <span class="lz-grp-btns">
+            <button class="btn btn-sm btn-ghost" type="button" data-gup aria-label="${t("dash.cust.grpUp")}" title="${t("dash.cust.grpUp")}">↑</button>
+            <button class="btn btn-sm btn-ghost" type="button" data-gdown aria-label="${t("dash.cust.grpDown")}" title="${t("dash.cust.grpDown")}">↓</button>
+          </span>`;
+        block.appendChild(head);
+        const inner=document.createElement("div"); inner.className="lz-list lz-grp-list";
+        const wanted=order.filter((id)=> def.ids.includes(id));
+        def.ids.forEach((id)=>{ if(!wanted.includes(id)) wanted.push(id); });
+        wanted.forEach((id)=> inner.appendChild(makeRow(id)));
+        // a drop is accepted inside the group only: a section keeps its group
+        inner.addEventListener("dragover", (e)=>{
+          e.preventDefault();
+          const dragging=list.querySelector(".lz-item.dragging");
+          if(!dragging || !inner.contains(dragging)) return;
+          const after=getDragAfter(inner, e.clientY);
+          if(after==null) inner.appendChild(dragging); else inner.insertBefore(dragging, after);
+        });
+        block.appendChild(inner);
+        list.appendChild(block);
+      });
+      const syncGroupBtns=()=>{
+        const blocks=[...list.querySelectorAll(".lz-grp")];
+        blocks.forEach((b, i)=>{
+          const up=b.querySelector("[data-gup]"), down=b.querySelector("[data-gdown]");
+          if(up) up.disabled = i===0;
+          if(down) down.disabled = i===blocks.length-1;
+        });
+      };
+      list.addEventListener("click", (e)=>{
+        const up=e.target.closest("[data-gup]"), down=e.target.closest("[data-gdown]");
+        if(!up && !down) return;
+        const block=(up||down).closest(".lz-grp");
+        if(!block) return;
+        if(up && block.previousElementSibling) list.insertBefore(block, block.previousElementSibling);
+        if(down && block.nextElementSibling) list.insertBefore(block.nextElementSibling, block);
+        syncGroupBtns();
+      });
+      syncGroupBtns();
+    } else {
+      order.forEach((id)=> list.appendChild(makeRow(id)));
+      list.addEventListener("dragover", (e)=>{ e.preventDefault(); const dragging=list.querySelector(".dragging"); const after=getDragAfter(list, e.clientY); if(!dragging) return; if(after==null) list.appendChild(dragging); else list.insertBefore(dragging, after); });
+    }
     panel.appendChild(list);
+
+    // what the two buttons below read from the DOM
+    const readOrder=()=> grouped
+      ? [...list.querySelectorAll(".lz-grp")].flatMap((b)=> [...b.querySelectorAll(".lz-item")].map((el)=> el.dataset.id))
+      : [...list.querySelectorAll(".lz-item")].map((el)=> el.dataset.id);
+    const readGroups=()=> [...list.querySelectorAll(".lz-grp")].map((b)=> b.dataset.grp);
+    const putInConfig=(c)=>{
+      c.pages[page]=readOrder();
+      if(grouped){ c.groups=c.groups||{}; c.groups[page]=readGroups(); }
+      return c;
+    };
     const acts=document.createElement("div"); acts.style.display="flex"; acts.style.gap="8px"; acts.style.flexWrap="wrap";
     const btnPreview=document.createElement("button"); btnPreview.className="btn btn-sm"; btnPreview.style.border="1px solid var(--cyan)"; btnPreview.style.color="var(--cyan)"; btnPreview.textContent="👁 معاينة الترتيب"; btnPreview.onclick=()=>{
-      const newOrder=[...list.querySelectorAll(".lz-item")].map(el=>el.dataset.id);
-      const c=collectPendingConfig(); c.pages[page]=newOrder; c.customized=true;
+      const c=putInConfig(collectPendingConfig()); c.customized=true;
       startPreviewWith(c, "معاينة ترتيب "+PAGE_DEFS[page].label);
     };
     const btnSave=document.createElement("button"); btnSave.className="btn btn-sm btn-primary"; btnSave.textContent="حفظ الترتيب"; btnSave.onclick=()=>{
-      const newOrder=[...list.querySelectorAll(".lz-item")].map(el=>el.dataset.id);
-      const c=collectPendingConfig(); c.pages[page]=newOrder; c.customized=true;
+      const c=putInConfig(collectPendingConfig()); c.customized=true;
       if(previewActive) { previewTemp=c; confirmPreview(); }
       else { window.CineAuraLayouts.saveConfig(c); window.CineAuraLayouts.applyAll(c); applyToast("تم حفظ الترتيب"); }
     };

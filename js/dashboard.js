@@ -277,7 +277,9 @@
       `<button type="button" data-section="${s}" class="${state.section===s?"active":""}">${C.navIcon(s)}<span>${t("dash.nav."+s)}</span></button>`;
     const parts = [];
     NAV_GROUPS.forEach(([grp, list]) => {
-      parts.push(`<p class="side-grp" role="presentation">${t(grp)}</p>`);
+      // data-grp: the heading owns the buttons under it, so the customizer can
+      // move a whole group (Main, Content, Performance, Earnings, Account)
+      parts.push(`<p class="side-grp" role="presentation" data-grp="${grp.split(".").pop()}">${t(grp)}</p>`);
       list.forEach((s) => parts.push(btn(s)));
     });
     if (state.panelVisible) parts.push(`<a href="./panel.html" data-panel-link>${C.navIcon("panel")}<span>${t("nav.panel")}</span></a>`);
@@ -316,6 +318,9 @@
         </aside>
         <section class="glass dash-main" id="dash-main"></section>
       </div>`;
+    // tell the layout engine the sidebar has been repainted, so the member's
+    // order (groups included) is applied on every render, not once per page
+    document.dispatchEvent(new CustomEvent("cineaura:dash-nav"));
     $("#dash-root").onclick = onShellClick;
     C.mountSideToggle($("#dash-root .dash-layout"));
     showActiveTab();
@@ -3553,6 +3558,7 @@
         ${card("icons", "icons", "★", t("dash.cust.iconSet"), t("dash.cust.iconsLead"))}
         ${card("pins", "pins", "📌", t("dash.cust.pinsTitle"), t("dash.cust.pinsLead"))}
       </div>
+      <p class="muted dash-cust-groups" id="dash-cust-groups"></p>
       <div class="dash-acts">
         <button class="btn btn-primary" type="button" data-cust-open="dashboard">${t("dash.cust.open")}</button>
         <button class="btn btn-ghost" type="button" data-cust-reset>${t("dash.cust.reset")}</button>
@@ -3605,6 +3611,13 @@
       toast(t("dash.cust.resetDone"));
       renderSection(); // the sidebar order may have just changed
     };
+    // the sidebar is grouped, so the panel is too: show the order of the headings
+    const groupsEl = main.querySelector("#dash-cust-groups");
+    if (groupsEl && L.groupOrder) {
+      groupsEl.textContent = `${t("dash.cust.groups")}: ${L.groupOrder(cfg)
+        .map((k) => t("dash.grp." + k))
+        .join(" · ")}`;
+    }
     note.textContent = t("dash.cust.note", { colors: cfg.customStyle ? t("dash.cust.on") : t("dash.cust.off") });
   }
 

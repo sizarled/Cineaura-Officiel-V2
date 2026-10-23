@@ -5735,5 +5735,12 @@
  "The customization engine could not load. Reload the page and try again.": "Impossibile caricare il motore di personalizzazione. Ricarica la pagina.",
  "Your custom colours are {colors}. Pins, shortcuts and icons are stored with your layout.": "I tuoi colori personalizzati sono {colors}. Fissati, scorciatoie e icone sono salvati con il layout.",
  "applied": "applicati",
- "not set": "non impostati"
+ "not set": "non impostati",
+ "dash.cust.grpUp": "Sposta il gruppo su",
+ "dash.cust.grpDown": "Sposta il gruppo giù",
+ "dash.cust.groups": "Gruppi",
+ "dash.cust.groupsLead": "Main, Content, Performance, Earnings e Account: ogni titolo resta con le sue sezioni.",
+ "Move this group up": "Sposta il gruppo su",
+ "Move this group down": "Sposta il gruppo giù",
+ "Main, Content, Performance, Earnings and Account — each heading stays with the sections under it.": "Main, Content, Performance, Earnings e Account: ogni titolo resta con le sue sezioni."
 };

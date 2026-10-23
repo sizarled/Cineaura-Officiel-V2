@@ -5990,6 +5990,10 @@
     "dash.cust.note": "Your custom colours are {colors}. Pins, shortcuts and icons are stored with your layout.",
     "dash.cust.on": "applied",
     "dash.cust.off": "not set",
+    "dash.cust.grpUp": "Move this group up",
+    "dash.cust.grpDown": "Move this group down",
+    "dash.cust.groups": "Groups",
+    "dash.cust.groupsLead": "Main, Content, Performance, Earnings and Account — each heading stays with the sections under it.",
 
   };
 

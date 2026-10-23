@@ -5735,5 +5735,12 @@
  "The customization engine could not load. Reload the page and try again.": "De aanpassingsmodule kon niet laden. Herlaad de pagina.",
  "Your custom colours are {colors}. Pins, shortcuts and icons are stored with your layout.": "Je eigen kleuren zijn {colors}. Pins, snelkoppelingen en iconen staan bij je layout.",
  "applied": "toegepast",
- "not set": "niet ingesteld"
+ "not set": "niet ingesteld",
+ "dash.cust.grpUp": "Deze groep omhoog",
+ "dash.cust.grpDown": "Deze groep omlaag",
+ "dash.cust.groups": "Groepen",
+ "dash.cust.groupsLead": "Main, Content, Performance, Earnings en Account — elke kop blijft bij zijn secties.",
+ "Move this group up": "Deze groep omhoog",
+ "Move this group down": "Deze groep omlaag",
+ "Main, Content, Performance, Earnings and Account — each heading stays with the sections under it.": "Main, Content, Performance, Earnings en Account — elke kop blijft bij zijn secties."
 };

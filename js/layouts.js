@@ -18,13 +18,30 @@
   const CONTENT_BASE = ["vw-search","vw-main","vw-side"];
   // market: mkt-hero, mkt-layout (contains mkt-side + mkt-main)
   const MARKET_BASE = ["mkt-hero","mkt-layout"];
-  // dashboard: the sidebar order equals NAV_GROUPS in js/dashboard.js — including
-  // the sections added with the article editor and the documents (2026-10-23)
-  const DASH_BASE = ["overview","level","points","upload","articles","documents","links","codes","playlists","iptv","views","analytics","reports","history","withdraw","prizes","customize","settings"];
+  // dashboard: NAV_GROUPS in js/dashboard.js, groups included. The sidebar is not
+  // a flat list — «Main», «Content», «Performance», «Earnings» and «Account» are
+  // headings that own the buttons under them, and the order keeps them together.
+  const DASH_GROUPS = [
+    { key:"main",    ids:["overview","level","points"] },
+    { key:"content", ids:["upload","articles","documents","links","codes","playlists","iptv"] },
+    { key:"perf",    ids:["views","analytics","reports","history"] },
+    { key:"earn",    ids:["withdraw","prizes"] },
+    { key:"account", ids:["customize","settings"] },
+  ];
+  const DASH_BASE = DASH_GROUPS.flatMap((g)=>g.ids);
   // profile: NAV_SECTIONS in js/profile.js (Market and Community joined the column)
   const PROFILE_BASE = ["home","market","community","create","content","posts","messages","search","following","blocked","settings"];
 
   const BASES = { home:HOME_BASE, watch:WATCH_BASE, content:CONTENT_BASE, market:MARKET_BASE, dashboard:DASH_BASE, profile:PROFILE_BASE };
+
+  // The saved order of the group headings (Main, Content, …), completed with any
+  // group the config does not know yet so a new group can never disappear.
+  function groupOrder(cfg){
+    const saved=(cfg && cfg.groups && Array.isArray(cfg.groups.dashboard)) ? cfg.groups.dashboard : [];
+    const out=saved.filter((k)=> DASH_GROUPS.some((g)=>g.key===k));
+    DASH_GROUPS.forEach((g)=>{ if(!out.includes(g.key)) out.push(g.key); });
+    return out;
+  }
 
   /* Insert the sections a saved order is missing, next to the neighbours the
      site gives them — not at the end. A config saved before Articles and
@@ -289,50 +306,48 @@
       });
     });
   }
-  function applyDashboardOrder(order){
+  function applyDashboardOrder(order, groups){
     const nav=document.querySelector("#dash-root .side-nav");
     if(!nav) return;
-    const byKey={};
-    [...nav.children].forEach(btn=>{
-      const k=btn.getAttribute("data-section")||btn.getAttribute("data-sec")||btn.dataset.sec||btn.dataset.section||"";
-      if(k) byKey[k]=btn;
+    const btns={}, heads={};
+    [...nav.children].forEach((el)=>{
+      const sec=el.getAttribute("data-section");
+      if(sec) btns[sec]=el;
+      const grp=el.getAttribute("data-grp");
+      if(grp) heads[grp]=el;
     });
-    if(Object.keys(byKey).length===0){
-      [...nav.querySelectorAll("button")].forEach(b=>{
-        const t=b.textContent.trim().toLowerCase();
-        order.forEach(k=>{ if(t.includes(k)) byKey[k]=b; });
-      });
-    }
-    // Overview is always the first menu button, whatever the style preset / saved order says.
-    // Sections the order does not list (e.g. "level") stay right after it; anything that is not
-    // a section button (Panel link, injected shortcuts) is kept at the end instead of jumping up.
-    const finalOrder=["overview"].concat((order||[]).filter(k=>k!=="overview"));
-    const extras=[...nav.children].filter(el=>{
-      const k=el.getAttribute("data-section")||el.getAttribute("data-sec")||el.dataset.sec||el.dataset.section||"";
-      return !k || !finalOrder.includes(k);
+    // the arrangement the member saved, then any heading the page renders that
+    // the config does not know (a group added after the config was saved)
+    const gOrder=(Array.isArray(groups)? groups : []).filter((k)=> DASH_GROUPS.some((g)=>g.key===k));
+    DASH_GROUPS.forEach((g)=>{ if(heads[g.key] && !gOrder.includes(g.key)) gOrder.push(g.key); });
+
+    // one sequence of nodes: heading, then the buttons that belong under it.
+    // A button whose group is unknown (a future section) keeps its place at the end.
+    const seq=[];
+    gOrder.forEach((key)=>{
+      const def=DASH_GROUPS.find((g)=>g.key===key);
+      if(!def) return;
+      if(heads[key]) seq.push({ tag:"#"+key, el:heads[key] });
+      const wanted=(order||[]).filter((id)=> def.ids.includes(id) && btns[id]);
+      def.ids.forEach((id)=>{ if(btns[id] && !wanted.includes(id)) wanted.push(id); });
+      wanted.forEach((id)=> seq.push({ tag:id, el:btns[id] }));
     });
-    const unlisted=extras.filter(el=> el.hasAttribute("data-section") || el.hasAttribute("data-sec"));
-    const others=extras.filter(el=> !unlisted.includes(el));
-    // Skip everything when the nav already matches the desired sequence —
-    // re-parenting a button collapses any text selection inside the page.
-    const desired=(byKey.overview?["overview"]:[])
-      .concat(unlisted.map((el)=> el.getAttribute("data-section")||el.getAttribute("data-sec")||el.dataset.sec||el.dataset.section||""))
-      .concat(finalOrder.filter((k)=> k!=="overview" && byKey[k]))
-      .concat(others.map(()=> null));
+    const placed=new Set(seq.map((x)=>x.el).filter(Boolean));
+    [...nav.children].forEach((el)=>{ if(!placed.has(el)) seq.push({ tag:null, el }); });
+
+    // Skip the DOM work when the nav is already in that order — moving nodes
+    // collapses any text selection the member has on the page.
     const current=[...nav.children].map((el)=>{
-      if(others.includes(el)) return null;
-      return el.getAttribute("data-section")||el.getAttribute("data-sec")||el.dataset.sec||el.dataset.section||null;
+      const g=el.getAttribute("data-grp");
+      if(g) return "#"+g;
+      return el.getAttribute("data-section") || null;
     });
-    const same= desired.length===current.length && desired.every((k,i)=> k===current[i]);
+    const same = seq.length===current.length && seq.every((x,i)=> x.tag===current[i]);
     if(!same){
       const frag=document.createDocumentFragment();
-      if(byKey.overview) frag.appendChild(byKey.overview);
-      unlisted.forEach(el=> frag.appendChild(el));
-      finalOrder.forEach((k)=>{ if(k!=="overview" && byKey[k]) frag.appendChild(byKey[k]); });
-      others.forEach((el)=> frag.appendChild(el));
+      seq.forEach((x)=>{ if(x.el) frag.appendChild(x.el); });
       nav.appendChild(frag);
     }
-    // inject shortcuts after reordering
     try{ const cfg=loadConfig(); injectSideShortcuts("dashboard", cfg); }catch{}
   }
 
@@ -449,7 +464,7 @@
     if(page==="watch") applyWatchOrder(cfg.pages.watch||PRESETS.default.watch);
     if(page==="content") applyGenericOrder("#vw-root .vw-layout", cfg.pages.content||PRESETS.default.content, "id");
     if(page==="market") applyGenericOrder("#mkt-root", cfg.pages.market||PRESETS.default.market, "id");
-    if(page==="dashboard") applyDashboardOrder(cfg.pages.dashboard||PRESETS.default.dashboard);
+    if(page==="dashboard") applyDashboardOrder(cfg.pages.dashboard||PRESETS.default.dashboard, groupOrder(cfg));
     if(page==="profile") applyProfileOrder(cfg.pages.profile||PRESETS.default.profile);
     // Apply hidden (skip when in edit mode — editor handles its own visibility)
     if(!document.documentElement.classList.contains("ce-editing-root")){
@@ -548,6 +563,11 @@
   function init(){
     // Try hydrate then apply
     hydrateFromProfile().finally(()=> applyAll());
+    // The dashboard paints its sidebar asynchronously; when it says so, the saved
+    // order is applied at once instead of waiting for the MutationObserver.
+    document.addEventListener("cineaura:dash-nav", ()=>{
+      try{ applyAll(); }catch{}
+    });
     // Re-apply on style change
     document.addEventListener("cineaura:prefs", (e)=>{
       if(e.detail && e.detail.style){
@@ -585,6 +605,6 @@
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 
-  window.CineAuraLayouts={ PRESETS, HOME_BASE, WATCH_BASE, CONTENT_BASE, MARKET_BASE, DASH_BASE, PROFILE_BASE, BASES, normalizeOrder, getStyle, loadConfig, saveConfig, resetToPreset, resetToDefault, applyAll, detectPage, getPins, setPins, addPin, removePin, VALID_STYLES };
+  window.CineAuraLayouts={ PRESETS, HOME_BASE, WATCH_BASE, CONTENT_BASE, MARKET_BASE, DASH_BASE, DASH_GROUPS, PROFILE_BASE, BASES, normalizeOrder, groupOrder, getStyle, loadConfig, saveConfig, resetToPreset, resetToDefault, applyAll, detectPage, getPins, setPins, addPin, removePin, VALID_STYLES };
 
 })();

@@ -50,3 +50,32 @@
 .lz-home-pins .lz-pin img{width:40px;height:60px;object-fit:cover;border-radius:6px}
 .lz-foot{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;background:var(--surface)}
 .toast.lz-toast{position:fixed;bottom:16px;inset-inline-start:50%;transform:translateX(-50%)}
+
+/* The dashboard sidebar is grouped: Main / Content / Performance / Earnings /
+   Account. The reorder list shows those headings and keeps them attached to the
+   buttons under them. */
+.lz-grp {
+  border: 1px dashed color-mix(in srgb, var(--cyan, #01b4e4) 28%, transparent);
+  border-radius: 12px;
+  padding: 6px;
+  background: color-mix(in srgb, var(--cyan, #01b4e4) 5%, transparent);
+}
+.lz-grp + .lz-grp { margin-top: 8px; }
+.lz-grp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 6px;
+}
+.lz-grp-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--cyan-2, var(--cyan, #01b4e4));
+}
+.lz-grp-btns { display: inline-flex; gap: 4px; }
+.lz-grp-btns .btn { padding: 2px 8px; line-height: 1.2; }
+.lz-grp-btns .btn[disabled] { opacity: .35; cursor: default; }
+.lz-grp-list { display: grid; gap: 6px; min-height: 18px; }

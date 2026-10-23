@@ -5771,5 +5771,12 @@
  "The customization engine could not load. Reload the page and try again.": "تعذّر تحميل محرك التخصيص. أعد تحميل الصفحة وحاول ثانية.",
  "Your custom colours are {colors}. Pins, shortcuts and icons are stored with your layout.": "ألوانك المخصصة {colors}. التثبيتات والاختصارات والأيقونات محفوظة مع تخطيطك.",
  "applied": "مطبَّقة",
- "not set": "غير محددة"
+ "not set": "غير محددة",
+ "dash.cust.grpUp": "نقل هذه المجموعة لأعلى",
+ "dash.cust.grpDown": "نقل هذه المجموعة لأسفل",
+ "dash.cust.groups": "المجموعات",
+ "dash.cust.groupsLead": "Main وContent وPerformance وEarnings وAccount — كل عنوان يبقى مع الأقسام التي تحته.",
+ "Move this group up": "نقل هذه المجموعة لأعلى",
+ "Move this group down": "نقل هذه المجموعة لأسفل",
+ "Main, Content, Performance, Earnings and Account — each heading stays with the sections under it.": "Main وContent وPerformance وEarnings وAccount — كل عنوان يبقى مع الأقسام التي تحته."
 };

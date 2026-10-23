@@ -91,7 +91,7 @@ has("dashboard settings: profile-pointer note", dj, 'dash.settings.profNote');
 has("dashboard settings: links profile settings deep", dj, './profile.html?section=settings');
 has("dashboard nav: account group last", dj, '["dash.grp.account", ["customize", "settings"]]');
 has("dashboard nav: SECTIONS derived from groups", dj, "SECTIONS = NAV_GROUPS.flatMap((g) => g[1])");
-has("dashboard nav: group headings render", dj, '<p class="side-grp" role="presentation">');
+has("dashboard nav: group headings render", dj, '<p class="side-grp" role="presentation" data-grp=');
 has("dashboard nav: heading styling", read("css/dashboard.css"), ".side-nav .side-grp {");
 has("dashboard nav: headings hidden in phone strip", read("css/mobile.css"), ".dash-side .side-nav .side-grp");
 has("dashboard nav: engine group label", read("js/i18n.js"), '"dash.grp.main": "Main"');
@@ -347,12 +347,12 @@ has("documents: the host can refresh after an upload", dcm, "ctx.onDone?.(create
 
 // ---------------- Site customization follows the new sections (2026-10-23) ---
 const lay = read("js/layouts.js");
-has("customize: the dashboard order knows the new sections", lay, '["overview","level","points","upload","articles","documents","links","codes","playlists","iptv","views","analytics","reports","history","withdraw","prizes","customize","settings"]');
+has("customize: the dashboard order knows the new sections", lay, 'const DASH_BASE = DASH_GROUPS.flatMap((g)=>g.ids);');
 has("customize: the profile order knows market and community", lay, '["home","market","community","create","content","posts","messages","search","following","blocked","settings"]');
 has("customize: a saved order gains missing sections beside their neighbours", lay, "function normalizeOrder(page, arr)");
 has("customize: old configs are upgraded on load", lay, "cfg.pages[page]=normalizeOrder(page, cfg.pages[page]);");
 has("customize: pins stay on the homepage", lay, 'if(detectPage()!=="home") return;');
-has("customize: the engine exposes the bases and the normaliser", lay, "BASES, normalizeOrder, getStyle, loadConfig");
+has("customize: the engine exposes the bases and the normaliser", lay, "DASH_GROUPS, PROFILE_BASE, BASES, normalizeOrder, groupOrder,");
 const cus = read("js/customizer.js");
 has("customize: saved colours survive a reload", cus, "function applySavedStyle(){");
 has("customize: it opens on the tab that was asked for", cus, "if(opts && PAGE_DEFS[opts.page]) activePage=opts.page;");
@@ -367,6 +367,22 @@ has("dashboard: the four doors open the one panel", read("js/dashboard.js"), 'wi
 has("dashboard: reset goes through the engine", read("js/dashboard.js"), "const c = L.resetToDefault();");
 has("nav icons: the new sections have their own", read("js/common.js"), "articles: '<path d=\"M5 3.5h9.5L19 8v12.5H5z\"/>");
 has("nav icons: customization too", read("js/common.js"), "customize: '<path d=\"M4 6.5h6M14 6.5h6M4 12h10M18 12h2M4 17.5h3M11 17.5h9\"/>");
+
+// ---------------- Customization handles the groups, not just the buttons -----
+has("customize groups: the five headings are data, not decoration", lay, '{ key:"main",    ids:["overview","level","points"] },');
+has("customize groups: content owns the new sections", lay, '{ key:"content", ids:["upload","articles","documents","links","codes","playlists","iptv"] },');
+has("customize groups: the flat base is derived from them", lay, "const DASH_BASE = DASH_GROUPS.flatMap((g)=>g.ids);");
+has("customize groups: their order is saved with the layout", lay, "function groupOrder(cfg){");
+has("customize groups: a heading travels with its buttons", lay, 'seq.push({ tag:"#"+key, el:heads[key] });');
+has("customize groups: unknown headings still render", lay, "DASH_GROUPS.forEach((g)=>{ if(heads[g.key] && !gOrder.includes(g.key)) gOrder.push(g.key); });");
+has("customize groups: the sidebar says which heading it drew", dj, 'data-grp="${grp.split(".").pop()}"');
+has("customize groups: the order is applied on every sidebar paint", dj, 'document.dispatchEvent(new CustomEvent("cineaura:dash-nav"));');
+has("customize groups: the engine listens for it", lay, 'document.addEventListener("cineaura:dash-nav", ()=>{');
+has("customize groups: the panel draws a block per group", cus, 'const block=document.createElement("div"); block.className="lz-grp"; block.dataset.grp=key;');
+has("customize groups: a section is dragged inside its own group", cus, 'if(!dragging || !inner.contains(dragging)) return;');
+has("customize groups: a whole group moves with the arrows", cus, 'if(down && block.nextElementSibling) list.insertBefore(block.nextElementSibling, block);');
+has("customize groups: the save keeps both orders", cus, 'c.groups[page]=readGroups();');
+has("customize groups: the dashboard shows the headings order", dj, 'groupsEl.textContent = `${t("dash.cust.groups")}: ${L.groupOrder(cfg)');
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
