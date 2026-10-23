@@ -3144,6 +3144,7 @@
     ["./iptv.html", "nav.iptv"],
     ["./prize.html", "nav.prizes"],
     ["./market.html", "nav.market"],
+    ["./community.html", "nav.community"],
     ["./help.html", "nav.help"],
   ];
   function unifyHeaderNav() {
@@ -3909,6 +3910,7 @@
     messages: '<path d="M20.5 12a8 8 0 0 1-11.7 7.1L3.5 20.5l1.4-4.9A8 8 0 1 1 20.5 12z"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
     following: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M18 14.3a6.5 6.5 0 0 1 3.5 5.7"/>',
+    community: '<circle cx="7" cy="8.5" r="3"/><path d="M2 19.5a5 5 0 0 1 10 0"/><circle cx="16.5" cy="8.5" r="3"/><path d="M12.5 19.5a5.5 5.5 0 0 1 9 0"/>',
     blocked: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
     accounts: '<circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
     apps: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
@@ -5327,7 +5329,7 @@
      re-runs on translations and on dynamic nav repaints. */
   const NAV_ICON_KEYS = {
     "nav.home": "home", "nav.features": "features", "nav.find": "find", "nav.search": "search",
-    "nav.movies": "movie", "nav.series": "series", "nav.videos": "videos", "nav.iptv": "tv",
+    "nav.movies": "movie", "nav.series": "series", "nav.videos": "videos", "nav.iptv": "tv", "nav.community": "users",
     "nav.prizes": "trophy", "nav.market": "store", "nav.plans": "crown", "nav.support": "help",
     "nav.signin": "login", "nav.signup": "signup", "nav.signout": "logout", "nav.account": "account",
     "nav.panel": "dashboard", "nav.points": "points", "nav.profile": "account", "nav.help": "help",

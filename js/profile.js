@@ -61,7 +61,7 @@
     host: null,
     hostMember: null,
     isOwner: false,
-    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","content","messages","following","market","create","posts","search","blocked","settings"].includes(s || "") ? s : "home"; })(),
+    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","market","community","create","content","posts","messages","search","following","blocked","settings"].includes(s || "") ? s : "home"; })(),
     homeTab: "activity",
     followRow: null,
     followTab: "sent",
@@ -515,9 +515,11 @@
   // home of the profile being visited.
   // Points live in Dashboard > Points; "Your content" (js/content-studio.js) holds the
   // member's videos: Create, Manage, Statistics. "market" opens the own store
-  // (viewMarket, sql/market.sql). Order: Profile → Your content → Messages →
-  // Following → Market → Create → Manage posts → Search → Blocked → Settings.
-  const NAV_SECTIONS = ["home", "content", "messages", "following", "market", "create", "posts", "search", "blocked", "settings"];
+  // (viewMarket, sql/market.sql); "community" lists the member's articles, questions
+  // and answers (js/community.js, sql/community.sql).
+  // Order: Profile → Market → Community → Create → Your content → Manage posts →
+  // Messages → Search → Following → Blocked → Settings.
+  const NAV_SECTIONS = ["home", "market", "community", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"];
 
   function signedIn() {
     return Boolean(state.me?.member?.member_id);
@@ -638,6 +640,7 @@
       posts: viewManagePosts,
       content: viewContent,
       market: viewMarket,
+      community: (m) => window.CineAuraCommunity ? window.CineAuraCommunity.memberView(m, state.hostMember?.member_id || "") : (m.innerHTML = "<p>Community module not loaded</p>"),
       messages: viewMessages,
       search: viewSearch,
       following: viewFollowing,
@@ -2558,6 +2561,8 @@
         <button class="btn btn-sm btn-ghost" data-ck="recommendation" type="button">${t("prof.recs")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="reclist" type="button">${t("prof.recList")}</button>
         <button class="btn btn-sm btn-ghost" data-ck="review" type="button">${t("rev.review")}</button>
+        <a class="btn btn-sm btn-ghost" href="./community.html#new-article">✍ ${t("com.newArticle")}</a>
+        <a class="btn btn-sm btn-ghost" href="./community.html#ask">❓ ${t("com.ask")}</a>
       </div>
       <div id="create-box"></div>`;
     const draw = (kind) => {

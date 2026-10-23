@@ -78,7 +78,7 @@ has("helpcats: engine addMain", read("js/i18n.js"), '"helpcats.addMain": "Add se
 has("helpcats: engine articles-tab label", read("js/i18n.js"), '"help.tabArticles": "Articles"');
 
 // ---------------- Profile sidebar: Profile label + member order (2026-10-22)
-has("profile nav: new member order", read("js/profile.js"), 'NAV_SECTIONS = ["home", "content", "messages", "following", "market", "create", "posts", "search", "blocked", "settings"]');
+has("profile nav: journey order with Community", read("js/profile.js"), 'NAV_SECTIONS = ["home", "market", "community", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"]');
 has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "Profile"');
 
 // ---------------- Dashboard sidebar journey groups (2026-10-22)
@@ -111,6 +111,37 @@ has("profile settings: dashboard-pointer note", pfv, 'prof.settingsDashNote');
 has("profile settings: links dashboard settings", pfv, './dashboard.html#settings');
 has("i18n: profNote key", read("js/i18n.js"), '"dash.settings.profNote": "Privacy, follow policy');
 has("i18n: dashNote key", read("js/i18n.js"), '"prof.settingsDashNote": "Appearance, account');
+
+// ---------------- Community hub v1: Articles + Questions & Answers (2026-10-22)
+const cs = read("sql/community.sql");
+ok("community: sql exists", fs.existsSync(path.join(ROOT, "sql/community.sql")));
+has("community: questions table", cs, "create table if not exists public.community_questions");
+has("community: answers table", cs, "create table if not exists public.community_answers");
+has("community: votes table", cs, "create table if not exists public.community_answer_votes");
+has("community: articles table", cs, "create table if not exists public.community_articles");
+has("community: answers counter trigger", cs, "_com_answers_count");
+has("community: votes counter trigger", cs, "_com_answer_votes");
+has("community: public read policies", cs, 'com_q_read      on public.community_questions    for select using (true)');
+has("community: pgrst reload", cs, "notify pgrst, 'reload schema';");
+const cj = read("js/community.js");
+has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView };");
+has("community: question route", cj, '#q/${row.id}');
+has("community: deep-link router", cj, "const hashRoute = ()");
+has("community: helpful vote toggle", cj, "community_answer_votes");
+has("community: only boots on hub page", cj, 'if (root) paint(root);');
+ok("community: page exists", fs.existsSync(path.join(ROOT, "community.html")));
+has("community: page loads module", read("community.html"), 'src="js/community.js"');
+has("community: page styling", fs.existsSync(path.join(ROOT, "css/community.css")) ? read("css/community.css") : "", ".com-tabs .follow-tab.active");
+const pf2 = read("js/profile.js");
+has("community: profile section delegate", pf2, 'CineAuraCommunity.memberView(m, state.hostMember?.member_id');
+has("community: profile deep-link whitelist", pf2, '"home","market","community","create","content","posts","messages","search","following","blocked","settings"');
+has("community: Create offers Article + Question", pf2, './community.html#new-article');
+has("community: Create offers Question", pf2, './community.html#ask');
+has("community: profile.html loads module", read("profile.html"), 'src="js/community.js"');
+has("community: header nav link", read("js/common.js"), '["./community.html", "nav.community"],');
+has("community: nav icon key", read("js/common.js"), '"nav.community": "users"');
+has("community: engine label", read("js/i18n.js"), '"nav.community": "Community"');
+has("community: engine ask label", read("js/i18n.js"), '"com.ask": "Ask a question"');
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
