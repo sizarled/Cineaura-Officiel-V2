@@ -61,7 +61,7 @@
     host: null,
     hostMember: null,
     isOwner: false,
-    section: "home",
+    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","content","messages","following","market","create","posts","search","blocked","settings"].includes(s || "") ? s : "home"; })(),
     homeTab: "activity",
     followRow: null,
     followTab: "sent",
@@ -4542,6 +4542,7 @@
       <p class="eyebrow">${t("dash.settings.eyebrow")}</p>
       <h1>${t("prof.settings")}</h1>
       ${state.isOwner ? "" : `<p class="muted settings-note">${t("prof.settingsNote", { name: hostName })}</p>`}
+      <p class="muted">${t("prof.settingsDashNote")} <a class="btn btn-sm btn-ghost" href="./dashboard.html#settings">${t("dash.settings.title")}</a></p>
       <div class="stack">
         ${window.CineAura.avatarFieldHtml({ id: "st-avatar", value: p.avatar_url || "", name: state.me.member.username, memberId: state.me.member.member_id })}
         <input id="st-name" value="${escapeHtml(p.display_name || "")}" placeholder="${t("common.displayName")}" />

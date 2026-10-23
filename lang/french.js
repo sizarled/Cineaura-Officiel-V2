@@ -5083,5 +5083,11 @@
  "Performance": "Performance",
  "Earnings": "Gains",
  "mkt.addrLink": "Adresse de livraison",
- "Delivery address": "Adresse de livraison"
+ "Delivery address": "Adresse de livraison",
+ "dash.settings.profNote": "La confidentialité, la politique d'abonnement et votre présence publique se règlent dans les paramètres du Profil.",
+ "prof.settingsDashNote": "L'apparence, le compte et votre adresse de livraison se règlent dans les paramètres du Tableau de bord.",
+ "dash.settings.profNote": "La confidentialité, la politique d'abonnement et votre présence publique se règlent dans les paramètres du Profil.",
+ "prof.settingsDashNote": "L'apparence, le compte et votre adresse de livraison se règlent dans les paramètres du Tableau de bord.",
+ "Privacy, follow policy and your public presence live in your Profile settings.": "La confidentialité, la politique d'abonnement et votre présence publique se règlent dans les paramètres du Profil.",
+ "Appearance, account and your delivery address live in the Dashboard settings.": "L'apparence, le compte et votre adresse de livraison se règlent dans les paramètres du Tableau de bord."
 };

@@ -5083,5 +5083,11 @@
  "Performance": "Prestaties",
  "Earnings": "Inkomsten",
  "mkt.addrLink": "Bezorgadres",
- "Delivery address": "Bezorgadres"
+ "Delivery address": "Bezorgadres",
+ "dash.settings.profNote": "Privacy, volgbeleid en je publieke aanwezigheid vind je in je Profielinstellingen.",
+ "prof.settingsDashNote": "Uiterlijk, account en je bezorgadres vind je in de Dashboard-instellingen.",
+ "dash.settings.profNote": "Privacy, volgbeleid en je publieke aanwezigheid vind je in je Profielinstellingen.",
+ "prof.settingsDashNote": "Uiterlijk, account en je bezorgadres vind je in de Dashboard-instellingen.",
+ "Privacy, follow policy and your public presence live in your Profile settings.": "Privacy, volgbeleid en je publieke aanwezigheid vind je in je Profielinstellingen.",
+ "Appearance, account and your delivery address live in the Dashboard settings.": "Uiterlijk, account en je bezorgadres vind je in de Dashboard-instellingen."
 };

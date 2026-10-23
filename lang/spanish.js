@@ -5083,5 +5083,11 @@
  "Performance": "Rendimiento",
  "Earnings": "Ganancias",
  "mkt.addrLink": "Dirección de entrega",
- "Delivery address": "Dirección de entrega"
+ "Delivery address": "Dirección de entrega",
+ "dash.settings.profNote": "La privacidad, la política de seguidores y tu presencia pública están en los ajustes del Perfil.",
+ "prof.settingsDashNote": "La apariencia, la cuenta y tu dirección de entrega están en los ajustes del Dashboard.",
+ "dash.settings.profNote": "La privacidad, la política de seguidores y tu presencia pública están en los ajustes del Perfil.",
+ "prof.settingsDashNote": "La apariencia, la cuenta y tu dirección de entrega están en los ajustes del Dashboard.",
+ "Privacy, follow policy and your public presence live in your Profile settings.": "La privacidad, la política de seguidores y tu presencia pública están en los ajustes del Perfil.",
+ "Appearance, account and your delivery address live in the Dashboard settings.": "La apariencia, la cuenta y tu dirección de entrega están en los ajustes del Dashboard."
 };

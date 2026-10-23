@@ -85,8 +85,10 @@ has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "P
 const dj = read("js/dashboard.js");
 has("dashboard nav: Main group first", dj, '["dash.grp.main", ["overview", "level", "points"]]');
 has("dashboard nav: content tools group", dj, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
-has("dashboard nav: views->analytics->reports", dj, '["dash.grp.perf", ["views", "analytics", "reports"]]');
-has("dashboard nav: earnings group", dj, '["dash.grp.earn", ["withdraw", "prizes", "history"]]');
+has("dashboard nav: views->analytics->reports->history", dj, '["dash.grp.perf", ["views", "analytics", "reports", "history"]]');
+has("dashboard nav: earnings group", dj, '["dash.grp.earn", ["withdraw", "prizes"]]');
+has("dashboard settings: profile-pointer note", dj, 'dash.settings.profNote');
+has("dashboard settings: links profile settings deep", dj, './profile.html?section=settings');
 has("dashboard nav: account group last", dj, '["dash.grp.account", ["settings"]]');
 has("dashboard nav: SECTIONS derived from groups", dj, "SECTIONS = NAV_GROUPS.flatMap((g) => g[1])");
 has("dashboard nav: group headings render", dj, '<p class="side-grp" role="presentation">');
@@ -102,6 +104,13 @@ has("profile: sidebar dashboard cross-link", pfv, 'class="prof-side-dash" href="
 has("profile: market links the delivery address", pfv, 'href="./dashboard.html#address"');
 has("profile: cross-link styling", read("css/profile.css"), ".prof-side-dash {");
 has("profile: address link label key", read("js/i18n.js"), '"mkt.addrLink": "Delivery address"');
+
+// ---------------- Settings cross-notes + profile deep links (2026-10-22)
+has("profile: ?section= deep link support", pfv, 'new URLSearchParams(location.search).get("section")');
+has("profile settings: dashboard-pointer note", pfv, 'prof.settingsDashNote');
+has("profile settings: links dashboard settings", pfv, './dashboard.html#settings');
+has("i18n: profNote key", read("js/i18n.js"), '"dash.settings.profNote": "Privacy, follow policy');
+has("i18n: dashNote key", read("js/i18n.js"), '"prof.settingsDashNote": "Appearance, account');
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");

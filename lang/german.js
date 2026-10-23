@@ -5083,5 +5083,11 @@
  "Performance": "Leistung",
  "Earnings": "Einnahmen",
  "mkt.addrLink": "Lieferadresse",
- "Delivery address": "Lieferadresse"
+ "Delivery address": "Lieferadresse",
+ "dash.settings.profNote": "Privatsphäre, Folge-Richtlinie und Ihre öffentliche Präsenz finden Sie in den Profile-Einstellungen.",
+ "prof.settingsDashNote": "Darstellung, Konto und Ihre Lieferadresse finden Sie in den Dashboard-Einstellungen.",
+ "dash.settings.profNote": "Privatsphäre, Folge-Richtlinie und Ihre öffentliche Präsenz finden Sie in den Profile-Einstellungen.",
+ "prof.settingsDashNote": "Darstellung, Konto und Ihre Lieferadresse finden Sie in den Dashboard-Einstellungen.",
+ "Privacy, follow policy and your public presence live in your Profile settings.": "Privatsphäre, Folge-Richtlinie und Ihre öffentliche Präsenz finden Sie in den Profile-Einstellungen.",
+ "Appearance, account and your delivery address live in the Dashboard settings.": "Darstellung, Konto und Ihre Lieferadresse finden Sie in den Dashboard-Einstellungen."
 };

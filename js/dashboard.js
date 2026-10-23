@@ -3889,6 +3889,7 @@
       </div>
       <div class="stack">
         <div class="follow-pane stack" data-dpane="set0">
+          <p class="muted dash-set-note">${t("dash.settings.profNote")} <a class="btn btn-sm btn-ghost" href="./profile.html?section=settings">${t("prof.settings")}</a></p>
           ${C.avatarFieldHtml({ id: "s-avatar", value: p.avatar_url || "", name: m.username, memberId: m.member_id })}
           <input id="s-name" value="${escapeHtml(m.full_name||"")}" placeholder="${t("common.displayName")}" />
           <textarea id="s-bio" placeholder="${t("common.bio")}">${escapeHtml(p.bio||"")}</textarea>
@@ -4058,8 +4059,8 @@
   const NAV_GROUPS = [
     ["dash.grp.main", ["overview", "level", "points"]],
     ["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]],
-    ["dash.grp.perf", ["views", "analytics", "reports"]],
-    ["dash.grp.earn", ["withdraw", "prizes", "history"]],
+    ["dash.grp.perf", ["views", "analytics", "reports", "history"]],
+    ["dash.grp.earn", ["withdraw", "prizes"]],
     ["dash.grp.account", ["settings"]],
   ];
   const SECTIONS = NAV_GROUPS.flatMap((g) => g[1]);

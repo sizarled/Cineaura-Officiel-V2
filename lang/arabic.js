@@ -5119,5 +5119,11 @@
  "Performance": "الأداء",
  "Earnings": "الأرباح",
  "mkt.addrLink": "عنوان التسليم",
- "Delivery address": "عنوان التسليم"
+ "Delivery address": "عنوان التسليم",
+ "dash.settings.profNote": "الخصوصية وسياسة المتابعة وظهورك العام توجد في إعدادات البروفايل.",
+ "prof.settingsDashNote": "المظهر والحساب وعنوان التسليم توجد في إعدادات لوحة التحكم.",
+ "dash.settings.profNote": "الخصوصية وسياسة المتابعة وظهورك العام توجد في إعدادات البروفايل.",
+ "prof.settingsDashNote": "المظهر والحساب وعنوان التسليم توجد في إعدادات لوحة التحكم.",
+ "Privacy, follow policy and your public presence live in your Profile settings.": "الخصوصية وسياسة المتابعة وظهورك العام توجد في إعدادات البروفايل.",
+ "Appearance, account and your delivery address live in the Dashboard settings.": "المظهر والحساب وعنوان التسليم توجد في إعدادات لوحة التحكم."
 };

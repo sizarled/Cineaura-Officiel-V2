@@ -5616,6 +5616,8 @@
     "dash.grp.earn": "Earnings",
     "dash.grp.account": "Account",
     "mkt.addrLink": "Delivery address",
+    "dash.settings.profNote": "Privacy, follow policy and your public presence live in your Profile settings.",
+    "prof.settingsDashNote": "Appearance, account and your delivery address live in the Dashboard settings.",
 
   };
 
