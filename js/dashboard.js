@@ -357,6 +357,13 @@
     const main = $("#dash-main");
     if (!main) return;
     main.onclick = null;
+    if (!main.dataset.mgBound) {
+      main.dataset.mgBound = "1";
+      main.addEventListener("click", (e) => {
+        const del = e.target.closest("[data-del]");
+        if (del) manageDelete(del);
+      });
+    }
     const map = {
       overview: viewOverview,
       level: viewLevel,
@@ -365,6 +372,7 @@
       playlists: viewPlaylists,
       links: viewLinks,
       upload: viewUpload,
+      manage: viewManage,
       reports: viewReports,
       codes: viewCodes,
       iptv: viewIptv,
@@ -4056,9 +4064,171 @@
   // Account (settings, then the staff-only Panel link). Group headings render
   // between them (hidden in the phone strip). SECTIONS is their flat union and
   // feeds the router (dashboard.html#codes, #iptv-lists …).
+  // ---------- Content Management: one index over every content type ----------
+  // It never re-implements an editor: videos open on the content page and are
+  // uploaded through Upload/the studio, community pieces open on their pages.
+  // Deleting re-reads the row's owner at execution time (the UI never decides
+  // permissions), so the check holds even with a crafted request.
+  const MANAGE_TABS = ["videos", "articles", "qa", "posts", "recs"];
+
+  async function viewManage(main) {
+    const tab = MANAGE_TABS.includes(state.manageTab) ? state.manageTab : "videos";
+    main.innerHTML = `<h1>${t("dash.nav.manage")}</h1>
+      <p class="muted">${t("manage.lead")}</p>
+      <div class="tabs follow-tabs" role="tablist" style="flex-wrap:wrap">
+        ${MANAGE_TABS.map((k) => `<button type="button" role="tab" class="follow-tab${k === tab ? " active" : ""}" data-mt="${k}">${t("manage.tab." + k)}</button>`).join("")}
+      </div>
+      <div id="mg-body" style="margin-top:14px"><p class="muted">${t("common.loading")}</p></div>`;
+    main.querySelectorAll("[data-mt]").forEach((b) => (b.onclick = () => (state.manageTab = b.dataset.mt, viewManage(main))));
+    const box = main.querySelector("#mg-body");
+    const me = state.member.member_id;
+    if (tab === "videos") return manageVideos(box, me);
+    if (tab === "articles") return manageArticles(box, me);
+    if (tab === "qa") return manageQA(box, me);
+    return manageSocial(box, me, tab === "posts" ? ["post"] : ["review", "recommendation", "reclist"]);
+  }
+
+  function manageRow(title, meta, extra, openHref, delAttr) {
+    return `<article class="glass" style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;margin-bottom:10px">
+      <div style="flex:1;min-width:0">
+        <strong>${title}</strong>
+        <div class="muted" style="margin-top:2px">${meta}</div>
+      </div>
+      ${openHref ? `<a class="btn btn-sm btn-ghost" href="${openHref}">${t("manage.open")}</a>` : ""}
+      ${delAttr ? `<button class="btn btn-sm btn-danger" type="button" ${delAttr}>${t("manage.del")}</button>` : ""}
+      ${extra || ""}
+    </article>`;
+  }
+
+  async function manageVideos(box, me) {
+    const res = await supabaseRequest(
+      `/rest/v1/content?owner_id=eq.${restValue(me)}&select=content_id,title,visibility,publish_at,views,created_at&order=created_at.desc&limit=100`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${t("manage.delFail")}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    const now = Date.now();
+    box.innerHTML =
+      `<p class="muted">${t("manage.videosHint")} <button class="btn btn-sm btn-primary" type="button" data-section="upload">${t("dash.nav.upload")}</button></p>` +
+      (rows.length
+        ? rows
+            .map((r) => {
+              const scheduled = r.publish_at && new Date(r.publish_at).getTime() > now;
+              const state_ = t(scheduled ? "manage.status.scheduled" : "manage.status.published");
+              return manageRow(
+                escapeHtml(r.title || r.content_id),
+                `${escapeHtml(state_)} · ${escapeHtml(t("pm.vis." + (r.visibility || "public")))} · ${escapeHtml(String(r.created_at || "").slice(0, 10))} · 👁 ${r.views || 0}`,
+                "",
+                `./content.html?video=${encodeURIComponent(r.content_id)}`,
+                ""
+              );
+            })
+            .join("")
+        : `<p class="empty">${t("manage.none")}</p>`);
+  }
+
+  async function manageArticles(box, me) {
+    const res = await supabaseRequest(
+      `/rest/v1/community_articles?member_id=eq.${restValue(me)}&select=id,title,views,created_at&order=created_at.desc&limit=100`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${t("com.loadFail")}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    box.innerHTML = rows.length
+      ? rows
+          .map((r) =>
+            manageRow(
+              escapeHtml(r.title || ""),
+              `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))} · 👁 ${r.views || 0}`,
+              "",
+              `./content.html?article=${encodeURIComponent(r.id)}`,
+              `data-del="community_articles" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
+            )
+          )
+          .join("")
+      : `<p class="empty">${t("manage.none")}</p>`;
+  }
+
+  async function manageQA(box, me) {
+    const [q, a] = await Promise.all([
+      supabaseRequest(`/rest/v1/community_questions?member_id=eq.${restValue(me)}&select=id,title,created_at&order=created_at.desc&limit=60`),
+      supabaseRequest(`/rest/v1/community_answers?member_id=eq.${restValue(me)}&select=id,question_id,body,created_at&order=created_at.desc&limit=60`),
+    ]);
+    const qs = q.ok && Array.isArray(q.data) ? q.data : [];
+    const as = a.ok && Array.isArray(a.data) ? a.data : [];
+    if (!qs.length && !as.length) return (box.innerHTML = `<p class="empty">${t("manage.none")}</p>`);
+    box.innerHTML =
+      (qs.length
+        ? `<h3>${t("manage.tab.qa")} · ${t("prof.ct.questions")}</h3>` +
+          qs
+            .map((r) =>
+              manageRow(
+                escapeHtml(r.title || ""),
+                `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))}`,
+                "",
+                `./content.html?question=${encodeURIComponent(r.id)}`,
+                `data-del="community_questions" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
+              )
+            )
+            .join("")
+        : "") +
+      (as.length
+        ? `<h3 style="margin-top:16px">${t("prof.ct.answers")}</h3>` +
+          as
+            .map((r) =>
+              manageRow(
+                escapeHtml(String(r.body || "").slice(0, 80)),
+                `${t("manage.status.published")} · ${escapeHtml(String(r.created_at || "").slice(0, 10))}`,
+                "",
+                `./content.html?answer=${encodeURIComponent(r.id)}`,
+                `data-del="community_answers" data-id="${escapeHtml(r.id)}" data-owner="member_id"`
+              )
+            )
+            .join("")
+        : "");
+  }
+
+  async function manageSocial(box, me, kinds) {
+    const res = await supabaseRequest(
+      `/rest/v1/posts?owner_id=eq.${restValue(me)}&select=*&order=created_at.desc&limit=120`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${t("com.loadFail")}</p>`);
+    const rows = (Array.isArray(res.data) ? res.data : []).filter((p) => kinds.includes(p.kind));
+    box.innerHTML = rows.length
+      ? rows
+          .map((p) =>
+            manageRow(
+              escapeHtml(p.title || ""),
+              `${escapeHtml(p.kind)} · ${escapeHtml(t("pm.vis." + (p.visibility || "public")))} · ${escapeHtml(String(p.created_at || "").slice(0, 10))}`,
+              "",
+              "",
+              `data-del="posts" data-id="${escapeHtml(p.id)}" data-owner="owner_id"`
+            )
+          )
+          .join("")
+      : `<p class="empty">${t("manage.none")}</p>`;
+  }
+
+  // Deletion is ownership-checked against the row itself, right before the write.
+  async function manageDelete(btn) {
+    const table = btn.dataset.del;
+    const id = btn.dataset.id;
+    const ownerCol = btn.dataset.owner;
+    if (!table || !id) return;
+    if (!confirm(t("manage.confirm"))) return;
+    const idCol = table === "posts" ? "id" : "id";
+    const chk = await supabaseRequest(
+      `/rest/v1/${table}?${idCol}=eq.${encodeURIComponent(id)}&select=${ownerCol}`
+    );
+    const row = chk.ok && Array.isArray(chk.data) ? chk.data[0] : null;
+    if (!row || String(row[ownerCol]) !== String(state.member.member_id)) return toast(t("manage.forbidden"));
+    const del = await supabaseRequest(`/rest/v1/${table}?${idCol}=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!del.ok) return toast(t("manage.delFail"));
+    toast(t("manage.delOk"));
+    viewManage($("#dash-main"));
+  }
+
   const NAV_GROUPS = [
     ["dash.grp.main", ["overview", "level", "points"]],
-    ["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]],
+    ["dash.grp.content", ["upload", "manage", "links", "codes", "playlists", "iptv"]],
     ["dash.grp.perf", ["views", "analytics", "reports", "history"]],
     ["dash.grp.earn", ["withdraw", "prizes"]],
     ["dash.grp.account", ["settings"]],

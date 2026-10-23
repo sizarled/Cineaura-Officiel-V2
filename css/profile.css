@@ -907,3 +907,37 @@ a.prof-stat-link:hover b { color: var(--cyan); }
 input[data-parent] { border-color: var(--cyan); outline: 1px solid var(--cyan); }
 .suggest-zone { margin-bottom: 18px; }
 .suggest-card .upd-lead { margin-bottom: 4px; }
+
+/* Profile > Community: the member's groups (neutral markup, no community.css) */
+.pf-grp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  text-decoration: none;
+}
+.pf-grp-cover,
+.pf-grp-ph {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  background: rgba(255, 255, 255, 0.06);
+  flex: none;
+}
+.pf-grp-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.pf-grp-main .muted {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

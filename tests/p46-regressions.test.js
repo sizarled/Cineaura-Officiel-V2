@@ -78,13 +78,13 @@ has("helpcats: engine addMain", read("js/i18n.js"), '"helpcats.addMain": "Add se
 has("helpcats: engine articles-tab label", read("js/i18n.js"), '"help.tabArticles": "Articles"');
 
 // ---------------- Profile sidebar: Profile label + member order (2026-10-22)
-has("profile nav: order, Your content unified", read("js/profile.js"), 'NAV_SECTIONS = ["home", "market", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"]');
+has("profile nav: order, Your content unified", read("js/profile.js"), 'NAV_SECTIONS = ["home", "market", "community", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"]');
 has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "Profile"');
 
 // ---------------- Dashboard sidebar journey groups (2026-10-22)
 const dj = read("js/dashboard.js");
 has("dashboard nav: Main group first", dj, '["dash.grp.main", ["overview", "level", "points"]]');
-has("dashboard nav: content tools group", dj, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
+has("dashboard nav: content tools group", dj, '["dash.grp.content", ["upload", "manage", "links", "codes", "playlists", "iptv"]]');
 has("dashboard nav: views->analytics->reports->history", dj, '["dash.grp.perf", ["views", "analytics", "reports", "history"]]');
 has("dashboard nav: earnings group", dj, '["dash.grp.earn", ["withdraw", "prizes"]]');
 has("dashboard settings: profile-pointer note", dj, 'dash.settings.profNote');
@@ -124,7 +124,7 @@ has("community: votes counter trigger", cs, "_com_answer_votes");
 has("community: public read policies", cs, 'com_q_read      on public.community_questions    for select using (true)');
 has("community: pgrst reload", cs, "notify pgrst, 'reload schema';");
 const cj = read("js/community.js");
-has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks };");
+has("community: hub module", cj, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups };");
 has("community: question route", cj, '#q/${row.id}');
 has("community: deep-link router", cj, "const hashRoute = ()");
 has("community: helpful vote toggle", cj, "community_answer_votes");
@@ -133,11 +133,11 @@ ok("community: page exists", fs.existsSync(path.join(ROOT, "community.html")));
 has("community: page loads module", read("community.html"), 'src="js/community.js"');
 has("community: page styling", fs.existsSync(path.join(ROOT, "css/community.css")) ? read("css/community.css") : "", ".com-tabs .follow-tab.active");
 const pf2 = read("js/profile.js");
-has("content hub: type filter tabs", pf2, 'CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers"]');
+has("content hub: type filter tabs", pf2, 'CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers", "posts", "reviews", "recs"]');
 has("content hub: videos delegate to studio", pf2, "window.CineAuraStudio.render(body.querySelector(\"#ct-videos\"), { member })");
 has("content hub: community blocks by memberBlocks", pf2, "window.CineAuraCommunity.memberBlocks(body, hostId, vt)");
 has("content hub: engine tab all", read("js/i18n.js"), '"prof.ct.all": "All content"');
-has("community: profile deep-link whitelist", pf2, '"home","market","create","content","posts","messages","search","following","blocked","settings"');
+has("community: profile deep-link whitelist", pf2, '"home","market","community","create","content","posts","messages","search","following","blocked","settings"');
 has("community: Create offers Article + Question", pf2, './community.html#new-article');
 has("community: Create offers Question", pf2, './community.html#ask');
 has("community: profile.html loads module", read("profile.html"), 'src="js/community.js"');
@@ -213,6 +213,26 @@ has("create: guidance note (answers from the question page)", pj3, "${t(\"prof.c
   ok("create: no standalone Answer or Group tab", !/data-ck="answer"/.test(head) && !/#new-group/.test(head)); }
 const fe = read("js/i18n.js");
 has("create: engine video key", fe, '"prof.cr.video": "Video"');
+
+// ---------------- Profile/Dashboard for the new content types (2026-10-23) ----------------
+const pfr = read("js/profile.js");
+has("profile: Community section between Market and Create", pfr, 'NAV_SECTIONS = ["home", "market", "community", "create"');
+has("profile: Community section view", pfr, "async function viewMemberGroups(main)");
+has("profile: Community section opens the hub, not a copy", pfr, 'href="./community.html">🌐 ${escapeHtml(t("com.openHub"))}');
+has("profile: Your content has 8 tabs", pfr, 'CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers", "posts", "reviews", "recs"]');
+has("profile: social tabs map to post kinds", pfr, 'POST_TYPES = { posts: ["post"], reviews: ["review"], recs: ["recommendation", "reclist"] }');
+has("profile: social tabs render own rows only", pfr, "owner_id=eq.${restValue(memberId)}&select=*&order=created_at.desc&limit=80");
+has("profile: real status chips are visibility-based", pfr, "escapeHtml(visLabel(p.visibility))");
+const cjr = read("js/community.js");
+has("community: memberGroups exported", cjr, "window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups };");
+has("community: memberGroups covers created + joined", cjr, "community_groups?owner_id=eq.${id}");
+has("community: memberGroups links groups by query id", cjr, 'href="${gLink(g.id)}"');
+const djm = read("js/dashboard.js");
+has("dashboard: Content Management in the content group", djm, '["dash.grp.content", ["upload", "manage", "links", "codes", "playlists", "iptv"]]');
+has("dashboard: five management tabs", djm, 'const MANAGE_TABS = ["videos", "articles", "qa", "posts", "recs"];');
+has("dashboard: videos stay in Upload (no duplicate editor)", djm, 'data-section="upload">${t("dash.nav.upload")}');
+has("dashboard: delete re-reads the row owner", djm, "if (!row || String(row[ownerCol]) !== String(state.member.member_id)) return toast(t(\"manage.forbidden\"));");
+has("dashboard: delete listener bound once", djm, 'if (!main.dataset.mgBound)');
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");

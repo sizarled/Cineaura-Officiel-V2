@@ -607,7 +607,44 @@
     if (window.CineAura && window.CineAura.hydrateAvatars) window.CineAura.hydrateAvatars(main);
   }
 
-  window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks };
+  // Profile > Community section: the groups this member created or joined. The
+  // hub keeps discovery and the group pages themselves — this is only the
+  // member's own corner of them. Rendered with neutral markup so it looks right
+  // on the profile (which does not load community.css).
+  async function memberGroups(box, memberId) {
+    const id = encodeURIComponent(memberId);
+    const [own, joined] = await Promise.all([
+      req(`/rest/v1/community_groups?owner_id=eq.${id}&select=*&order=created_at.desc&limit=60`),
+      req(`/rest/v1/community_group_members?member_id=eq.${id}&select=group_id,community_groups(*)&limit=60`),
+    ]);
+    if (!own.ok && !joined.ok)
+      return (box.innerHTML = `<p class="empty">⚠ ${esc(t("grp.loadFail"))}</p>`);
+    const seen = new Set();
+    const rows = [];
+    const push = (g) => {
+      if (g && g.id != null && !seen.has(g.id)) {
+        seen.add(g.id);
+        rows.push(g);
+      }
+    };
+    (Array.isArray(own.data) ? own.data : []).forEach(push);
+    (Array.isArray(joined.data) ? joined.data : []).forEach((r) => push(r.community_groups));
+    if (!rows.length) return (box.innerHTML = `<p class="empty">${esc(t("prof.grp.none"))}</p>`);
+    const names = await nameMap(rows.map((g) => g.owner_id));
+    box.innerHTML = rows
+      .map(
+        (g) => `<a class="glass pf-grp-row" href="${gLink(g.id)}">
+          ${g.cover ? `<img class="pf-grp-cover" src="${esc(g.cover)}" alt="" loading="lazy" />` : `<span class="pf-grp-ph">👥</span>`}
+          <span class="pf-grp-main"><strong>${esc(g.name)}</strong>
+          <span class="muted">${esc(String(g.description || "").slice(0, 90))}</span>
+          <span class="muted">${esc(t("grp.byOwner", { name: who(names, g.owner_id) }))}</span></span>
+          <span class="chip">👥 ${g.members_count || 0} ${esc(t("grp.members"))}</span>
+        </a>`
+      )
+      .join("");
+  }
+
+  window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks, memberGroups };
 
   // Content page (content.html): a type bar above the videos — Videos stay with
   // their own page code; Articles / Questions & Answers embed the hub lists.

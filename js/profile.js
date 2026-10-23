@@ -61,7 +61,7 @@
     host: null,
     hostMember: null,
     isOwner: false,
-    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","market","create","content","posts","messages","search","following","blocked","settings"].includes(s || "") ? s : "home"; })(),
+    section: (() => { const s = new URLSearchParams(location.search).get("section"); return ["home","market","community","create","content","posts","messages","search","following","blocked","settings"].includes(s || "") ? s : "home"; })(),
     homeTab: "activity",
     followRow: null,
     followTab: "sent",
@@ -518,7 +518,7 @@
   // "market" opens the own store (viewMarket, sql/market.sql).
   // Order: Profile → Market → Create → Your content → Manage posts → Messages →
   // Search → Following → Blocked → Settings.
-  const NAV_SECTIONS = ["home", "market", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"];
+  const NAV_SECTIONS = ["home", "market", "community", "create", "content", "posts", "messages", "search", "following", "blocked", "settings"];
 
   function signedIn() {
     return Boolean(state.me?.member?.member_id);
@@ -639,6 +639,7 @@
       posts: viewManagePosts,
       content: viewContent,
       market: viewMarket,
+      community: viewMemberGroups,
       messages: viewMessages,
       search: viewSearch,
       following: viewFollowing,
@@ -4426,9 +4427,49 @@
   }
 
   // ---------- Your content: one hub for everything the member made ----------
+  // Profile > Community: the groups this member created or joined. Discovery
+  // and the group pages stay on community.html (single hub, no duplication).
+  async function viewMemberGroups(main) {
+    const target = state.hostMember?.member_id || state.me?.member?.member_id;
+    main.innerHTML = `<p class="eyebrow">${escapeHtml(t("prof.community"))}</p>
+      <h1>${escapeHtml(t("prof.grp.title"))}</h1>
+      <div class="com-acts" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px">
+        <a class="btn btn-sm btn-primary" href="./community.html">🌐 ${escapeHtml(t("com.openHub"))}</a>
+        ${state.isOwner ? `<a class="btn btn-sm btn-ghost" href="./community.html#new-group">👥 ${escapeHtml(t("grp.create"))}</a>` : ""}
+      </div>
+      <div id="pf-groups"><p class="muted">${escapeHtml(t("common.loading"))}</p></div>`;
+    const box = main.querySelector("#pf-groups");
+    if (!target || !window.CineAuraCommunity?.memberGroups)
+      return (box.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("com.loadFail"))}</p>`);
+    await window.CineAuraCommunity.memberGroups(box, target);
+  }
+
   // Type filter: All - Videos (content studio) - Articles - Questions - Answers
   // (community contributions, js/community.js, sql/community.sql).
-  const CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers"];
+  const CONTENT_TYPES = ["all", "videos", "articles", "questions", "answers", "posts", "reviews", "recs"];
+  // The social side of "Your content": rows of `posts` grouped by their kind.
+  const POST_TYPES = { posts: ["post"], reviews: ["review"], recs: ["recommendation", "reclist"] };
+  // Your content > Posts / Reviews / Recommendations: the member's own rows with
+  // the state the schema really carries (visibility + date; drafts/review states
+  // do not exist in the tables yet, so none are invented here).
+  async function memberPosts(box, memberId, vt) {
+    const kinds = POST_TYPES[vt] || [];
+    const res = await supabaseRequest(
+      `/rest/v1/posts?owner_id=eq.${restValue(memberId)}&select=*&order=created_at.desc&limit=80`
+    );
+    if (!res.ok) return (box.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("com.loadFail"))}</p>`);
+    const rows = (Array.isArray(res.data) ? res.data : []).filter((p) => kinds.includes(p.kind));
+    if (!rows.length) return (box.innerHTML = `<p class="empty">${escapeHtml(t("prof.ct.none"))}</p>`);
+    box.innerHTML = rows
+      .map(
+        (p) => `<article class="glass" style="padding:12px 14px;margin-bottom:10px">
+          <span class="eyebrow">${escapeHtml(kindLabel(p.kind))} · ${escapeHtml(visLabel(p.visibility))} · ${escapeHtml(String(p.created_at || "").slice(0, 10))}</span>
+          <h3 style="margin:4px 0">${escapeHtml(p.title || "")}</h3>
+          ${p.body ? `<p class="muted" style="margin:0">${escapeHtml(String(p.body).slice(0, 220))}</p>` : ""}
+        </article>`
+      )
+      .join("");
+  }
   function viewContent(main) {
     const vt = CONTENT_TYPES.includes(state.contentType) ? state.contentType : "all";
     main.innerHTML = `<div class="tabs follow-tabs" role="tablist" style="flex-wrap:wrap">
@@ -4438,6 +4479,7 @@
     const body = main.querySelector("#content-body");
     const member = state.me.member;
     const hostId = state.hostMember?.member_id || member.member_id;
+    if (POST_TYPES[vt]) return memberPosts(body, hostId, vt);
     if (vt === "videos" || vt === "all") {
       if (!window.CineAuraStudio) {
         body.innerHTML = `<p class="empty">${escapeHtml(t("vid.setup"))}</p>`;
