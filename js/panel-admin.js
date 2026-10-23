@@ -525,10 +525,10 @@
   }
 
   async function viewContent(main) {
-    const tab = ["videos", "playlists", "iptv"].includes(ctx.state.paContentTab) ? ctx.state.paContentTab : "videos";
+    const tab = ["videos", "playlists", "iptv", "articles"].includes(ctx.state.paContentTab) ? ctx.state.paContentTab : "videos";
     main.innerHTML = `
       ${head(t("panel.nav.content"), t("pa.ct.title"), t("pa.ct.lead"))}
-      ${tabsHtml("pa-ctab", [["videos", t("pa.ct.videos")], ["playlists", t("pa.ct.playlists")], ["iptv", t("pa.ct.iptv")]], tab)}
+      ${tabsHtml("pa-ctab", [["videos", t("pa.ct.videos")], ["playlists", t("pa.ct.playlists")], ["iptv", t("pa.ct.iptv")], ["articles", t("pa.ct.articles")]], tab)}
       <div class="follow-pane pa-pane" id="pa-pane"></div>`;
     main.querySelector(".pa-tabs").onclick = (e) => {
       const b = e.target.closest("[data-pa-ctab]");
@@ -536,7 +536,76 @@
       ctx.state.paContentTab = b.dataset.paCtab;
       viewContent(main);
     };
+    if (tab === "articles") return viewArticles(main.querySelector("#pa-pane"));
     await drawList(main.querySelector("#pa-pane"), contentCfg[tab]());
+  }
+
+  // ---------------------------------------------------------------- Articles
+  // Staff write with the very same editor members use (article.html), and the
+  // Help submissions waiting for a decision are handled here.
+  async function viewArticles(pane) {
+    pane.innerHTML = `
+      <div class="pa-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <a class="btn btn-sm btn-primary" href="./article.html">${esc(t("pa.ct.newArticle"))}</a>
+        <span class="muted" style="font-size:13px">${esc(t("pa.ct.articlesLead"))}</span>
+      </div>
+      <div id="pa-arts"><p class="muted">${esc(t("common.loading"))}</p></div>`;
+    const res = await C.supabaseRequest(
+      "/rest/v1/community_articles?select=id,title,member_id,status,visibility,places,created_at,publish_at&order=created_at.desc&limit=100"
+    );
+    const box = pane.querySelector("#pa-arts");
+    if (!res.ok) return (box.innerHTML = `<p class="empty">${esc(t("pa.ct.articlesFail"))}</p>`);
+    const rows = Array.isArray(res.data) ? res.data : [];
+    if (!rows.length) return (box.innerHTML = `<p class="empty">${esc(t("pa.ct.articlesNone"))}</p>`);
+    const pending = rows.filter((r) => r.status === "pending");
+    const card = (r) => `
+      <article class="crp-card pa-card" data-art="${esc(r.id)}">
+        <div class="crp-title">
+          <h3><a href="./content.html?article=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${esc(r.title)}</a></h3>
+          <p>${esc(r.member_id)} · ${esc(when(r.created_at))} · ${esc(r.visibility || "public")}</p>
+        </div>
+        <div class="crp-tags">
+          ${tag(r.status)}
+          ${String(r.places || "").includes("help") ? tag("Help") : ""}
+          ${r.publish_at && new Date(r.publish_at) > new Date() ? tag(t("pa.ct.scheduledFor", { date: when(r.publish_at) })) : ""}
+        </div>
+        <div class="crp-actions">
+          <a class="btn btn-sm btn-ghost" href="./article.html?edit=${encodeURIComponent(r.id)}">${esc(t("ae.edit"))}</a>
+          ${r.status === "pending" ? `<button class="btn btn-sm btn-primary" type="button" data-art-act="approve">${esc(t("pa.ct.approve"))}</button>
+          <button class="btn btn-sm btn-danger" type="button" data-art-act="reject">${esc(t("pa.ct.reject"))}</button>` : ""}
+        </div>
+        <div data-pa-slot></div>
+      </article>`;
+    box.innerHTML =
+      (pending.length ? `<h3 style="margin:6px 0 10px">${esc(t("pa.ct.pendingN", { n: pending.length }))}</h3>` + pending.map(card).join("") : "") +
+      `<h3 style="margin:14px 0 10px">${esc(t("pa.ct.allArticles"))}</h3>` +
+      rows.map(card).join("");
+    box.onclick = async (e) => {
+      const b = e.target.closest("[data-art-act]");
+      if (!b) return;
+      const id = b.closest("[data-art]").dataset.art;
+      const approve = b.dataset.artAct === "approve";
+      b.disabled = true;
+      // the review row is the trace; the article changes only when it lands
+      const log = await C.supabaseRequest("/rest/v1/community_article_reviews", {
+        method: "POST",
+        body: JSON.stringify({ article_id: Number(id), reviewer_id: ctx.state.staff?.member_id || "", decision: approve ? "approved" : "rejected" }),
+      });
+      if (!log.ok) {
+        b.disabled = false;
+        return toast(t("pa.ct.reviewFail"));
+      }
+      const upd = await C.supabaseRequest(`/rest/v1/community_articles?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: approve ? "published" : "draft" }),
+      });
+      if (!upd.ok) {
+        b.disabled = false;
+        return toast(t("pa.ct.reviewFail"));
+      }
+      toast(approve ? t("pa.ct.approved") : t("pa.ct.rejected"));
+      viewArticles(pane);
+    };
   }
 
   // ================================================================ Market

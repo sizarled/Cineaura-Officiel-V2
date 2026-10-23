@@ -1,3 +1,14 @@
+  // New article opens the one rich editor (article.html). Members reach it from
+  // Create, the hub and the Studio; staff from the Panel — same page, same code.
+  function articleForm(box) {
+    if (!meId()) return (box.innerHTML = loginNote());
+    box.innerHTML = `<div class="com-form glass" style="text-align:center">
+        <p class="com-body">${esc(t("ae.redirect"))}</p>
+        <a class="btn btn-primary" href="./article.html">${esc(t("ae.openEditor"))}</a>
+      </div>`;
+    location.href = "./article.html";
+  }
+
 /* CineAura — Community hub (js/community.js, sql/community.sql)
    Articles + Questions & Answers in one place. Public to browse; a signed-in
    member asks, answers, votes "helpful" and publishes articles.
@@ -246,21 +257,70 @@
     };
   }
 
+  // Article page: the rich body from article.html, plus the same privacy gate the
+  // editor promises (private = listed people, exclusive = every criterion).
   async function articleView(box, id) {
+    const A = window.CineAuraArticles;
     const res = await req(`/rest/v1/community_articles?id=eq.${id}&select=*`);
     const a = res.ok && Array.isArray(res.data) ? res.data[0] : null;
-    if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="${document.getElementById("com-root") ? "#articles" : "./content.html"}">${esc(t("com.backList"))}</a></p>`);
+    const back = document.getElementById("com-root") ? "#articles" : "./content.html";
+    if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="${back}">${esc(t("com.backList"))}</a></p>`);
+
     const names = await nameMap([a.member_id]);
-    // best-effort view counter (fire and forget, like the help center readers)
-    req(`/rest/v1/community_articles?id=eq.${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ views: Number(a.views || 0) + 1 }),
-    }).catch(() => {});
-    box.innerHTML = `<a class="com-back" href="${document.getElementById("com-root") ? "#articles" : "./content.html"}">← ${esc(t("com.backList"))}</a>
+    const mine = meId() && meId() === a.member_id;
+    if (!mine)
+      req(`/rest/v1/community_articles?id=eq.${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ views: Number(a.views || 0) + 1 }),
+      }).catch(() => {});
+
+    // A draft (or a Help article awaiting a moderator) is not public yet.
+    if (a.status === "draft" && !mine)
+      return (box.innerHTML = `<a class="com-back" href="${back}">← ${esc(t("com.backList"))}</a>
+        <p class="com-note">🔒 ${esc(t("ae.notPublished"))}</p>`);
+
+    // Who is looking: the member row carries the level / country used by exclusive.
+    let viewer = meId() ? { member_id: meId(), username: (C()?.getSession?.()?.username || ""), profile: {} } : null;
+    if (viewer) {
+      const pr = await req(`/rest/v1/members?member_id=eq.${encodeURIComponent(meId())}&select=username,country,language,level,tier`);
+      const p = pr.ok && Array.isArray(pr.data) ? pr.data[0] : null;
+      if (p) viewer = { ...viewer, username: p.username || viewer.username, profile: p };
+    }
+    const staff = false;
+    const allowed = A ? A.canRead(a, viewer, staff) : true;
+
+    const cover = a.thumb ? `<img class="ar-cover" src="${esc(a.thumb)}" alt="" loading="lazy" />` : "";
+    const cats = String(a.categories || a.tags || "").split(",").map((x) => x.trim()).filter(Boolean);
+    const head = `<a class="com-back" href="${back}">← ${esc(t("com.backList"))}</a>
       <article class="com-article glass">
+        ${cover}
         <h2>${esc(a.title)}</h2>
-        <p class="muted">${esc(who(names, a.member_id))} · ${esc(when(a.created_at))}${a.tags ? ` · ${esc(a.tags)}` : ""} · 👁 ${(a.views || 0) + 1}</p>
-        <p class="com-body">${esc(a.body)}</p>
+        <p class="muted">${esc(who(names, a.member_id))} · ${esc(when(a.publish_at || a.created_at))}${a.language ? ` · ${esc(a.language)}` : ""} · 👁 ${(a.views || 0) + 1}${mine ? ` · <a href="./article.html?edit=${encodeURIComponent(a.id)}">${esc(t("ae.edit"))}</a>` : ""}</p>
+        ${cats.length ? `<p>${cats.map((c) => `<span class="ar-chip">${esc(c)}</span>`).join("")}</p>` : ""}
+      </article>`;
+
+    if (!allowed) {
+      const c = A ? A.critOf(a) : {};
+      const list = [
+        c.followers ? t("ae.followersOnly") : "",
+        c.countries?.length ? `${t("ae.country")}: ${c.countries.join(", ")}` : "",
+        c.languages?.length ? `${t("ae.language")}: ${c.languages.join(", ")}` : "",
+        `${t("ae.level")}: ${c.lvMin ?? 0} – ${c.lvMax ?? 10}`,
+        c.tier ? `${t("ae.tier")}: ${c.tier}` : "",
+      ].filter(Boolean);
+      return (box.innerHTML = `${head}
+        <div class="glass" style="padding:22px;text-align:center">
+          <p style="font-size:26px">🔒</p>
+          <h3>${esc(a.visibility === "private" ? t("ae.privateGate") : t("ae.exclusiveGate"))}</h3>
+          ${a.visibility === "private" ? `<p class="muted">${esc(t("ae.privateGateText"))}</p>` : `<ul class="muted" style="list-style:none;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:0">${list.map((x) => `<li class="ar-chip">${esc(x)}</li>`).join("")}</ul>`}
+        </div>`);
+    }
+
+    const body = A ? A.bodyHtml(a) : `<p class="com-body">${esc(a.body || "")}</p>`;
+    box.innerHTML = `${head}
+      <article class="com-article glass">
+        ${a.description ? `<p class="lead" style="color:var(--muted,#9bb0c2);font-size:16px">${esc(a.description)}</p>` : ""}
+        <div class="ar-body">${body}</div>
       </article>`;
   }
 

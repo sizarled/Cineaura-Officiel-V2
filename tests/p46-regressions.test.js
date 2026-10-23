@@ -283,6 +283,31 @@ has("studio: playlist manager lists owned lists", cs2, "async function drawPlayl
 has("studio: videos table kept as-is", cs2, 'class="table vs-table vs-table--manage"');
 has("documents: manager honours the studio sort", dcm, 'if (opts.sort === "views") rows = rows.slice().sort((a, b) => Number(b.views || 0) - Number(a.views || 0));');
 
+// ---------------- Article editor: one editor for members and staff (2026-10-23) --
+const aem = read("js/article-editor.js");
+has("article editor: one module, mounted by article.html", aem, "window.CineAuraArticles = { mount, sanitize, canRead, bodyHtml, critOf };");
+has("article editor: sanitises on the way in and out", aem, "function sanitize(html)");
+has("article editor: scripts and on* attributes dropped", aem, 'if (["SCRIPT", "STYLE", "OBJECT", "EMBED", "LINK", "META"].includes(tag)) return el.remove();');
+has("article editor: links forced safe", aem, 'el.setAttribute("rel", "noopener noreferrer nofollow");');
+has("article editor: iframes only from YouTube/Vimeo", aem, "if (tag === \"IFRAME\" && !/^https:\\/\\/(www\\.)?(youtube\\.com|player\\.vimeo\\.com)\\//.test(el.getAttribute(\"src\") || \"\"))");
+has("article editor: schedule and privacy", aem, "private_users: listStr(d.users)");
+has("article editor: help needs a moderator for members", aem, 'status: d.inHelp && !staff ? "pending" : "published"');
+has("article editor: ownership re-read before an edit", aem, "if (owner !== state.me.member_id && !staff)");
+has("article editor: reader gate mirrors the promises", aem, "function canRead(row, viewer, staff = false)");
+has("article editor: private gate by listed users", aem, "return Boolean(viewer && users.includes(viewer.username));");
+has("article editor: body rendered sanitised on the public page", aem, "if (row.body_html) return sanitize(row.body_html);");
+const cja = read("js/community.js");
+has("article editor: New article opens it", cja, 'location.href = "./article.html";');
+has("article editor: article page uses the rich body", cja, "const body = A ? A.bodyHtml(a) :");
+has("article editor: drafts stay private", cja, 'if (a.status === "draft" && !mine)');
+const pfa = read("js/profile.js");
+has("article editor: studio Article opens it", pfa, '<a class="btn btn-primary" href="./article.html">${escapeHtml(t("ae.openEditor"))}</a>');
+const pna = read("js/panel-admin.js");
+has("article editor: panel has an Articles tab", pna, '["articles", t("pa.ct.articles")]');
+has("article editor: panel writes with the same editor", pna, '<a class="btn btn-sm btn-primary" href="./article.html">${esc(t("pa.ct.newArticle"))}</a>');
+has("article editor: panel approval leaves a trace", pna, 'body: JSON.stringify({ article_id: Number(id), reviewer_id: ctx.state.staff?.member_id || "", decision: approve ? "approved" : "rejected" })');
+has("article editor: page ships the module and styles", read("article.html"), "js/article-editor.js");
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

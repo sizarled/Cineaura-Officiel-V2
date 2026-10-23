@@ -2614,7 +2614,14 @@
       window.CineAuraDocs.renderUpload(host, { member: state.me.member });
       return;
     }
-    if (kind === "article" || kind === "question") {
+    if (kind === "article") {
+      // the one rich editor (article.html); questions stay inline
+      host.innerHTML = `<div class="glass" style="padding:18px;text-align:center">
+        <p>${escapeHtml(t("ae.redirect"))}</p>
+        <a class="btn btn-primary" href="./article.html">${escapeHtml(t("ae.openEditor"))}</a></div>`;
+      return;
+    }
+    if (kind === "question") {
       if (!window.CineAuraCommunity?.openComposer) return (host.innerHTML = `<p class="empty">⚠ ${escapeHtml(t("com.loadFail"))}</p>`);
       window.CineAuraCommunity.openComposer(host, kind);
       return;
