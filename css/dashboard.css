@@ -1739,3 +1739,59 @@ html:not([data-theme="day"]) .ipx-badge.epg { color: #a996ff; }
 html[lang="ar"] .dash-gate h1 { font-family: "Cairo", var(--sans); }
 html[lang="ar"] .dash-main h1 { font-family: "Cairo", var(--sans); }
 html[lang="ar"] .wizard h1 { font-family: "Cairo", var(--sans); }
+
+/* ---------- Articles & Documents in the dashboard (the editors we shipped) ---
+   The list is the member's own queue: state chip, the places it was published
+   to, and a way back into the one editor. */
+.dash-acts { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 4px; }
+.dash-ar-grid { display: grid; gap: 12px; margin-top: 14px; }
+
+.dash-ar {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 16px;
+}
+.dash-ar-cover {
+  width: 96px;
+  height: 66px;
+  flex: none;
+  border-radius: 11px;
+  object-fit: cover;
+  background: rgba(144, 206, 161, .08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan-2, #90cea1);
+}
+.dash-ar-cover.is-empty svg { width: 22px; height: 22px; }
+.dash-ar-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dash-ar-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dash-ar-top strong { font-size: 15.5px; line-height: 1.35; }
+.dash-ar-desc { margin: 0; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dash-ar-meta { margin: 0; font-size: 12px; }
+.dash-ar-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.dash-ar-acts .muted { font-size: 12px; }
+
+.dash-ar-st {
+  flex: none;
+  font-size: 11.5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  white-space: nowrap;
+}
+.dash-ar-st.is-published { color: #90cea1; border-color: rgba(144, 206, 161, .35); background: rgba(144, 206, 161, .1); }
+.dash-ar-st.is-scheduled { color: #9fd0e8; border-color: rgba(159, 208, 232, .32); background: rgba(159, 208, 232, .08); }
+.dash-ar-st.is-pending { color: #ffb489; border-color: rgba(255, 180, 137, .32); background: rgba(255, 180, 137, .08); }
+.dash-ar-st.is-draft { color: var(--muted, #94a3ad); }
+
+.dash-doc-upload { margin: 16px 0 6px; }
+.dash-doc-upload summary { cursor: pointer; font-weight: 600; color: var(--cyan-2, #90cea1); }
+.dash-doc-h { margin: 20px 0 8px; font-size: 18px; }
+
+@media (max-width: 620px) {
+  .dash-ar { flex-direction: column; }
+  .dash-ar-cover { width: 100%; height: 130px; }
+}

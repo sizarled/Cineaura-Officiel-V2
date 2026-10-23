@@ -84,7 +84,7 @@ has("profile nav: Home renamed to Profile", read("js/i18n.js"), '"prof.home": "P
 // ---------------- Dashboard sidebar journey groups (2026-10-22)
 const dj = read("js/dashboard.js");
 has("dashboard nav: Main group first", dj, '["dash.grp.main", ["overview", "level", "points"]]');
-has("dashboard nav: content tools group (management lives in Studio)", dj, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
+has("dashboard nav: content tools group (management lives in Studio)", dj, '["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]]');
 has("dashboard nav: views->analytics->reports->history", dj, '["dash.grp.perf", ["views", "analytics", "reports", "history"]]');
 has("dashboard nav: earnings group", dj, '["dash.grp.earn", ["withdraw", "prizes"]]');
 has("dashboard settings: profile-pointer note", dj, 'dash.settings.profNote');
@@ -229,7 +229,7 @@ has("community: memberGroups exported", cjr, "window.CineAuraCommunity = { viewC
 has("community: memberGroups covers created + joined", cjr, "community_groups?owner_id=eq.${id}");
 has("community: memberGroups links groups by query id", cjr, 'href="${gLink(g.id)}"');
 const djm = read("js/dashboard.js");
-has("dashboard: content management left for the Studio", djm, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
+has("dashboard: content management left for the Studio", djm, '["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]]');
 has("studio: six management tabs", pj3, 'const MANAGE_TABS = ["videos", "documents", "articles", "qa", "posts", "recs"];');
 has("studio: videos stay in Dashboard Upload", pj3, 'href="./dashboard.html#upload">${t("dash.nav.upload")}</a>');
 has("studio: delete re-reads the row owner", pj3, "if (!row || String(row[ownerCol]) !== String(state.me.member.member_id)) return toast(t(\"manage.forbidden\"));");
@@ -243,7 +243,7 @@ has("studio: Your content videos are view-only", pfr, 'href="./content.html?vide
 has("studio: posts hand off to Manage posts", pfr, '${t("manage.postsDeep")} <a class="btn btn-sm btn-ghost" href="?section=posts">');
 has("studio: video studio embedded without its own URL hash", read("js/content-studio.js"), "if (!state.solo && location.hash !== hash)");
 has("studio: hub composers shared, not copied", read("js/community.js"), "return kind === \"article\" ? articleForm(box) : askForm(box);");
-has("studio: dashboard keeps no second manager", djm, '["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]]');
+has("studio: dashboard keeps no second manager", djm, '["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]]');
 
 // ---------------- Documents: the fifth content type (2026-10-23) -----------
 const dcm = read("js/documents.js");
@@ -329,6 +329,21 @@ has("scan: private and exclusive stay in the private bucket", dcm, 'const bucket
 has("scan: the verdict is stored with the document", dcm, "scan_status: scan.verdict,");
 has("scan: sql refuses anything that is not clean", read("sql/community_documents_scan.sql"), "check (scan_status = 'clean')");
 has("scan: deployment note ships with the function", read("supabase/functions/vt-scan/DEPLOY.md"), "supabase secrets set VIRUSTOTAL_API_KEY");
+
+// ---------------- The dashboard carries what the editors publish (2026-10-23) ---
+has("dashboard: articles and documents have their own sections", dj, '["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]]');
+has("dashboard: router knows both", dj, "articles: viewArticles,\n      documents: viewDocuments,");
+has("dashboard: the article list sends the member to the one editor", dj, 'href="./article.html?edit=${encodeURIComponent(a.id)}"');
+has("dashboard: new article opens the editor", dj, '<a class="btn btn-primary" href="./article.html">${C.navIcon("create")}<span>${t("dash.ar.new")}</span></a>');
+has("dashboard: article state is read from the row, not guessed", dj, 'if (a.publish_at && Date.parse(a.publish_at) > Date.now()) return "scheduled";');
+has("dashboard: a pending Help article is labelled waiting, not published", dj, 'st === "pending" ? t("dash.ar.waiting") : t("dash.ar.draftHint")');
+has("dashboard: documents reuse the Studio uploader", dj, "window.CineAuraDocs.renderUpload(upBox, { member: m, onDone: load });");
+has("dashboard: documents reuse the Studio list", dj, "window.CineAuraDocs.renderManage(list, m.member_id, { onRemoved: load });");
+ok("dashboard: no second document tool was written", !/community_documents", \{\s*method: "POST"/.test(dj));
+has("dashboard: overview counts what was published", dj, 'ovc("docok", docs ? docs.filter((d) => d.scan_status === "clean").length : "—");');
+has("dashboard: page ships the documents module", read("dashboard.html"), '<script src="js/documents.js"></script>');
+has("dashboard: page ships the documents styles", read("dashboard.html"), '<link rel="stylesheet" href="css/documents.css" />');
+has("documents: the host can refresh after an upload", dcm, "ctx.onDone?.(created);");
 
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");

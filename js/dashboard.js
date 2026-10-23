@@ -365,6 +365,8 @@
       playlists: viewPlaylists,
       links: viewLinks,
       upload: viewUpload,
+      articles: viewArticles,
+      documents: viewDocuments,
       reports: viewReports,
       codes: viewCodes,
       iptv: viewIptv,
@@ -530,6 +532,29 @@
         <div id="ov-level-embed"><p class="muted">${t("common.loading")}</p></div>
       </section>
 
+      <section class="ov-block" aria-labelledby="ov-content-h">
+        <div class="ov-head">
+          <div>
+            <h2 id="ov-content-h">${t("dash.ov.content")}</h2>
+            <p class="muted">${t("dash.ov.contentLead")}</p>
+          </div>
+          <div class="ov-head-btns">
+            <a class="btn btn-sm btn-primary" href="./article.html">${t("dash.ar.new")}</a>
+            <button class="btn btn-sm btn-ghost" type="button" data-section="documents">${t("dash.nav.documents")}</button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><b data-ovc="ar">…</b><span>${t("dash.nav.articles")}</span></div>
+          <div class="stat"><b data-ovc="arp">…</b><span>${t("ae.pending")}</span></div>
+          <div class="stat"><b data-ovc="doc">…</b><span>${t("dash.nav.documents")}</span></div>
+          <div class="stat"><b data-ovc="docok">…</b><span>${t("dash.docs.scanned")}</span></div>
+        </div>
+        <div class="ov-head-btns">
+          <button class="btn btn-sm btn-ghost" type="button" data-section="articles">${t("dash.nav.articles")} →</button>
+          <button class="btn btn-sm btn-ghost" type="button" data-section="documents">${t("dash.docs.upload")} →</button>
+        </div>
+      </section>
+
       <section class="ov-block" id="ov-panel-block" aria-labelledby="ov-panel-h" ${state.panelVisible ? "" : "hidden"}>
         <div class="ov-head">
           <div>
@@ -542,10 +567,12 @@
       </section>`;
 
     const memberId = m.member_id;
-    const [mp, codesRes, iptvRows] = await Promise.all([
+    const [mp, codesRes, iptvRows, artRes, docRes] = await Promise.all([
       C.memberPoints(memberId, state.profile || {}).catch(() => null),
       supabaseRequest(`/rest/v1/codes?owner=eq.${restValue(memberId)}&select=*&order=created_at.desc`).catch(() => ({ ok: false })),
       loadMyIptv().catch(() => null),
+      supabaseRequest(`/rest/v1/community_articles?member_id=eq.${restValue(memberId)}&select=id,status,publish_at`).catch(() => ({ ok: false })),
+      supabaseRequest(`/rest/v1/community_documents?member_id=eq.${restValue(memberId)}&select=id,scan_status`).catch(() => ({ ok: false })),
     ]);
     if (!main.isConnected || state.section !== "overview") return; // the member moved on
 
@@ -605,6 +632,19 @@
     } else if (msg) {
       msg.textContent = t("points.loadFail");
     }
+
+    // what the new editors published: articles (with the ones still waiting for
+    // the staff) and documents (with the ones VirusTotal cleared)
+    const arts = artRes.ok && Array.isArray(artRes.data) ? artRes.data : null;
+    const docs = docRes.ok && Array.isArray(docRes.data) ? docRes.data : null;
+    const ovc = (k, v) => {
+      const el = main.querySelector(`[data-ovc="${k}"]`);
+      if (el) el.textContent = String(v);
+    };
+    ovc("ar", arts ? arts.length : "—");
+    ovc("arp", arts ? arts.filter((a) => a.status === "pending").length : "—");
+    ovc("doc", docs ? docs.length : "—");
+    ovc("docok", docs ? docs.filter((d) => d.scan_status === "clean").length : "—");
 
     const codes = codesRes.ok && Array.isArray(codesRes.data) ? codesRes.data : null;
     const lead = main.querySelector("#ov-codes-lead");
@@ -3312,6 +3352,159 @@
     wireTabs(main, "prizeModes");
   }
 
+  /* ---------- Articles: the ones this member wrote (article.html) ----------
+     The editor itself is never rebuilt here — the dashboard lists what it saved
+     and sends the member back to the one editor. */
+  function dashWhen(iso) {
+    const ms = Date.parse(iso || "");
+    if (!ms) return "";
+    const mins = Math.round((Date.now() - ms) / 60000);
+    if (mins < 1) return t("dash.ar.now");
+    if (mins < 60) return t("dash.ar.mins", { n: mins });
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return t("dash.ar.hours", { n: hours });
+    const days = Math.round(hours / 24);
+    if (days < 31) return t("dash.ar.days", { n: days });
+    return String(iso).slice(0, 10);
+  }
+
+  function articleState(a) {
+    if (a.status === "draft") return "draft";
+    if (a.status === "pending") return "pending";
+    if (a.publish_at && Date.parse(a.publish_at) > Date.now()) return "scheduled";
+    return "published";
+  }
+
+  async function viewArticles(main) {
+    const m = state.member;
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.ar.eyebrow")}</p>
+      <h1>${t("dash.nav.articles")}</h1>
+      <p class="muted">${t("dash.ar.lead")}</p>
+      <div class="dash-acts">
+        <a class="btn btn-primary" href="./article.html">${C.navIcon("create")}<span>${t("dash.ar.new")}</span></a>
+        <a class="btn btn-ghost" href="./content.html#articles">${t("dash.ar.browse")}</a>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><b data-ar="all">…</b><span>${t("dash.ar.all")}</span></div>
+        <div class="stat"><b data-ar="published">…</b><span>${t("ae.published")}</span></div>
+        <div class="stat"><b data-ar="pending">…</b><span>${t("ae.pending")}</span></div>
+        <div class="stat"><b data-ar="views">…</b><span>${t("dash.ar.views")}</span></div>
+      </div>
+      <div id="dash-ar-list"><p class="muted">${t("common.loading")}</p></div>`;
+    const box = main.querySelector("#dash-ar-list");
+    const res = await supabaseRequest(
+      `/rest/v1/community_articles?member_id=eq.${restValue(m.member_id)}&select=*&order=updated_at.desc&limit=100`
+    ).catch(() => ({ ok: false }));
+    if (!main.isConnected || state.section !== "articles") return;
+    const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+    if (!res.ok) {
+      box.innerHTML = `<p class="empty">⚠ ${t("dash.ar.fail")}</p>`;
+      return;
+    }
+    const count = (k) => rows.filter((a) => articleState(a) === k).length;
+    const set = (k, v) => {
+      const el = main.querySelector(`[data-ar="${k}"]`);
+      if (el) el.textContent = String(v);
+    };
+    set("all", rows.length);
+    set("published", count("published") + count("scheduled"));
+    set("pending", count("pending"));
+    set("views", rows.reduce((n, a) => n + Number(a.views || 0), 0));
+
+    if (!rows.length) {
+      box.innerHTML = `<p class="empty">${t("dash.ar.none")}</p>`;
+      return;
+    }
+    const stateLabel = { draft: t("ae.draft"), pending: t("ae.pending"), scheduled: t("ae.scheduled"), published: t("ae.published") };
+    const placeLabel = (p) => String(p || "content").split("+").map((x) => (x === "help" ? t("ae.inHelp") : t("ae.inContent"))).join(" · ");
+    box.innerHTML = `<div class="dash-ar-grid">${rows
+      .map((a) => {
+        const st = articleState(a);
+        const mine = a.member_id === m.member_id;
+        const cover = a.thumb
+          ? `<img class="dash-ar-cover" src="${escapeHtml(a.thumb)}" alt="" loading="lazy" />`
+          : `<span class="dash-ar-cover is-empty" aria-hidden="true">${C.navIcon("posts")}</span>`;
+        return `<article class="glass dash-ar is-${st}">
+          ${cover}
+          <div class="dash-ar-body">
+            <div class="dash-ar-top">
+              <strong>${escapeHtml(a.title || t("ae.untitled"))}</strong>
+              <span class="dash-ar-st is-${st}">${stateLabel[st]}</span>
+            </div>
+            ${a.description ? `<p class="muted dash-ar-desc">${escapeHtml(a.description)}</p>` : ""}
+            <p class="muted dash-ar-meta">${escapeHtml(placeLabel(a.places))} · ${escapeHtml(t("pm.vis." + (a.visibility || "public")))} · 👁 ${Number(a.views || 0)} · ${escapeHtml(dashWhen(a.updated_at || a.created_at))}</p>
+            <div class="dash-ar-acts">
+              ${mine ? `<a class="btn btn-sm btn-ghost" href="./article.html?edit=${encodeURIComponent(a.id)}">${t("ae.edit")}</a>` : ""}
+              ${st === "published" || st === "scheduled"
+                ? `<a class="btn btn-sm btn-primary" href="./content.html?article=${encodeURIComponent(a.id)}">${t("dash.ar.read")}</a>`
+                : `<span class="muted">${st === "pending" ? t("dash.ar.waiting") : t("dash.ar.draftHint")}</span>`}
+            </div>
+          </div>
+        </article>`;
+      })
+      .join("")}</div>`;
+  }
+
+  /* ---------- Documents: the same list and the same uploader as the Studio ---- */
+  function docSize(bytes) {
+    const n = Number(bytes || 0);
+    if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
+    if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+    return `${n} B`;
+  }
+
+  async function viewDocuments(main) {
+    const m = state.member;
+    main.innerHTML = `
+      <p class="eyebrow">${t("dash.docs.eyebrow")}</p>
+      <h1>${t("dash.nav.documents")}</h1>
+      <p class="muted">${t("dash.docs.lead")}</p>
+      <div class="stat-row">
+        <div class="stat"><b data-doc="n">…</b><span>${t("dash.docs.all")}</span></div>
+        <div class="stat"><b data-doc="size">…</b><span>${t("dash.docs.size")}</span></div>
+        <div class="stat"><b data-doc="views">…</b><span>${t("dash.ar.views")}</span></div>
+        <div class="stat"><b data-doc="scans">…</b><span>${t("dash.docs.scanned")}</span></div>
+      </div>
+      <details class="ov-more dash-doc-upload">
+        <summary>${t("dash.docs.upload")}</summary>
+        <p class="muted">${t("dash.docs.uploadLead")}</p>
+        <div id="dash-doc-up"></div>
+      </details>
+      <h2 class="dash-doc-h">${t("dash.docs.mine")}</h2>
+      <div id="dash-doc-list"><p class="muted">${t("common.loading")}</p></div>`;
+    const list = main.querySelector("#dash-doc-list");
+    const upBox = main.querySelector("#dash-doc-up");
+    const load = async () => {
+      if (!main.isConnected) return;
+      const res = await supabaseRequest(
+        `/rest/v1/community_documents?member_id=eq.${restValue(m.member_id)}&select=id,size_bytes,views,downloads,likes,scan_status&limit=200`
+      ).catch(() => ({ ok: false }));
+      const rows = res.ok && Array.isArray(res.data) ? res.data : [];
+      const set = (k, v) => {
+        const el = main.querySelector(`[data-doc="${k}"]`);
+        if (el) el.textContent = String(v);
+      };
+      set("n", rows.length);
+      set("size", docSize(rows.reduce((n, r) => n + Number(r.size_bytes || 0), 0)));
+      set("views", rows.reduce((n, r) => n + Number(r.views || 0), 0));
+      set("scans", rows.filter((r) => r.scan_status === "clean").length);
+      if (!window.CineAuraDocs) {
+        list.innerHTML = `<p class="empty">⚠ ${t("doc.loadFail")}</p>`;
+        return;
+      }
+      // the Studio's own list, so there is exactly one document tool
+      window.CineAuraDocs.renderManage(list, m.member_id, { onRemoved: load });
+    };
+    if (window.CineAuraDocs) {
+      // the Studio's own uploader: VirusTotal gate, buckets and all
+      window.CineAuraDocs.renderUpload(upBox, { member: m, onDone: load });
+    } else {
+      upBox.innerHTML = `<p class="empty">⚠ ${t("doc.loadFail")}</p>`;
+    }
+    await load();
+  }
+
   async function viewHistory(main) {
     const res = await supabaseRequest(
       `/rest/v1/hestory?visitor_id=eq.${restValue(state.member.member_id)}&select=*&order=visited_at.desc`
@@ -4058,7 +4251,7 @@
   // feeds the router (dashboard.html#codes, #iptv-lists …).
   const NAV_GROUPS = [
     ["dash.grp.main", ["overview", "level", "points"]],
-    ["dash.grp.content", ["upload", "links", "codes", "playlists", "iptv"]],
+    ["dash.grp.content", ["upload", "articles", "documents", "links", "codes", "playlists", "iptv"]],
     ["dash.grp.perf", ["views", "analytics", "reports", "history"]],
     ["dash.grp.earn", ["withdraw", "prizes"]],
     ["dash.grp.account", ["settings"]],

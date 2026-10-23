@@ -359,6 +359,7 @@
       num.textContent = "100%";
       const created = Array.isArray(row.data) ? row.data[0] : null;
       C().toast(t("doc.uploaded"));
+      ctx.onDone?.(created);
       host.innerHTML = `<p class="com-note">${esc(t("doc.uploaded"))}
         ${created ? `<a class="btn btn-sm btn-primary" href="./content.html?document=${encodeURIComponent(created.id)}">${esc(t("doc.open"))}</a>` : ""}</p>`;
     };
@@ -598,6 +599,7 @@
           }
           await removeFile(row.storage_path || b.dataset.path, BUCKET(row));
           C().toast(t("manage.delOk"));
+          opts.onRemoved?.(b.dataset.docdel);
           renderManage(box, memberId, opts);
         })
     );
