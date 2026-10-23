@@ -146,6 +146,25 @@ has("community: nav icon key", read("js/common.js"), '"nav.community": "users"')
 has("community: engine label", read("js/i18n.js"), '"nav.community": "Community"');
 has("community: engine ask label", read("js/i18n.js"), '"com.ask": "Ask a question"');
 
+// ---------------- Community = Groups; Content page mixes member content (2026-10-22)
+const gs = read("sql/community_groups.sql");
+ok("groups: sql exists", fs.existsSync(path.join(ROOT, "sql/community_groups.sql")));
+has("groups: groups table", gs, "create table if not exists public.community_groups");
+has("groups: members table", gs, "create table if not exists public.community_group_members");
+has("groups: public flag", gs, "is_public     boolean not null default true");
+has("groups: members counter trigger", gs, "_com_grp_members_count");
+has("groups: public read policy", gs, 'com_grp_read   on public.community_groups        for select using (true)');
+const cj2 = read("js/community.js");
+has("groups: discover view", cj2, "async function listGroups(box, mine)");
+has("groups: create form seats the owner", cj2, "role: \"owner\"");
+has("groups: group page", cj2, "async function groupView(box, id)");
+has("groups: join/leave toggle", cj2, "com-join");
+has("groups: default face is groups", cj2, 'return { view: "groups", tab: "discover" };');
+has("groups: legacy article/question routes kept", cj2, 'h.match(/^(q|a|g)\\/(\\d+)$/)');
+has("groups: content page tabs wiring", cj2, "function wireContentTabs()");
+has("groups: content.html loads community module", read("content.html"), 'src="js/community.js"');
+has("groups: engine discover label", read("js/i18n.js"), '"grp.discover": "Discover Groups"');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

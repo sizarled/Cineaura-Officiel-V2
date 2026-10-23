@@ -191,3 +191,39 @@
     flex-direction: column;
   }
 }
+
+/* Community groups (Discover / My Groups / Create Group) */
+.com-grp-cover {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: cover;
+  flex: none;
+  border: 1px solid var(--line);
+}
+
+.com-grp-ph {
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  background: var(--surface);
+}
+
+.com-grp-hero {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+/* Content page type bar (content.html, injected by js/community.js) */
+.ct-tabs {
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ct-tabs::-webkit-scrollbar {
+  display: none;
+}

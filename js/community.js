@@ -25,16 +25,23 @@
   }
   const who = (names, id) => (names.get(id) ? `@${names.get(id)}` : "");
   const when = (iso) => String(iso || "").slice(0, 16).replace("T", " ");
+  // Question/article links: relative #… on the hub itself, absolute ./community.html#…
+  // when the same renderer is embedded on another page (Content tabs, the profile).
+  const base = () => (document.getElementById("com-root") ? "" : "./community.html");
   const loginNote = () =>
     meId() ? "" : `<p class="com-note muted">${esc(t("com.login"))} <a class="btn btn-sm btn-primary" href="./login.html">${esc(t("nav.signin"))}</a></p>`;
 
   const hashRoute = () => {
     const h = String(location.hash || "").replace(/^#/, "");
-    const m = h.match(/^(q|a)\/(\d+)$/);
-    if (m) return { view: m[1] === "q" ? "question" : "article", id: Number(m[2]) };
+    const m = h.match(/^(q|a|g)\/(\d+)$/);
+    if (m) return { view: m[1] === "q" ? "question" : m[1] === "a" ? "article" : "group", id: Number(m[2]) };
     if (h === "ask") return { view: "ask" };
     if (h === "new-article") return { view: "newArticle" };
-    return { view: "list", tab: h === "articles" ? "articles" : "questions" };
+    if (h === "articles") return { view: "list", tab: "articles" };
+    if (h === "questions") return { view: "list", tab: "questions" };
+    if (h === "my-groups") return { view: "groups", tab: "my" };
+    if (h === "new-group") return { view: "newGroup" };
+    return { view: "groups", tab: "discover" };
   };
 
   // ─────────────────────────── write helpers ───────────────────────────
@@ -62,7 +69,7 @@
     const names = await nameMap(rows.map((r) => r.member_id));
     box.innerHTML = rows
       .map(
-        (q) => `<a class="com-row glass" href="#q/${q.id}">
+        (q) => `<a class="com-row glass" href="${base()}#q/${q.id}">
           <span class="com-row-main"><strong>${esc(q.title)}</strong>
           <span class="muted">${esc(who(names, q.member_id))} · ${esc(when(q.created_at))}</span></span>
           <span class="com-chip">💬 ${q.answers_count || 0} ${esc(t("com.answersN"))}</span>
@@ -176,7 +183,7 @@
     const names = await nameMap(rows.map((r) => r.member_id));
     box.innerHTML = rows
       .map(
-        (a) => `<a class="com-row glass" href="#a/${a.id}">
+        (a) => `<a class="com-row glass" href="${base()}#a/${a.id}">
           <span class="com-row-main"><strong>${esc(a.title)}</strong>
           <span class="muted">${esc(who(names, a.member_id))} · ${esc(when(a.created_at))}${a.tags ? ` · ${esc(a.tags)}` : ""}</span></span>
           <span class="com-chip">👁 ${a.views || 0}</span>
@@ -228,12 +235,117 @@
       </article>`;
   }
 
+  // ─────────────────────────── groups ───────────────────────────
+  async function listGroups(box, mine) {
+    const me = meId();
+    const res = mine && me
+      ? await req(`/rest/v1/community_group_members?member_id=eq.${encodeURIComponent(me)}&select=group_id,community_groups(*)`)
+      : await req(`/rest/v1/community_groups?is_public=eq.true&select=*&order=created_at.desc&limit=80`);
+    if (!res.ok) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("grp.loadFail"))}</p>`);
+    const rows = mine && me
+      ? (Array.isArray(res.data) ? res.data.map((r) => r.community_groups).filter(Boolean) : [])
+      : (Array.isArray(res.data) ? res.data : []);
+    if (!rows.length)
+      return (box.innerHTML = `<p class="com-empty muted">${esc(t(mine ? "grp.emptyMy" : "grp.empty"))} ${me ? `<a class="btn btn-sm btn-primary" href="#new-group">${esc(t("grp.create"))}</a>` : ""}</p>`);
+    const names = await nameMap(rows.map((g) => g.owner_id));
+    box.innerHTML = rows
+      .map(
+        (g) => `<a class="com-row glass" href="#g/${g.id}">
+          ${g.cover ? `<img class="com-grp-cover" src="${esc(g.cover)}" alt="" loading="lazy" />` : `<span class="com-grp-cover com-grp-ph">👥</span>`}
+          <span class="com-row-main"><strong>${esc(g.name)}</strong>
+          <span class="muted">${esc(String(g.description || "").slice(0, 90))}</span>
+          <span class="muted">${esc(t("grp.byOwner", { name: who(names, g.owner_id) }))}</span></span>
+          <span class="com-chip">👥 ${g.members_count || 0} ${esc(t("grp.members"))}</span>
+        </a>`
+      )
+      .join("");
+  }
+
+  function groupForm(box) {
+    if (!meId()) return (box.innerHTML = loginNote());
+    box.innerHTML = `<form id="com-grp" class="com-form glass">
+      <input name="name" maxlength="120" required placeholder="${esc(t("grp.namePh"))}" />
+      <textarea name="description" rows="3" placeholder="${esc(t("grp.descPh"))}"></textarea>
+      <textarea name="rules" rows="3" placeholder="${esc(t("grp.rulesPh"))}"></textarea>
+      <input name="cover" maxlength="300" placeholder="${esc(t("grp.coverPh"))}" />
+      <label class="lang-chip"><input type="checkbox" name="is_public" checked /> ${esc(t("grp.public"))}</label>
+      <div><button class="btn btn-primary" type="submit">${esc(t("grp.createBtn"))}</button>
+      <button class="btn btn-ghost" type="button" onclick="location.hash=''">${esc(t("common.cancel"))}</button></div>
+    </form>`;
+    box.querySelector("#com-grp").onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const row = await insertRow("/rest/v1/community_groups", {
+        owner_id: meId(),
+        name: String(fd.get("name") || "").trim(),
+        description: String(fd.get("description") || "").trim(),
+        rules: String(fd.get("rules") || "").trim(),
+        cover: String(fd.get("cover") || "").trim(),
+        is_public: fd.get("is_public") === "on",
+      });
+      if (!row) return;
+      // seat the owner (so the member count and My Groups include it) then open the group
+      req("/rest/v1/community_group_members?select=group_id,member_id", {
+        method: "POST",
+        body: JSON.stringify({ group_id: row.id, member_id: meId(), role: "owner" }),
+      })
+        .catch(() => {})
+        .finally(() => {
+          toast(t("grp.saved"));
+          location.hash = `#g/${row.id}`;
+        });
+    };
+  }
+
+  async function groupView(box, id) {
+    const res = await req(`/rest/v1/community_groups?id=eq.${id}&select=*`);
+    const g = res.ok && Array.isArray(res.data) ? res.data[0] : null;
+    if (!g) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("grp.loadFail"))} <a href="#">${esc(t("com.backList"))}</a></p>`);
+    const names = await nameMap([g.owner_id]);
+    const me = meId();
+    let joined = false;
+    if (me) {
+      const mr = await req(`/rest/v1/community_group_members?group_id=eq.${id}&member_id=eq.${encodeURIComponent(me)}&select=role`);
+      joined = mr.ok && Array.isArray(mr.data) && !!mr.data.length;
+    }
+    box.innerHTML = `<a class="com-back" href="#">← ${esc(t("com.backList"))}</a>
+      <article class="com-q com-grp glass">
+        ${g.cover ? `<img class="com-grp-hero" src="${esc(g.cover)}" alt="" loading="lazy" />` : ""}
+        <h2>${esc(g.name)} ${g.is_public ? "" : "🔒"}</h2>
+        <p class="muted">${esc(t("grp.byOwner", { name: who(names, g.owner_id) }))} · 👥 ${g.members_count || 0} ${esc(t("grp.members"))}</p>
+        ${g.description ? `<p class="com-body">${esc(g.description)}</p>` : ""}
+        ${g.rules ? `<h3 class="com-h3">${esc(t("grp.rulesTitle"))}</h3><p class="com-body">${esc(g.rules)}</p>` : ""}
+        <div class="com-acts" style="margin-top:12px">
+          ${me ? `<button type="button" class="btn btn-sm ${joined ? "btn-ghost" : "btn-primary"}" id="com-join">${joined ? esc(t("grp.leave")) : esc(t("grp.join"))}</button>` : loginNote()}
+        </div>
+      </article>`;
+    const jb = box.querySelector("#com-join");
+    if (jb)
+      jb.onclick = async () => {
+        jb.disabled = true;
+        const r = await req(
+          joined
+            ? `/rest/v1/community_group_members?group_id=eq.${id}&member_id=eq.${encodeURIComponent(meId())}`
+            : `/rest/v1/community_group_members?select=group_id,member_id`,
+          joined
+            ? { method: "DELETE" }
+            : { method: "POST", body: JSON.stringify({ group_id: id, member_id: meId() }) }
+        );
+        if (!r.ok) toast(t("grp.saveFail"));
+        groupView(box, id);
+      };
+  }
+
   // ─────────────────────────── hub shell ───────────────────────────
   function paint(root) {
     const route = hashRoute();
-    const inner = ["question", "article", "ask", "newArticle"].includes(route.view)
-      ? `<div id="com-body"></div>`
-      : `<div class="com-tabs" role="tablist">
+    // Legacy content routes keep the Articles / Q&A tab bar; the hub's default
+    // face is the Groups (Discover / My Groups / Create).
+    const legacy = ["question", "article", "ask", "newArticle", "list"].includes(route.view);
+    let inner;
+    if (["question", "article", "ask", "newArticle", "group", "newGroup"].includes(route.view)) inner = `<div id="com-body"></div>`;
+    else if (legacy)
+      inner = `<div class="com-tabs" role="tablist">
           <button type="button" role="tab" class="follow-tab${route.tab === "questions" ? " active" : ""}" data-tab="questions">${esc(t("com.tab.questions"))}</button>
           <button type="button" role="tab" class="follow-tab${route.tab === "articles" ? " active" : ""}" data-tab="articles">${esc(t("com.tab.articles"))}</button>
         </div>
@@ -241,13 +353,27 @@
           ${route.tab === "questions" ? `<a class="btn btn-sm btn-primary" href="#ask">❓ ${esc(t("com.ask"))}</a>` : `<a class="btn btn-sm btn-primary" href="#new-article">✍ ${esc(t("com.newArticle"))}</a>`}
         </div>
         <div id="com-body"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
-    root.innerHTML = `<p class="eyebrow">${esc(t("com.eyebrow"))}</p><h1>${esc(t("com.title"))}</h1><p class="com-lead muted">${esc(t("com.lead"))}</p>${inner}`;
+    else
+      inner = `<div class="com-tabs" role="tablist">
+          <button type="button" role="tab" class="follow-tab${route.tab === "discover" ? " active" : ""}" data-gtab="discover">🔍 ${esc(t("grp.discover"))}</button>
+          <button type="button" role="tab" class="follow-tab${route.tab === "my" ? " active" : ""}" data-gtab="my">👥 ${esc(t("grp.my"))}</button>
+        </div>
+        <div id="com-acts">${meId() ? `<a class="btn btn-sm btn-primary" href="#new-group">➕ ${esc(t("grp.create"))}</a>` : loginNote()}</div>
+        <div id="com-body"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
+    const head = legacy
+      ? `<p class="eyebrow">${esc(t("com.eyebrow"))}</p><h1>${esc(t("com.title"))}</h1><p class="com-lead muted">${esc(t("com.lead"))}</p>`
+      : `<p class="eyebrow">${esc(t("com.eyebrow"))}</p><h1>${esc(t("grp.title"))}</h1><p class="com-lead muted">${esc(t("grp.lead"))}</p>`;
+    root.innerHTML = head + inner;
     const body = root.querySelector("#com-body");
-    root.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => (location.hash = b.dataset.tab === "articles" ? "#articles" : "#")));
+    root.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => (location.hash = b.dataset.tab === "articles" ? "#articles" : "#questions")));
+    root.querySelectorAll("[data-gtab]").forEach((b) => (b.onclick = () => (location.hash = b.dataset.gtab === "my" ? "#my-groups" : "#")));
     if (route.view === "question") return questionView(body, route.id);
     if (route.view === "article") return articleView(body, route.id);
     if (route.view === "ask") return askForm(body);
     if (route.view === "newArticle") return articleForm(body);
+    if (route.view === "group") return groupView(body, route.id);
+    if (route.view === "newGroup") return groupForm(body);
+    if (route.view === "groups") return listGroups(body, route.tab === "my");
     return route.tab === "articles" ? listArticles(body) : listQuestions(body);
   }
 
@@ -309,6 +435,49 @@
   }
 
   window.CineAuraCommunity = { viewCommunity, memberView, memberBlocks };
+
+  // Content page (content.html): a type bar above the videos — Videos stay with
+  // their own page code; Articles / Questions & Answers embed the hub lists.
+  function wireContentTabs() {
+    const root = document.getElementById("vw-root");
+    if (!root || document.getElementById("ct-tabs")) return;
+    const originals = [...root.children];
+    const tabs = document.createElement("div");
+    tabs.id = "ct-tabs";
+    tabs.className = "com-tabs ct-tabs";
+    tabs.setAttribute("role", "tablist");
+    const other = document.createElement("div");
+    other.id = "ct-other";
+    other.hidden = true;
+    root.prepend(other);
+    root.prepend(tabs);
+    const TABS = [
+      ["videos", t("nav.videos")],
+      ["articles", t("com.tab.articles")],
+      ["questions", t("com.tab.questions")],
+    ];
+    tabs.innerHTML = TABS.map(([k, label], i) => `<button type="button" role="tab" class="follow-tab${i === 0 ? " active" : ""}" data-ct="${k}">${esc(label)}</button>`).join("");
+    tabs.querySelectorAll("[data-ct]").forEach((b) => {
+      b.onclick = () => {
+        tabs.querySelectorAll("[data-ct]").forEach((x) => x.classList.toggle("active", x === b));
+        const k = b.dataset.ct;
+        if (k === "videos") {
+          originals.forEach((el) => (el.hidden = false));
+          other.hidden = true;
+          return;
+        }
+        originals.forEach((el) => (el.hidden = true));
+        other.hidden = false;
+        other.innerHTML = `<div id="com-acts" style="margin-bottom:10px">${
+          k === "questions"
+            ? `<a class="btn btn-sm btn-primary" href="./community.html#ask">❓ ${esc(t("com.ask"))}</a>`
+            : `<a class="btn btn-sm btn-primary" href="./community.html#new-article">✍ ${esc(t("com.newArticle"))}</a>`
+        }</div><div id="ct-body"><p class="com-note muted">${esc(t("common.loading"))}</p></div>`;
+        (k === "questions" ? listQuestions : listArticles)(other.querySelector("#ct-body"));
+      };
+    });
+  }
+
   window.addEventListener("hashchange", () => {
     const root = document.getElementById("com-root");
     if (root) paint(root);
@@ -318,6 +487,7 @@
   const boot = () => {
     const root = document.getElementById("com-root");
     if (root) paint(root);
+    wireContentTabs();
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
