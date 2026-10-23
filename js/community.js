@@ -32,6 +32,11 @@
     meId() ? "" : `<p class="com-note muted">${esc(t("com.login"))} <a class="btn btn-sm btn-primary" href="./login.html">${esc(t("nav.signin"))}</a></p>`;
 
   const gLink = (id) => (base() ? `${base()}?group=${id}` : `?group=${id}`);
+  // Deep links: on the hub the detail views live under #q/ #a/ hashes; everywhere
+  // else (profile blocks, the content page lists) they point at content.html by
+  // its canonical deep params ?article=/?question=/?answer= (Round-60 spec).
+  const dLink = (kind, id) =>
+    document.getElementById("com-root") ? `#${kind === "article" ? "a" : "q"}/${id}` : `./content.html?${kind}=${encodeURIComponent(id)}`;
   const groupParam = () => new URLSearchParams(location.search).get("group");
   // Community.html?group=12345 picks the group page; plain Community.html picks
   // the list. #g/123 stays as a legacy alias so old links never break.
@@ -79,7 +84,7 @@
     const names = await nameMap(rows.map((r) => r.member_id));
     box.innerHTML = rows
       .map(
-        (q) => `<a class="com-row glass" href="${base()}#q/${q.id}">
+        (q) => `<a class="com-row glass" href="${dLink("question", q.id)}">
           <span class="com-row-main"><strong>${esc(q.title)}</strong>
           <span class="muted">${esc(who(names, q.member_id))} · ${esc(when(q.created_at))}</span></span>
           <span class="com-chip">💬 ${q.answers_count || 0} ${esc(t("com.answersN"))}</span>
@@ -111,10 +116,18 @@
     };
   }
 
-  async function questionView(box, id) {
+  // ?answer=ID — the answer with its parent question (Round-60 spec).
+  async function answerView(box, id) {
+    const res = await req(`/rest/v1/community_answers?id=eq.${id}&select=*`);
+    const a = res.ok && Array.isArray(res.data) ? res.data[0] : null;
+    if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("ct.missing"))} <a href="./content.html">${esc(t("ct.library"))}</a></p>`);
+    questionView(box, a.question_id, a.id);
+  }
+
+  async function questionView(box, id, hlAnswerId) {
     const res = await req(`/rest/v1/community_questions?id=eq.${id}&select=*`);
     const q = res.ok && Array.isArray(res.data) ? res.data[0] : null;
-    if (!q) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="#">${esc(t("com.backList"))}</a></p>`);
+    if (!q) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="${document.getElementById("com-root") ? "#" : "./content.html"}">${esc(t("com.backList"))}</a></p>`);
     const [ansRes, names] = await Promise.all([
       req(`/rest/v1/community_answers?question_id=eq.${id}&select=*&order=votes.desc,created_at.asc&limit=200`),
       nameMap([q.member_id]),
@@ -129,7 +142,7 @@
       const vr = await req(`/rest/v1/community_answer_votes?member_id=eq.${encodeURIComponent(me)}&answer_id=in.(${idsIn(ids)})&select=answer_id`);
       if (vr.ok && Array.isArray(vr.data)) mine = new Set(vr.data.map((v) => v.answer_id));
     }
-    box.innerHTML = `<a class="com-back" href="#">← ${esc(t("com.backList"))}</a>
+    box.innerHTML = `<a class="com-back" href="${document.getElementById("com-root") ? "#" : "./content.html"}">← ${esc(t("com.backList"))}</a>
       <article class="com-q glass">
         <h2>${esc(q.title)}</h2>
         <p class="muted">${esc(who(names, q.member_id))} · ${esc(when(q.created_at))}</p>
@@ -138,7 +151,7 @@
       <h3 class="com-h3">💬 ${answers.length} ${esc(t("com.answersN"))}</h3>
       <div id="com-answers">${answers
         .map(
-          (a) => `<div class="com-answer glass">
+          (a) => `<div class="com-answer glass${a.id === hlAnswerId ? " com-hl" : ""}" data-ans="${a.id}">
             <p class="com-body">${esc(a.body)}</p>
             <div class="com-a-foot">
               <span class="muted">${esc(who(names2, a.member_id))} · ${esc(when(a.created_at))}</span>
@@ -172,6 +185,10 @@
         questionView(box, id);
       };
     });
+    if (hlAnswerId) {
+      const tur = box.querySelector(`[data-ans="${hlAnswerId}"]`);
+      if (tur) tur.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
     const f = box.querySelector("#com-answer");
     if (f)
       f.onsubmit = async (e) => {
@@ -193,7 +210,7 @@
     const names = await nameMap(rows.map((r) => r.member_id));
     box.innerHTML = rows
       .map(
-        (a) => `<a class="com-row glass" href="${base()}#a/${a.id}">
+        (a) => `<a class="com-row glass" href="${dLink("article", a.id)}">
           <span class="com-row-main"><strong>${esc(a.title)}</strong>
           <span class="muted">${esc(who(names, a.member_id))} · ${esc(when(a.created_at))}${a.tags ? ` · ${esc(a.tags)}` : ""}</span></span>
           <span class="com-chip">👁 ${a.views || 0}</span>
@@ -230,14 +247,14 @@
   async function articleView(box, id) {
     const res = await req(`/rest/v1/community_articles?id=eq.${id}&select=*`);
     const a = res.ok && Array.isArray(res.data) ? res.data[0] : null;
-    if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="#articles">${esc(t("com.backList"))}</a></p>`);
+    if (!a) return (box.innerHTML = `<p class="com-note">⚠ ${esc(t("com.loadFail"))} <a href="${document.getElementById("com-root") ? "#articles" : "./content.html"}">${esc(t("com.backList"))}</a></p>`);
     const names = await nameMap([a.member_id]);
     // best-effort view counter (fire and forget, like the help center readers)
     req(`/rest/v1/community_articles?id=eq.${id}`, {
       method: "PATCH",
       body: JSON.stringify({ views: Number(a.views || 0) + 1 }),
     }).catch(() => {});
-    box.innerHTML = `<a class="com-back" href="#articles">← ${esc(t("com.backList"))}</a>
+    box.innerHTML = `<a class="com-back" href="${document.getElementById("com-root") ? "#articles" : "./content.html"}">← ${esc(t("com.backList"))}</a>
       <article class="com-article glass">
         <h2>${esc(a.title)}</h2>
         <p class="muted">${esc(who(names, a.member_id))} · ${esc(when(a.created_at))}${a.tags ? ` · ${esc(a.tags)}` : ""} · 👁 ${(a.views || 0) + 1}</p>
@@ -558,9 +575,9 @@
     return { qs, ans, ats, failed, qTitles };
   }
 
-  const rowQ = (x) => `<a class="com-row-mini" href="./community.html#q/${x.id}">❓ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 💬 ${x.answers_count || 0}</span></a>`;
-  const rowA = (x, qTitles) => `<a class="com-row-mini" href="./community.html#q/${x.question_id}">↩ ${esc(String(x.body || "").slice(0, 90))} <span class="muted">${esc(qTitles.get(x.question_id) || "")} · 👍 ${x.votes || 0}</span></a>`;
-  const rowArt = (x) => `<a class="com-row-mini" href="./community.html#a/${x.id}">✍ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 👁 ${x.views || 0}</span></a>`;
+  const rowQ = (x) => `<a class="com-row-mini" href="${dLink("question", x.id)}">❓ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 💬 ${x.answers_count || 0}</span></a>`;
+  const rowA = (x, qTitles) => `<a class="com-row-mini" href="./content.html?answer=${x.id}">↩ ${esc(String(x.body || "").slice(0, 90))} <span class="muted">${esc(qTitles.get(x.question_id) || "")} · 👍 ${x.votes || 0}</span></a>`;
+  const rowArt = (x) => `<a class="com-row-mini" href="${dLink("article", x.id)}">✍ ${esc(x.title)} <span class="muted">${esc(when(x.created_at))} · 👁 ${x.views || 0}</span></a>`;
   const block = (title, rows, draw, emptyKey) =>
     `<section class="com-block"><h3>${title} <span class="muted">${rows.length}</span></h3>${rows.length ? rows.map(draw).join("") : `<p class="muted">${esc(t(emptyKey))}</p>`}</section>`;
   const KINDS = {
@@ -646,10 +663,45 @@
   });
   // Auto-boot only on the hub page itself (the profile embeds this file for
   // memberView only — no #com-root there, nothing to paint).
+  // UNIVERSAL DETAIL ROUTER — content.html?article=ID | ?question=ID | ?answer=ID.
+  // Matches the spec exactly: every route is one query param; zero params → the
+  // library; more than one → an invalid-route notice; non-numeric id → same.
+  // ?video=ID (alias of idcontent) is left to js/content.js, which plays it.
+  function contentDeepView() {
+    const root = document.getElementById("vw-root");
+    if (!root) return false;
+    const params = new URLSearchParams(window.location.search);
+    const routes = ["video", "article", "question", "answer"];
+    const selected = routes.filter((key) => params.has(key));
+    if (!selected.length) return false; // the library + its type tabs
+    if (selected[0] === "video") return false; // js/content.js plays the video itself
+    const hide = () => {
+      [...root.children].forEach((el) => (el.hidden = true));
+      const box = document.createElement("div");
+      box.id = "ct-deep";
+      root.prepend(box);
+      return box;
+    };
+    const invalid = () => {
+      hide().innerHTML = `<p class="com-note">⚠ ${esc(t("ct.invalid"))} <a class="btn btn-sm btn-primary" href="./content.html">${esc(t("ct.library"))}</a></p>`;
+      return true;
+    };
+    if (selected.length > 1) return invalid();
+    const type = selected[0];
+    const id = String(params.get(type) || "").trim();
+    if (!id || !/^\d+$/.test(id)) return invalid();
+    const box = hide();
+    box.innerHTML = `<p class="com-note muted">${esc(t("common.loading"))}</p>`;
+    if (type === "article") articleView(box, Number(id));
+    else if (type === "question") questionView(box, Number(id));
+    else answerView(box, Number(id));
+    return true;
+  }
+
   const boot = () => {
     const root = document.getElementById("com-root");
     if (root) paint(root);
-    wireContentTabs();
+    if (!contentDeepView()) wireContentTabs();
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

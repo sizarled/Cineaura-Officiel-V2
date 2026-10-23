@@ -5221,5 +5221,11 @@
  "Only the group owner can do this.": "Alleen de groepseigenaar kan dit doen.",
  "Join the group to post.": "Word lid van de groep om te posten.",
  "Share something with the group…": "Deel iets met de groep…",
- "No posts yet — be the first.": "Nog geen berichten — wees de eerste."
+ "No posts yet — be the first.": "Nog geen berichten — wees de eerste.",
+ "ct.invalid": "Ongeldige of gemengde inhoudslink — open één item tegelijk.",
+ "ct.missing": "Deze inhoud is niet beschikbaar of is verwijderd.",
+ "ct.library": "Terug naar de bibliotheek",
+ "Invalid or mixed content link — open one item at a time.": "Ongeldige of gemengde inhoudslink — open één item tegelijk.",
+ "This content is not available or was removed.": "Deze inhoud is niet beschikbaar of is verwijderd.",
+ "Back to the library": "Terug naar de bibliotheek"
 };

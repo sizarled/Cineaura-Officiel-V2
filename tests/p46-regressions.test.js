@@ -187,6 +187,19 @@ has("group v2: edit re-reads ownership at execution", cj3, "ownership is re-read
 has("group v2: rows link with ?group=", cj3, 'href="${gLink(g.id)}"');
 has("group v2: engine posts tab label", read("js/i18n.js"), '"grp.tab.posts": "Posts"');
 
+// ---------------- Universal content deep links (Round 60 spec) ----------------
+const cc = read("js/content.js");
+has("deep: ?video= alias of idcontent", cc, 'params.get("idcontent") || params.get("video")');
+const cj4 = read("js/community.js");
+has("deep: dLink helper", cj4, "const dLink = (kind, id) =>");
+has("deep: router reads the four params", cj4, 'const routes = ["video", "article", "question", "answer"];');
+has("deep: invalid mixed route", cj4, "if (selected.length > 1) return invalid();");
+has("deep: numeric id guard", cj4, "if (!id || !/^\\d+$/.test(id)) return invalid();");
+has("deep: video left to content.js", cj4, 'if (selected[0] === "video") return false;');
+has("deep: boot gives the router priority", cj4, "if (!contentDeepView()) wireContentTabs();");
+has("deep: answer view with parent question", cj4, "questionView(box, a.question_id, a.id);");
+has("deep: answer highlight anchor", cj4, 'data-ans="${a.id}"');
+
 // ---------------- Task 43.A: post actions on cards
 const js = read("js/profile.js");
 has("p43: recommend republishes feed line", js, 'const kind = choice === "up" ? "vote_up" : "vote_down";');

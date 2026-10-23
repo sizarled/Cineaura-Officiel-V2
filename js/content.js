@@ -31,7 +31,8 @@
 
   const params = new URLSearchParams(location.search);
   const state = {
-    id: String(params.get("idcontent") || params.get("id") || "").trim(),
+    // canonical alias: content.html?video=ID (round 60+) — idcontent stays supported
+    id: String(params.get("idcontent") || params.get("video") || params.get("id") || "").trim(),
     data: null,
     info: null,
     playing: false,

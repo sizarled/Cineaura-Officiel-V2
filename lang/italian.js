@@ -5221,5 +5221,11 @@
  "Only the group owner can do this.": "Solo il proprietario del gruppo può farlo.",
  "Join the group to post.": "Unisciti al gruppo per pubblicare.",
  "Share something with the group…": "Condividi qualcosa con il gruppo…",
- "No posts yet — be the first.": "Nessun post ancora — sii il primo."
+ "No posts yet — be the first.": "Nessun post ancora — sii il primo.",
+ "ct.invalid": "Link di contenuto non valido o misto — apri un elemento alla volta.",
+ "ct.missing": "Questo contenuto non è disponibile o è stato rimosso.",
+ "ct.library": "Torna alla libreria",
+ "Invalid or mixed content link — open one item at a time.": "Link di contenuto non valido o misto — apri un elemento alla volta.",
+ "This content is not available or was removed.": "Questo contenuto non è disponibile o è stato rimosso.",
+ "Back to the library": "Torna alla libreria"
 };

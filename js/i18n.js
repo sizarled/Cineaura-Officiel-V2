@@ -5694,6 +5694,9 @@
     "grp.noDesc": "No description yet.",
     "grp.remove": "Remove",
     "grp.ownerTag": "Owner",
+    "ct.invalid": "Invalid or mixed content link — open one item at a time.",
+    "ct.missing": "This content is not available or was removed.",
+    "ct.library": "Back to the library",
 
   };
 

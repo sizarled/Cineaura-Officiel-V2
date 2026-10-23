@@ -5257,5 +5257,11 @@
  "Only the group owner can do this.": "مالك المجموعة فقط يستطيع فعل هذا.",
  "Join the group to post.": "انضم إلى المجموعة لتنشر.",
  "Share something with the group…": "شارك شيئاً مع المجموعة…",
- "No posts yet — be the first.": "لا منشورات بعد — كن الأول."
+ "No posts yet — be the first.": "لا منشورات بعد — كن الأول.",
+ "ct.invalid": "رابط محتوى غير صالح أو مدمج — افتح عنصراً واحداً في كل مرة.",
+ "ct.missing": "هذا المحتوى غير متوفر أو أُزيل.",
+ "ct.library": "عودة إلى المكتبة",
+ "Invalid or mixed content link — open one item at a time.": "رابط محتوى غير صالح أو مدمج — افتح عنصراً واحداً في كل مرة.",
+ "This content is not available or was removed.": "هذا المحتوى غير متوفر أو أُزيل.",
+ "Back to the library": "عودة إلى المكتبة"
 };

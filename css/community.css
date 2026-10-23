@@ -239,3 +239,9 @@
   margin-bottom: 6px;
   flex-wrap: wrap;
 }
+
+/* Deep-linked answer highlight (content.html?answer=ID) */
+.com-answer.com-hl {
+  outline: 2px solid var(--accent, #7c5cff);
+  outline-offset: 2px;
+}

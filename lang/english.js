@@ -5221,5 +5221,11 @@
  "Only the group owner can do this.": "Only the group owner can do this.",
  "Join the group to post.": "Join the group to post.",
  "Share something with the group…": "Share something with the group…",
- "No posts yet — be the first.": "No posts yet — be the first."
+ "No posts yet — be the first.": "No posts yet — be the first.",
+ "ct.invalid": "Invalid or mixed content link — open one item at a time.",
+ "ct.missing": "This content is not available or was removed.",
+ "ct.library": "Back to the library",
+ "Invalid or mixed content link — open one item at a time.": "Invalid or mixed content link — open one item at a time.",
+ "This content is not available or was removed.": "This content is not available or was removed.",
+ "Back to the library": "Back to the library"
 };
